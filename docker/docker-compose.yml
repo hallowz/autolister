@@ -5,6 +5,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      cache_from:
+        - docker_celery-worker:latest
     container_name: autolister
     restart: unless-stopped
     ports:
@@ -46,6 +48,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      cache_from:
+        - docker_celery-worker:latest
+    image: docker_celery-worker:latest
     container_name: autolister-celery
     restart: unless-stopped
     command: celery -A app.tasks.celery_app worker --loglevel=info
@@ -68,6 +73,9 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      cache_from:
+        - docker_celery-worker:latest
+    image: docker_celery-worker:latest
     container_name: autolister-beat
     restart: unless-stopped
     command: celery -A app.tasks.celery_app beat --loglevel=info

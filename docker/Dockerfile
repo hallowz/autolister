@@ -1,5 +1,5 @@
-# AutoLister Dockerfile for Raspberry Pi
-FROM python:3.11-slim
+# Base image with dependencies
+FROM python:3.11-slim AS base
 
 # Set working directory
 WORKDIR /app
@@ -16,6 +16,9 @@ RUN apt-get update && apt-get install -y \
 # Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Main application image
+FROM base
 
 # Copy application code
 COPY app/ ./app/
@@ -36,5 +39,5 @@ ENV APP_VERSION=1.0.0
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
+# Run application
 CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
