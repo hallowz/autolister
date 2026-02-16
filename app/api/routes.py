@@ -612,10 +612,54 @@ def mark_as_listed(manual_id: int, db: Session = Depends(get_db)):
             detail="Manual is not processed"
         )
     
-    manual.status = 'listed'
-    db.commit()
-    
-    return {"message": "Manual marked as listed successfully", "manual_id": manual_id}
+    try:
+        # Get title and description for the listing
+        processor = PDFProcessor()
+        summary_gen = SummaryGenerator()
+        
+        pdf_metadata = processor.extract_metadata(manual.pdf_path)
+        text = processor.extract_first_page_text(manual.pdf_path)
+        
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
+        description = summary_gen.generate_description(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text,
+            processor.get_page_count(manual.pdf_path)
+        )
+        
+        # Create Etsy listing record (without calling Etsy API)
+        etsy_listing = EtsyListing(
+            manual_id=manual_id,
+            listing_id=None,  # No actual Etsy listing ID since it's manual
+            title=title,
+            description=description,
+            price=settings.etsy_default_price,
+            status='draft'  # Mark as draft since it was manually listed
+        )
+        db.add(etsy_listing)
+        
+        # Update manual status
+        manual.status = 'listed'
+        db.commit()
+        
+        return {
+            "message": "Manual marked as listed successfully",
+            "manual_id": manual_id,
+            "etsy_listing_id": etsy_listing.id
+        }
+        
+    except Exception as e:
+        manual.status = 'error'
+        manual.error_message = str(e)
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark manual as listed: {str(e)}"
+        )
 
 
 @router.get("/listings", response_model=List[EtsyListingResponse])

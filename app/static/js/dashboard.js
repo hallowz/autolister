@@ -601,6 +601,7 @@ async function markAsListed(manualId) {
             showToast('Manual marked as listed!', 'success');
             loadReadyManuals();
             loadAllManuals();
+            loadListings();
             loadStats();
         } else {
             showToast('Failed to mark manual as listed', 'error');
