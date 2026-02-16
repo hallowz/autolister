@@ -556,19 +556,8 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
     
     try:
-        # Check if pre-generated resources zip exists
-        if manual.resources_zip_path and os.path.exists(manual.resources_zip_path):
-            # Return the pre-generated zip file
-            from fastapi.responses import FileResponse
-            zip_filename = os.path.basename(manual.resources_zip_path)
-            
-            return FileResponse(
-                path=manual.resources_zip_path,
-                filename=zip_filename,
-                media_type='application/zip'
-            )
-        
-        # Fall back to generating resources on-demand if not pre-generated
+        # Always regenerate the zip file to ensure correct filename
+        # This ensures the zip filename is always up-to-date with the latest fixes
         # Import processors
         from app.processors import PDFProcessor, SummaryGenerator
         
