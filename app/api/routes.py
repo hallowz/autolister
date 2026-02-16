@@ -10,7 +10,7 @@ from app.api.schemas import (
     ManualResponse, ManualApproval, EtsyListingResponse,
     StatsResponse, ErrorResponse
 )
-from app.scrapers import GoogleScraper, BingScraper, ForumScraper, ManualSiteScraper
+from app.scrapers import DuckDuckGoScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.etsy import ListingManager
 from app.config import get_settings

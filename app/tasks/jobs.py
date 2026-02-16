@@ -3,7 +3,7 @@ Background job definitions for scraping and processing
 """
 from typing import List
 from app.database import SessionLocal, Manual, ProcessingLog
-from app.scrapers import GoogleScraper, BingScraper, DuckDuckGoScraper, ForumScraper, ManualSiteScraper
+from app.scrapers import DuckDuckGoScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.etsy import ListingManager
 from app.config import get_settings
@@ -29,55 +29,21 @@ def run_scraping_job(query: str = None, max_results: int = None):
         queries = [query] if query else search_config.get_search_queries()
         max_results = max_results or settings.max_results_per_search
         
-        # Initialize scrapers
-        google_scraper = GoogleScraper(settings.model_dump())
-        bing_scraper = BingScraper(settings.model_dump())
+        # Initialize scraper (only DuckDuckGo - free, no API key required)
         duckduckgo_scraper = DuckDuckGoScraper(settings.model_dump())
-        forum_scraper = ForumScraper(settings.model_dump())
-        manual_site_scraper = ManualSiteScraper(settings.model_dump())
         
         total_discovered = 0
         
         for search_query in queries:
             print(f"Searching for: {search_query}")
             
-            # Search all sources
+            # Search using DuckDuckGo (free, no API key required)
             results = []
-            
-            # Google
-            try:
-                google_results = google_scraper.search(search_query)
-                results.extend(google_results)
-            except Exception as e:
-                print(f"Google scraper error: {e}")
-            
-            # Bing
-            try:
-                bing_results = bing_scraper.search(search_query)
-                results.extend(bing_results)
-            except Exception as e:
-                print(f"Bing scraper error: {e}")
-            
-            # DuckDuckGo (free, no API key required)
             try:
                 ddg_results = duckduckgo_scraper.search(search_query)
                 results.extend(ddg_results)
             except Exception as e:
                 print(f"DuckDuckGo scraper error: {e}")
-            
-            # Forums
-            try:
-                forum_results = forum_scraper.search(search_query)
-                results.extend(forum_results)
-            except Exception as e:
-                print(f"Forum scraper error: {e}")
-            
-            # Manual sites
-            try:
-                manual_results = manual_site_scraper.search(search_query)
-                results.extend(manual_results)
-            except Exception as e:
-                print(f"Manual site scraper error: {e}")
             
             # Save results to database
             for result in results[:max_results]:
