@@ -318,3 +318,180 @@ body {
 .modal-footer {
     border-top: 1px solid #dee2e6;
 }
+
+/* ==================== Control Section ==================== */
+#control-section .card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#control-section .card-body {
+    padding: 1.25rem;
+}
+
+/* ==================== Scraping Status ==================== */
+#scraping-status-section .card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#scraping-status-section .card-header {
+    background-color: var(--light-color);
+    border-bottom: 1px solid #dee2e6;
+    font-weight: 600;
+}
+
+.scraping-logs {
+    background-color: #1e1e1e;
+    color: #00ff00;
+    font-family: 'Courier New', monospace;
+    padding: 1rem;
+    border-radius: 8px;
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 0.9rem;
+}
+
+.log-entry {
+    margin-bottom: 0.5rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.log-time {
+    color: #888;
+    margin-right: 0.5rem;
+}
+
+.log-message {
+    color: #00ff00;
+}
+
+/* ==================== Logs Modal ==================== */
+.all-logs {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.log-item {
+    border: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.log-item .card-body {
+    padding: 0.75rem 1rem;
+}
+
+/* ==================== Upload Modal ==================== */
+#uploadModal .modal-content {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+#uploadModal .modal-header {
+    background: linear-gradient(135deg, var(--primary-color) 0%, #0d6efd 100%);
+    color: white;
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+}
+
+#uploadModal .modal-title {
+    color: white;
+    font-weight: 600;
+}
+
+#uploadModal .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+#uploadProgress {
+    margin-top: 1rem;
+}
+
+#uploadResult {
+    margin-top: 1rem;
+}
+
+/* ==================== Button Enhancements ==================== */
+.btn {
+    border-radius: 8px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn:disabled {
+    transform: none;
+    opacity: 0.6;
+}
+
+.btn i {
+    margin-right: 0.5rem;
+}
+
+/* ==================== Badge Enhancements ==================== */
+.badge {
+    padding: 0.35em 0.65em;
+    font-weight: 500;
+    border-radius: 6px;
+}
+
+/* ==================== Empty States ==================== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: #6c757d;
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-state h5 {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+    margin-bottom: 0;
+}
+
+/* ==================== Responsive Design ==================== */
+@media (max-width: 768px) {
+    .stats-card .stat-number {
+        font-size: 2rem;
+    }
+    
+    #control-section .card-body {
+        padding: 1rem;
+    }
+    
+    .scraping-logs {
+        font-size: 0.8rem;
+    }
+    
+    .btn {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.9rem;
+    }
+}

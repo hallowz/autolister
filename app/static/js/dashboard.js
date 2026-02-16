@@ -948,6 +948,7 @@ async function deleteListing(listingId) {
     }
 }
 
+
 // Export CSV
 async function exportCSV() {
     try {
@@ -965,5 +966,290 @@ async function exportCSV() {
         }
     } catch (error) {
         showToast('Error exporting CSV: ' + error.message, 'error');
+    }
+}
+
+
+// ==================== Scraping Control Functions ====================
+
+// Start scraping
+async function startScraping() {
+    try {
+        const response = await fetch(`${API_BASE}/scraping/start`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.status === 'running') {
+            showToast('Scraping started successfully', 'success');
+            updateScrapingButtons(true);
+            showScrapingStatus();
+            startScrapingStatusPolling();
+        } else {
+            showToast('Failed to start scraping', 'error');
+        }
+    } catch (error) {
+        showToast('Error starting scraping: ' + error.message, 'error');
+    }
+}
+
+// Stop scraping
+async function stopScraping() {
+    try {
+        const response = await fetch(`${API_BASE}/scraping/stop`, {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (data.status === 'stopped') {
+            showToast('Scraping stopped', 'info');
+            updateScrapingButtons(false);
+        } else {
+            showToast('Failed to stop scraping', 'error');
+        }
+    } catch (error) {
+        showToast('Error stopping scraping: ' + error.message, 'error');
+    }
+}
+
+// Update scraping buttons state
+function updateScrapingButtons(isRunning) {
+    const startBtn = document.getElementById('start-scraping-btn');
+    const stopBtn = document.getElementById('stop-scraping-btn');
+    const statusBadge = document.getElementById('scraping-status-badge');
+    
+    if (isRunning) {
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        if (statusBadge) {
+            statusBadge.textContent = 'Running';
+            statusBadge.className = 'badge bg-success';
+        }
+    } else {
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        if (statusBadge) {
+            statusBadge.textContent = 'Idle';
+            statusBadge.className = 'badge bg-secondary';
+        }
+    }
+}
+
+// Toggle scraping status panel
+function toggleScrapingStatus() {
+    const statusSection = document.getElementById('scraping-status-section');
+    if (statusSection.style.display === 'none') {
+        statusSection.style.display = 'block';
+        loadScrapingStatus();
+    } else {
+        statusSection.style.display = 'none';
+    }
+}
+
+// Show scraping status panel
+function showScrapingStatus() {
+    const statusSection = document.getElementById('scraping-status-section');
+    statusSection.style.display = 'block';
+}
+
+// Load scraping status
+async function loadScrapingStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/scraping/status`);
+        const data = await response.json();
+        
+        updateScrapingButtons(data.running);
+        displayScrapingLogs(data.logs);
+        
+        return data.running;
+    } catch (error) {
+        console.error('Error loading scraping status:', error);
+        return false;
+    }
+}
+
+// Display scraping logs
+function displayScrapingLogs(logs) {
+    const logsContainer = document.getElementById('scraping-logs');
+    
+    if (!logs || logs.length === 0) {
+        logsContainer.innerHTML = '<div class="text-muted">No logs yet. Start scraping to see output.</div>';
+        return;
+    }
+    
+    let html = '';
+    logs.forEach(log => {
+        const time = new Date(log.time).toLocaleTimeString();
+        html += `<div class="log-entry">
+            <span class="log-time">[${time}]</span>
+            <span class="log-message">${log.message}</span>
+        </div>`;
+    });
+    
+    logsContainer.innerHTML = html;
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
+// Start polling for scraping status
+let scrapingStatusInterval = null;
+
+function startScrapingStatusPolling() {
+    if (scrapingStatusInterval) {
+        clearInterval(scrapingStatusInterval);
+    }
+    
+    scrapingStatusInterval = setInterval(async () => {
+        const isRunning = await loadScrapingStatus();
+        if (!isRunning) {
+            stopScrapingStatusPolling();
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+// Stop polling for scraping status
+function stopScrapingStatusPolling() {
+    if (scrapingStatusInterval) {
+        clearInterval(scrapingStatusInterval);
+        scrapingStatusInterval = null;
+    }
+}
+
+// Show all scraping logs in modal
+async function showScrapingLogs() {
+    const modal = new bootstrap.Modal(document.getElementById('logsModal'));
+    const logsContainer = document.getElementById('all-logs');
+    
+    logsContainer.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+    
+    modal.show();
+    
+    try {
+        const response = await fetch(`${API_BASE}/scraping/logs`);
+        const logs = await response.json();
+        
+        if (logs.length === 0) {
+            logsContainer.innerHTML = '<div class="text-muted">No logs found.</div>';
+            return;
+        }
+        
+        let html = '<div class="log-list">';
+        logs.forEach(log => {
+            const time = new Date(log.created_at).toLocaleString();
+            const statusClass = log.status === 'completed' ? 'text-success' :
+                               log.status === 'failed' ? 'text-danger' : 'text-info';
+            
+            html += `
+                <div class="log-item card mb-2">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between">
+                            <span class="badge ${statusClass}">${log.stage}</span>
+                            <small class="text-muted">${time}</small>
+                        </div>
+                        <div class="mt-1">${log.message}</div>
+                    </div>
+                </div>
+            `;
+        });
+        html += '</div>';
+        
+        logsContainer.innerHTML = html;
+    } catch (error) {
+        logsContainer.innerHTML = `
+            <div class="alert alert-danger">
+                Error loading logs: ${error.message}
+            </div>
+        `;
+    }
+}
+
+
+// ==================== PDF Upload Functions ====================
+
+// Upload PDF file
+async function uploadPDF() {
+    const fileInput = document.getElementById('pdfFile');
+    const progressDiv = document.getElementById('uploadProgress');
+    const resultDiv = document.getElementById('uploadResult');
+    
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        showToast('Please select a PDF file', 'error');
+        return;
+    }
+    
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+        showToast('Only PDF files are allowed', 'error');
+        return;
+    }
+    
+    // Show progress
+    progressDiv.classList.remove('d-none');
+    resultDiv.innerHTML = '';
+    
+    try {
+        // Read file as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(arrayBuffer);
+        
+        // Convert to base64 for upload
+        const binaryString = bytes.reduce((acc, byte) => acc + String.fromCharCode(byte), '');
+        const base64 = btoa(binaryString);
+        
+        // Upload to server
+        const response = await fetch(`${API_BASE}/upload/pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                file: base64,
+                filename: file.name
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            resultDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <strong>Success!</strong> PDF uploaded successfully.<br>
+                    Manual ID: ${data.manual_id}<br>
+                    Filename: ${data.filename}
+                </div>
+            `;
+            showToast('PDF uploaded successfully', 'success');
+            
+            // Refresh pending manuals
+            loadPendingManuals();
+            loadStats();
+            
+            // Close modal after delay
+            setTimeout(() => {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('uploadModal'));
+                modal.hide();
+                // Reset form
+                document.getElementById('uploadForm').reset();
+                progressDiv.classList.add('d-none');
+                resultDiv.innerHTML = '';
+            }, 2000);
+        } else {
+            throw new Error(data.detail || 'Upload failed');
+        }
+    } catch (error) {
+        resultDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <strong>Error:</strong> ${error.message}
+            </div>
+        `;
+        showToast('Error uploading PDF: ' + error.message, 'error');
+    } finally {
+        progressDiv.classList.add('d-none');
     }
 }

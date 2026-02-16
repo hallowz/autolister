@@ -48,6 +48,172 @@ def get_stats(db: Session = Depends(get_db)):
     )
 
 
+# Global scraping state
+_scraping_thread = None
+_scraping_running = False
+_scraping_log = []
+
+
+@router.post("/scraping/start")
+def start_scraping(
+    query: str = None,
+    max_results: int = None,
+    db: Session = Depends(get_db)
+):
+    """Start a scraping job"""
+    global _scraping_thread, _scraping_running, _scraping_log
+    
+    if _scraping_running:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Scraping is already running"
+        )
+    
+    _scraping_running = True
+    _scraping_log = [{"time": datetime.utcnow().isoformat(), "message": "Starting scraping job..."}]
+    
+    def run_scrape():
+        global _scraping_running, _scraping_log
+        try:
+            from app.tasks.jobs import run_scraping_job
+            _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": "Running scraping job..."})
+            run_scraping_job(query=query, max_results=max_results)
+            _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": "Scraping job completed!"})
+        except Exception as e:
+            _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": f"Error: {str(e)}"})
+        finally:
+            _scraping_running = False
+    
+    _scraping_thread = threading.Thread(target=run_scrape, daemon=True)
+    _scraping_thread.start()
+    
+    return {"message": "Scraping started", "status": "running"}
+
+
+@router.post("/scraping/stop")
+def stop_scraping():
+    """Stop the current scraping job"""
+    global _scraping_running, _scraping_log
+    
+    if not _scraping_running:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No scraping job is running"
+        )
+    
+    _scraping_running = False
+    _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": "Scraping stopped by user"})
+    
+    return {"message": "Scraping stopped", "status": "stopped"}
+
+
+@router.get("/scraping/status")
+def get_scraping_status():
+    """Get the current scraping status and logs"""
+    global _scraping_running, _scraping_log
+    
+    return {
+        "running": _scraping_running,
+        "logs": _scraping_log
+    }
+
+
+@router.get("/scraping/logs")
+def get_scraping_logs():
+    """Get all scraping logs from database"""
+    db = SessionLocal()
+    try:
+        logs = db.query(ProcessingLog).order_by(
+            ProcessingLog.created_at.desc()
+        ).limit(50).all()
+        
+        return [
+            {
+                "id": log.id,
+                "stage": log.stage,
+                "status": log.status,
+                "message": log.message,
+                "created_at": log.created_at.isoformat()
+            }
+            for log in logs
+        ]
+    finally:
+        db.close()
+
+
+@router.post("/upload/pdf")
+async def upload_pdf(
+    file: bytes = None,
+    filename: str = None,
+    db: Session = Depends(get_db)
+):
+    """Upload a PDF file and create a pending manual entry"""
+    if not file or not filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File and filename are required"
+        )
+    
+    # Validate file extension
+    if not filename.lower().endswith('.pdf'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only PDF files are allowed"
+        )
+    
+    try:
+        from app.processors import PDFProcessor
+        from app.utils import generate_safe_filename
+        from app.config import get_settings
+        
+        settings = get_settings()
+        processor = PDFProcessor()
+        
+        # Generate safe filename
+        safe_filename = generate_safe_filename(filename)
+        
+        # Create upload directory if it doesn't exist
+        upload_dir = Path(settings.database_path).parent / 'uploads'
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save the file
+        pdf_path = upload_dir / safe_filename
+        with open(pdf_path, 'wb') as f:
+            f.write(file)
+        
+        # Extract metadata from filename
+        metadata = processor.extract_metadata_from_filename(safe_filename)
+        
+        # Create manual entry
+        manual = Manual(
+            source_url=f"file://{safe_filename}",
+            source_type='upload',
+            title=metadata.get('title') or safe_filename.replace('.pdf', ''),
+            equipment_type=metadata.get('equipment_type'),
+            manufacturer=metadata.get('manufacturer'),
+            model=metadata.get('model'),
+            year=metadata.get('year'),
+            status='pending',
+            pdf_path=str(pdf_path)
+        )
+        db.add(manual)
+        db.commit()
+        db.refresh(manual)
+        
+        return {
+            "message": "PDF uploaded successfully",
+            "manual_id": manual.id,
+            "filename": safe_filename,
+            "metadata": metadata
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload PDF: {str(e)}"
+        )
+
+
 @router.get("/manuals", response_model=List[ManualResponse])
 def get_manuals(
     status: str = None,

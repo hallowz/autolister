@@ -80,6 +80,40 @@ class PDFProcessor:
         
         return metadata
     
+    def extract_metadata_from_filename(self, filename: str) -> Dict:
+        """
+        Extract metadata from a filename
+        
+        Args:
+            filename: PDF filename
+            
+        Returns:
+            Dictionary with metadata
+        """
+        from app.utils import parse_make_model_modelnumber, extract_model_year_from_title
+        
+        # Remove .pdf extension
+        title = filename.replace('.pdf', '').replace('_', ' ').replace('-', ' ')
+        
+        # Parse make, model, model number
+        parsed = parse_make_model_modelnumber(title)
+        
+        # Extract year
+        year_match = None
+        import re
+        year_match = re.search(r'\b(19|20)\d{2}\b', title)
+        year = year_match.group() if year_match else None
+        
+        metadata = {
+            'title': title,
+            'manufacturer': parsed.get('make'),
+            'model': parsed.get('model'),
+            'year': year,
+            'equipment_type': None
+        }
+        
+        return metadata
+    
     def extract_text(self, pdf_path: str, max_pages: int = 5) -> str:
         """
         Extract text from PDF

@@ -100,7 +100,7 @@ class SummaryGenerator:
         title = self.generate_title(metadata, extracted_text)
         description_parts.append(f"📖 {title}\n")
         
-        # Add details section
+        # Add comprehensive details section
         description_parts.append("\n📋 Manual Details:\n")
         
         if metadata.get('manufacturer'):
@@ -123,18 +123,33 @@ class SummaryGenerator:
         description_parts.append("• Digital PDF Download\n")
         description_parts.append("• High Quality Scan\n")
         description_parts.append("• Printable\n")
+        description_parts.append("• Searchable Text (OCR)\n")
+        description_parts.append("• Compatible with all devices\n")
         
-        # Add what's included
+        # Add what's included - more comprehensive
         description_parts.append("\n✅ What's Included:\n")
         description_parts.append("• Complete Service/Owner Manual\n")
         description_parts.append("• Detailed Diagrams & Illustrations\n")
         description_parts.append("• Step-by-Step Instructions\n")
         description_parts.append("• Specifications & Technical Data\n")
+        description_parts.append("• Wiring Diagrams\n")
+        description_parts.append("• Maintenance Schedules\n")
+        description_parts.append("• Troubleshooting Guide\n")
+        description_parts.append("• Parts Catalog\n")
+        description_parts.append("• Torque Specifications\n")
+        
+        # Add benefits section
+        description_parts.append("\n💡 Why This Manual?\n")
+        description_parts.append("• Save money on repairs and maintenance\n")
+        description_parts.append("• DIY repairs made easy with clear instructions\n")
+        description_parts.append("• Professional-grade information at your fingertips\n")
+        description_parts.append("• Understand your equipment inside and out\n")
+        description_parts.append("• Perfect for mechanics, technicians, and DIY enthusiasts\n")
         
         # Add sample content if available
         if extracted_text and len(extracted_text) > 200:
             description_parts.append("\n📝 Sample Content:\n")
-            sample = extracted_text[:500]
+            sample = extracted_text[:800]
             description_parts.append(f"{sample}...\n")
         
         # Add delivery info
@@ -142,12 +157,24 @@ class SummaryGenerator:
         description_parts.append("• Instant Digital Download\n")
         description_parts.append("• No Shipping Required\n")
         description_parts.append("• Download link available immediately after purchase\n")
+        description_parts.append("• Access from any device\n")
+        description_parts.append("• Print as many copies as you need\n")
+        
+        # Add compatibility
+        description_parts.append("\n📱 Compatibility:\n")
+        description_parts.append("• Works on Windows, Mac, iOS, Android\n")
+        description_parts.append("• Requires PDF reader (free download available)\n")
+        description_parts.append("• Can be printed on any standard printer\n")
         
         # Add disclaimer
         description_parts.append("\n⚠️ Note:\n")
         description_parts.append(
             "This is a digital product. No physical item will be shipped. "
             "You will receive a download link after purchase.\n\n"
+        )
+        description_parts.append(
+            "This manual is in PDF format and can be viewed on any computer or mobile device. "
+            "You can print pages as needed or the entire manual.\n\n"
         )
         
         description_parts.append("Please contact us if you have any questions!")
