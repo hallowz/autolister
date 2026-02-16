@@ -258,8 +258,11 @@ function createManualActions(manual) {
             break;
         case 'processed':
             actions = `
-                <button class="btn btn-success w-100" onclick="listOnEtsy(${manual.id})">
+                <button class="btn btn-success w-100 mb-2" onclick="listOnEtsy(${manual.id})">
                     <i class="bi bi-shop"></i> List on Etsy
+                </button>
+                <button class="btn btn-primary w-100" onclick="downloadResources(${manual.id})">
+                    <i class="bi bi-download"></i> Download Resources
                 </button>
             `;
             break;
@@ -416,6 +419,35 @@ async function listOnEtsy(manualId) {
         }
     } catch (error) {
         showToast('Error creating listing: ' + error.message, 'error');
+    }
+}
+
+// Download resources (PDF, images, README) for manual upload
+async function downloadResources(manualId) {
+    try {
+        showToast('Downloading resources...', 'info');
+        
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/download-resources`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `manual_${manualId}_resources.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showToast('Resources downloaded!', 'success');
+        } else {
+            showToast('Failed to download resources', 'error');
+        }
+    } catch (error) {
+        showToast('Error downloading resources: ' + error.message, 'error');
     }
 }
 

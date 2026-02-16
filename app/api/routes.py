@@ -170,6 +170,76 @@ def download_manual(manual_id: int, db: Session = Depends(get_db)):
     
     return {"message": "Manual downloaded successfully", "pdf_path": pdf_path}
 
+@router.post("/manuals/{manual_id}/download-resources")
+def download_resources(manual_id: int, db: Session = Depends(get_db)):
+    """Download all resources (PDF, images, README) for a processed manual"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    if manual.status != 'processed':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manual is not processed yet"
+        )
+    
+    if not manual.pdf_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No PDF file found"
+        )
+    
+    try:
+        # Create a zip file with all resources
+        zip_path = f"./data/manual_{manual_id}_resources.zip"
+        resources_dir = f"./data/manual_{manual_id}"
+        
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add PDF
+            if os.path.exists(manual.pdf_path):
+                zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
+            
+            # Add images directory if it exists
+            images_dir = os.path.join(resources_dir, 'images')
+            if os.path.exists(images_dir):
+                for image_file in os.listdir(images_dir):
+                    image_path = os.path.join(images_dir, image_file)
+                    zipf.write(image_path, os.path.basename(image_path))
+            
+            # Add README if it exists
+            readme_path = os.path.join(resources_dir, 'README.md')
+            if os.path.exists(readme_path):
+                zipf.write(readme_path, 'README.md')
+        
+        # Read the zip file and return it
+        with open(zip_path, 'rb') as f:
+            from fastapi.responses import StreamingResponse
+            import io
+            
+            zip_content = f.read()
+            zip_bytes = io.BytesIO(zip_content)
+            
+            return StreamingResponse(
+                io.BytesIO(zip_content),
+                media_type='application/zip',
+                headers={
+                    'Content-Disposition': f'attachment; filename=manual_{manual_id}_resources.zip'
+                }
+            )
+            
+    except Exception as e:
+        manual.status = 'error'
+        manual.error_message = f"Failed to create resources package: {str(e)}"
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create resources package: {str(e)}"
+        )
 
 @router.post("/manuals/{manual_id}/process")
 def process_manual(manual_id: int, db: Session = Depends(get_db)):
