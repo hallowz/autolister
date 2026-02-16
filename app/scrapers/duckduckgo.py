@@ -205,7 +205,9 @@ class DuckDuckGoScraper(BaseScraper):
             'manualslib', 'manualsdir', 'emanualonline',
             'pdf', 'manual', 'service-manual', 'owner-manual',
             'repair-manual', 'workshop-manual', 'parts-manual',
-            'scribd', 'issuu', 'yumpu'
+            'scribd', 'issuu', 'yumpu',
+            'drive.google.com', 'dropbox.com', 'mediafire.com',
+            'mega.nz', '4shared.com', 'zippyshare.com'
         ]
         
         url_lower = url.lower()
