@@ -72,7 +72,7 @@ Write-Host "Containers stopped" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "Step 3: Rebuilding Docker images..." -ForegroundColor Yellow
-ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose build --no-cache"
+ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose build"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker build failed!" -ForegroundColor Red
     exit 1

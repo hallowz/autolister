@@ -82,7 +82,7 @@ cd docker && \
 docker-compose down && \
 echo '' && \
 echo '--- Step 3: Rebuilding Docker images ---' && \
-docker-compose build --no-cache && \
+docker-compose build && \
 echo '' && \
 echo '--- Step 4: Starting Docker services ---' && \
 docker-compose up -d && \
