@@ -57,69 +57,78 @@ def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None)
                 print(f"[parse_make_model_modelnumber] Found manufacturer '{maker}', cleaned title: '{title_clean}'")
                 break
     
-    # Remove common words
+    # Remove .pdf extension if present
+    title_clean = re.sub(r'\.pdf$', '', title_clean, flags=re.IGNORECASE)
+    
+    # Remove common words (handle both spaces and underscores)
     words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions', 'repair', 'maintenance']
     for word in words_to_remove:
-        title_clean = re.sub(r'\b' + re.escape(word) + r'\b', '', title_clean, flags=re.IGNORECASE)
+        title_clean = re.sub(r'(^|[_\s])' + re.escape(word) + r'([_\s]|$)', r'\1\2', title_clean, flags=re.IGNORECASE)
     
-    title_clean = re.sub(r'\s+', ' ', title_clean).strip()
-    
-    # Extract model and model number
-    # Common equipment type words to exclude from model matching
+    # Remove equipment type words (handle both spaces and underscores)
     equipment_words = ['atv', 'utv', 'quad', 'side', 'lawn', 'mower', 'tractor',
                      'generator', 'engine', 'motor', 'riding', 'push', 'zero',
                      'turn', 'compact', 'farm', 'portable', 'inverter']
+    for word in equipment_words:
+        title_clean = re.sub(r'(^|[_\s])' + re.escape(word) + r'([_\s]|$)', r'\1\2', title_clean, flags=re.IGNORECASE)
     
-    # Pattern 1: Look for standalone alphanumeric codes (e.g., "D105", "Sxs1000")
-    # This should be checked first for short codes like "D105"
-    alnum_pattern = r'\b([A-Za-z]{1,2}\d{2,}[A-Za-z0-9]*)\b'
-    alnum_match = re.search(alnum_pattern, title_clean)
+    # Clean up separators
+    title_clean = re.sub(r'[_\s]+', '_', title_clean).strip('_')
     
-    if alnum_match:
-        full_model = alnum_match.group(1)
+    print(f"[parse_make_model_modelnumber] After removing common words: '{title_clean}'")
+    
+    # Extract model and model number
+    
+    # Pattern 1: Look for longer alphanumeric codes (e.g., TRX450R, TRX520FA5)
+    # This should match patterns like "TRX520FA5" in "2024_TRX520FA5"
+    model_pattern = r'(^|[_\s])([A-Za-z]{3,}\d{2,}[A-Za-z0-9]*)([_\s]|$)'
+    model_match = re.search(model_pattern, title_clean)
+    
+    if model_match:
+        full_model = model_match.group(2)
         result['model'] = full_model
+        print(f"[parse_make_model_modelnumber] Pattern 1 matched model: '{full_model}'")
         
         # Extract model number (the numeric part)
         number_match = re.search(r'\d+', full_model)
         if number_match:
             result['model_number'] = number_match.group()
     else:
-        # Pattern 2: Look for longer alphanumeric codes (e.g., TRX450R, Foreman500)
-        model_pattern = r'\b([A-Za-z]{3,}\d{2,}[A-Za-z0-9]*)\b'
-        model_match = re.search(model_pattern, title_clean)
+        # Pattern 2: Look for standalone alphanumeric codes (e.g., "D105", "Sxs1000")
+        # This should be checked for shorter codes
+        alnum_pattern = r'(^|[_\s])([A-Za-z]{1,2}\d{2,}[A-Za-z0-9]*)([_\s]|$)'
+        alnum_match = re.search(alnum_pattern, title_clean)
         
-        if model_match:
-            full_model = model_match.group(1)
-            # Check if it's an equipment word (skip if it is)
-            word_part = re.sub(r'\d+', '', full_model).lower()
-            if word_part not in equipment_words:
-                result['model'] = full_model
-                
-                # Extract model number (the numeric part)
-                number_match = re.search(r'\d+', full_model)
-                if number_match:
-                    result['model_number'] = number_match.group()
+        if alnum_match:
+            full_model = alnum_match.group(2)
+            result['model'] = full_model
+            print(f"[parse_make_model_modelnumber] Pattern 2 matched model: '{full_model}'")
+            
+            # Extract model number (the numeric part)
+            number_match = re.search(r'\d+', full_model)
+            if number_match:
+                result['model_number'] = number_match.group()
         
         if not result['model']:
             # Pattern 3: Look for word + number combination (e.g., "Grizzly 700", "Sportsman 500")
             # This handles cases where the model name is a word followed by a number
-            word_number_pattern = r'\b([A-Za-z]{4,})\s+(\d{2,})\b'
+            word_number_pattern = r'(^|[_\s])([A-Za-z]{4,})([_\s])(\d{2,})([_\s]|$)'
             word_number_match = re.search(word_number_pattern, title_clean)
             
             if word_number_match:
-                word_part = word_number_match.group(1)
-                number_part = word_number_match.group(2)
-                # Check if it's an equipment word (skip if it is)
-                if word_part.lower() not in equipment_words:
-                    result['model'] = f"{word_part}{number_part}"
-                    result['model_number'] = number_part
+                word_part = word_number_match.group(2)
+                number_part = word_number_match.group(4)
+                result['model'] = f"{word_part}{number_part}"
+                result['model_number'] = number_part
+                print(f"[parse_make_model_modelnumber] Pattern 3 matched model: '{result['model']}'")
         
         if not result['model']:
-            # Fallback: try to extract model from remaining words
-            words = title_clean.split()
-            if words:
-                # Take the first meaningful word as model
-                result['model'] = words[0]
+            # Fallback: try to extract any alphanumeric pattern from remaining text
+            alnum_fallback = re.search(r'[A-Za-z]+\d+[A-Za-z0-9]*|\d+[A-Za-z]+[A-Za-z0-9]*', title_clean)
+            if alnum_fallback:
+                result['model'] = alnum_fallback.group()
+                print(f"[parse_make_model_modelnumber] Fallback matched model: '{result['model']}'")
+                
                 # Try to extract number from it
                 number_match = re.search(r'\d+', result['model'])
                 if number_match:
