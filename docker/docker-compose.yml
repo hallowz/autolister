@@ -57,6 +57,8 @@ services:
       - ../.env
     environment:
       - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=redis://autolister-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://autolister-redis:6379/0
     depends_on:
       - redis
     networks:
@@ -77,6 +79,8 @@ services:
       - ../.env
     environment:
       - PYTHONUNBUFFERED=1
+      - CELERY_BROKER_URL=redis://autolister-redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://autolister-redis:6379/0
     depends_on:
       - redis
     networks:
