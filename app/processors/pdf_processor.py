@@ -249,13 +249,14 @@ class PDFProcessor:
         Args:
             manufacturer: Manufacturer name
             model: Model name
-            model_number: Model number
+            model_number: Model number (typically part of model name, not used separately)
             year: Year
             
         Returns:
             Safe filename string
         """
-        return generate_safe_filename(manufacturer, model, model_number, year)
+        # Note: model_number is not passed to generate_safe_filename as it's typically part of the model name
+        return generate_safe_filename(manufacturer, model, year)
     
     def generate_listing_images(
         self,

@@ -625,10 +625,10 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             
             # Generate and add README.md
             # Get the base filename for images (manufacturer-based naming)
+            # Note: model_number is not passed separately as it's typically part of the model name
             image_base_name = generate_safe_filename(
                 manufacturer=manual.manufacturer,
                 model=pdf_model,
-                model_number=model_number,
                 year=pdf_year,
                 title=manual.title
             )
