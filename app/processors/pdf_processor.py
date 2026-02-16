@@ -316,7 +316,9 @@ class PDFProcessor:
                     model_number = number_match.group()
             
             # Generate meaningful filename
+            print(f"Generating filename with: manufacturer={manufacturer}, model={model}, year={year}")
             pdf_name = self._generate_safe_filename(manufacturer, model, model_number, year)
+            print(f"Generated filename: {pdf_name}")
              
             # Generate main image (first page)
             main_image_path = self.convert_page_to_image(

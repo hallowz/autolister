@@ -201,9 +201,13 @@ def generate_safe_filename(
     """
     parts = []
     
+    # Debug logging
+    print(f"[generate_safe_filename] Input: manufacturer={manufacturer}, model={model}, year={year}, title={title}")
+    
     # If we don't have model or year, try to extract from title
     if not model and not year and title:
         parsed = parse_make_model_modelnumber(title, manufacturer)
+        print(f"[generate_safe_filename] Parsed from title: {parsed}")
         if not manufacturer and parsed.get('make'):
             manufacturer = parsed['make']
         if not model and parsed.get('model'):
@@ -237,5 +241,7 @@ def generate_safe_filename(
     if model:
         parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
     
-    # Return meaningful name if we have parts, otherwise fallback
-    return "_".join(parts) if parts else fallback
+    print(f"[generate_safe_filename] Parts: {parts}")
+    result = "_".join(parts) if parts else fallback
+    print(f"[generate_safe_filename] Result: {result}")
+    return result

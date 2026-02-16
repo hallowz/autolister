@@ -792,6 +792,7 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
         try:
             from app.processors.pdf_ai_extractor import PDFAIExtractor
             ai_extractor = PDFAIExtractor()
+            print(f"AI Extractor available: {ai_extractor.is_available()}")
             if ai_extractor.is_available():
                 metadata = {
                     'manufacturer': manual.manufacturer or pdf_metadata.get('manufacturer'),
@@ -799,12 +800,20 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
                     'year': manual.year or pdf_metadata.get('year'),
                     'title': title
                 }
+                print(f"Generating AI description with metadata: {metadata}")
                 ai_result = ai_extractor.generate_description(manual.pdf_path, metadata)
+                print(f"AI result: {ai_result}")
                 if ai_result.get('success'):
                     description = ai_result.get('description')
                     print(f"AI-generated description created for manual {manual_id}")
+                else:
+                    print(f"AI description generation failed: {ai_result.get('error')}")
+            else:
+                print("AI Extractor not available (GROQ_API_KEY not configured)")
         except Exception as ai_error:
             print(f"AI description generation failed, falling back to template: {ai_error}")
+            import traceback
+            traceback.print_exc()
         
         # Fall back to template description if AI failed
         if not description:
