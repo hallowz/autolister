@@ -813,7 +813,18 @@ async function downloadResources(manualId) {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `manual_${manualId}_resources.zip`;
+            
+            // Extract filename from Content-Disposition header
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `manual_${manualId}_resources.zip`;
+            if (contentDisposition) {
+                const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (filenameMatch && filenameMatch[1]) {
+                    filename = filenameMatch[1].replace(/['"]/g, '');
+                }
+            }
+            
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
