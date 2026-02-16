@@ -463,10 +463,27 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
     """
     from app.utils import generate_safe_filename, parse_make_model_modelnumber
     
+    print(f"[generate_resources_zip] Input metadata:")
+    print(f"  manual.model: {manual.model}")
+    print(f"  manual.year: {manual.year}")
+    print(f"  manual.manufacturer: {manual.manufacturer}")
+    print(f"  pdf_metadata: {pdf_metadata}")
+    
     # Use PDF metadata for model/year if not in manual record
     pdf_model = manual.model or pdf_metadata.get('model')
     pdf_year = manual.year or pdf_metadata.get('year')
     pdf_manufacturer = manual.manufacturer or pdf_metadata.get('manufacturer')
+    
+    # If pdf_model looks like a filename (contains .pdf), extract from it
+    if pdf_model and '.pdf' in pdf_model:
+        print(f"[generate_resources_zip] pdf_model looks like a filename, extracting model from it")
+        parsed = parse_make_model_modelnumber(pdf_model, pdf_manufacturer)
+        if parsed.get('model'):
+            pdf_model = parsed['model']
+            print(f"[generate_resources_zip] Extracted model from filename: {pdf_model}")
+        if not pdf_manufacturer and parsed.get('make'):
+            pdf_manufacturer = parsed['make']
+            print(f"[generate_resources_zip] Extracted manufacturer from filename: {pdf_manufacturer}")
     
     # Extract model_number from model if available
     model_number = None

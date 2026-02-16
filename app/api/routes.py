@@ -593,10 +593,28 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
         
         # Create a zip file with all resources
+        print(f"[download_resources] Generating resources on-demand for manual_id={manual_id}")
+        print(f"[download_resources] Manual details:")
+        print(f"  model: {manual.model}")
+        print(f"  year: {manual.year}")
+        print(f"  manufacturer: {manual.manufacturer}")
+        print(f"  pdf_metadata: {pdf_metadata}")
+        
         # Use PDF metadata for model/year if not in manual record
         pdf_model = manual.model or pdf_metadata.get('model')
         pdf_year = manual.year or pdf_metadata.get('year')
         pdf_manufacturer = manual.manufacturer or pdf_metadata.get('manufacturer')
+        
+        # If pdf_model looks like a filename (contains .pdf), extract from it
+        if pdf_model and '.pdf' in pdf_model:
+            print(f"[download_resources] pdf_model looks like a filename, extracting model from it")
+            parsed = parse_make_model_modelnumber(pdf_model, pdf_manufacturer)
+            if parsed.get('model'):
+                pdf_model = parsed['model']
+                print(f"[download_resources] Extracted model from filename: {pdf_model}")
+            if not pdf_manufacturer and parsed.get('make'):
+                pdf_manufacturer = parsed['make']
+                print(f"[download_resources] Extracted manufacturer from filename: {pdf_manufacturer}")
         
         # Extract model_number from model if available
         model_number = None
@@ -606,9 +624,11 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             if number_match:
                 model_number = number_match.group()
         
-        # If we don't have good metadata, try to extract from PDF filename
+        # If we still don't have good metadata, try to extract from PDF filename
         if not pdf_model or not pdf_manufacturer:
             pdf_filename = os.path.basename(manual.pdf_path)
+            # Remove hash suffix if present (e.g., _2a126931)
+            pdf_filename = re.sub(r'_[a-f0-9]{8}\.pdf$', '.pdf', pdf_filename, flags=re.IGNORECASE)
             parsed_from_filename = parse_make_model_modelnumber(pdf_filename)
             if not pdf_manufacturer and parsed_from_filename.get('make'):
                 pdf_manufacturer = parsed_from_filename['make']
@@ -616,6 +636,21 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
                 pdf_model = parsed_from_filename['model']
             if not model_number and parsed_from_filename.get('model_number'):
                 model_number = parsed_from_filename['model_number']
+        
+        # Clean up model if it contains multiple models separated by commas
+        if pdf_model and ',' in pdf_model:
+            # Take only the first model from comma-separated list
+            pdf_model = pdf_model.split(',')[0].strip()
+        
+        # Clean up manufacturer if it contains "Co., Ltd." or similar
+        if pdf_manufacturer:
+            pdf_manufacturer = re.sub(r'\s+(Co\.|Inc\.|Ltd\.|Corporation|LLC).*$', '', pdf_manufacturer, flags=re.IGNORECASE).strip()
+        
+        print(f"[download_resources] Final metadata for zip filename:")
+        print(f"  manufacturer: {pdf_manufacturer}")
+        print(f"  model: {pdf_model}")
+        print(f"  year: {pdf_year}")
+        print(f"  model_number: {model_number}")
         
         # Check if images already exist from previous processing
         # Generate listing images (will reuse existing images if available)

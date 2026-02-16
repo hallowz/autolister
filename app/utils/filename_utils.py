@@ -51,7 +51,9 @@ def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None)
             if maker.upper() in title_upper:
                 result['make'] = maker
                 # Remove manufacturer from title for model extraction
-                title_clean = re.sub(r'\b' + re.escape(maker) + r'\b', '', title_clean, flags=re.IGNORECASE).strip()
+                # Handle both space and underscore separators
+                title_clean = re.sub(r'(^|[_\s])' + re.escape(maker) + r'([_\s]|$)', r'\1\2', title_clean, flags=re.IGNORECASE)
+                title_clean = re.sub(r'[_\s]+', '_', title_clean).strip('_')
                 print(f"[parse_make_model_modelnumber] Found manufacturer '{maker}', cleaned title: '{title_clean}'")
                 break
     
