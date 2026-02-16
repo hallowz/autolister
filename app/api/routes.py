@@ -532,260 +532,6 @@ def download_manual(manual_id: int, db: Session = Depends(get_db)):
     
     return {"message": "Manual downloaded successfully", "pdf_path": pdf_path}
 
-@router.post("/manuals/{manual_id}/download-resources")
-def download_resources(manual_id: int, db: Session = Depends(get_db)):
-    """Download all resources (PDF, images, README, description) for a processed manual"""
-    manual = db.query(Manual).filter(Manual.id == manual_id).first()
-    
-    if not manual:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Manual not found"
-        )
-    
-    if manual.status != 'processed':
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Manual is not processed yet"
-        )
-    
-    if not manual.pdf_path:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No PDF file found"
-        )
-    
-    try:
-        # Always regenerate the zip file to ensure correct filename
-        # This ensures the zip filename is always up-to-date with the latest fixes
-        # Import processors
-        from app.processors import PDFProcessor, SummaryGenerator
-        
-        # Process PDF to get content
-        processor = PDFProcessor()
-        summary_gen = SummaryGenerator()
-        
-        # Extract metadata and text
-        pdf_metadata = processor.extract_metadata(manual.pdf_path)
-        text = processor.extract_first_page_text(manual.pdf_path)
-        page_count = processor.get_page_count(manual.pdf_path)
-        
-        # Generate title and description
-        title = summary_gen.generate_title(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text
-        )
-        description = summary_gen.generate_description(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text,
-            page_count
-        )
-        
-        # Create a zip file with all resources
-        print(f"[download_resources] Generating resources on-demand for manual_id={manual_id}")
-        print(f"[download_resources] Manual details:")
-        print(f"  model: {manual.model}")
-        print(f"  year: {manual.year}")
-        print(f"  manufacturer: {manual.manufacturer}")
-        print(f"  pdf_metadata: {pdf_metadata}")
-        
-        # Use PDF metadata for model/year if not in manual record
-        pdf_model = manual.model or pdf_metadata.get('model')
-        pdf_year = manual.year or pdf_metadata.get('year')
-        pdf_manufacturer = manual.manufacturer or pdf_metadata.get('manufacturer')
-        
-        # If pdf_model looks like a filename (contains .pdf), extract from it
-        if pdf_model and '.pdf' in pdf_model:
-            print(f"[download_resources] pdf_model looks like a filename, extracting model from it")
-            parsed = parse_make_model_modelnumber(pdf_model, pdf_manufacturer)
-            if parsed.get('model'):
-                pdf_model = parsed['model']
-                print(f"[download_resources] Extracted model from filename: {pdf_model}")
-            if not pdf_manufacturer and parsed.get('make'):
-                pdf_manufacturer = parsed['make']
-                print(f"[download_resources] Extracted manufacturer from filename: {pdf_manufacturer}")
-        
-        # Extract model_number from model if available
-        model_number = None
-        if pdf_model:
-            import re
-            number_match = re.search(r'\d+', pdf_model)
-            if number_match:
-                model_number = number_match.group()
-        
-        # If we still don't have good metadata, try to extract from PDF filename
-        if not pdf_model or not pdf_manufacturer:
-            pdf_filename = os.path.basename(manual.pdf_path)
-            # Remove hash suffix if present (e.g., _2a126931)
-            pdf_filename = re.sub(r'_[a-f0-9]{8}\.pdf$', '.pdf', pdf_filename, flags=re.IGNORECASE)
-            parsed_from_filename = parse_make_model_modelnumber(pdf_filename)
-            if not pdf_manufacturer and parsed_from_filename.get('make'):
-                pdf_manufacturer = parsed_from_filename['make']
-            if not pdf_model and parsed_from_filename.get('model'):
-                pdf_model = parsed_from_filename['model']
-            if not model_number and parsed_from_filename.get('model_number'):
-                model_number = parsed_from_filename['model_number']
-        
-        # Clean up model if it contains multiple models separated by commas
-        if pdf_model and ',' in pdf_model:
-            # Take only the first model from comma-separated list
-            pdf_model = pdf_model.split(',')[0].strip()
-        
-        # Clean up manufacturer if it contains "Co., Ltd." or similar
-        if pdf_manufacturer:
-            pdf_manufacturer = re.sub(r'\s+(Co\.|Inc\.|Ltd\.|Corporation|LLC).*$', '', pdf_manufacturer, flags=re.IGNORECASE).strip()
-        
-        print(f"[download_resources] Final metadata for zip filename:")
-        print(f"  manufacturer: {pdf_manufacturer}")
-        print(f"  model: {pdf_model}")
-        print(f"  year: {pdf_year}")
-        print(f"  model_number: {model_number}")
-        
-        # Check if images already exist from previous processing
-        # Generate listing images (will reuse existing images if available)
-        images = processor.generate_listing_images(
-            manual.pdf_path,
-            manual_id,
-            manufacturer=pdf_manufacturer,
-            model=pdf_model,
-            year=pdf_year
-        )
-        
-        # Generate meaningful zip filename using manufacturer, model, year
-        # Use manual.title as fallback if we still don't have good data
-        zip_name = generate_safe_filename(
-            manufacturer=pdf_manufacturer,
-            model=pdf_model,
-            year=pdf_year,
-            title=manual.title or os.path.basename(manual.pdf_path)
-        )
-        zip_path = f"./data/{zip_name}_resources.zip"
-        
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Add PDF
-            if os.path.exists(manual.pdf_path):
-                zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
-            
-            # Add generated images directly to zip
-            all_images = images.get('main', []) + images.get('additional', [])
-            # Filter out None values and check existence
-            valid_images = [img for img in all_images if img is not None and os.path.exists(img)]
-            
-            if valid_images:
-                for image_path in valid_images:
-                    # Use just the filename in the zip
-                    zipf.write(image_path, os.path.basename(image_path))
-            else:
-                # If no images were generated, log this
-                print(f"Warning: No valid images found for manual {manual_id}")
-                print(f"All images: {all_images}")
-            
-            # Generate and add README.md
-            # Get the base filename for images (manufacturer-based naming)
-            # Note: model_number is not passed separately as it's typically part of the model name
-            image_base_name = generate_safe_filename(
-                manufacturer=manual.manufacturer,
-                model=pdf_model,
-                year=pdf_year,
-                title=manual.title
-            )
-            
-            readme_content = f"""# Listing Instructions for: {title}
-
-## Quick Start Guide
-
-### 1. Upload the PDF
-- Go to your Etsy shop manager
-- Click "Add a listing"
-- Upload the PDF file: `{os.path.basename(manual.pdf_path)}`
-- This will be the digital file buyers download
-
-### 2. Upload Images
-Use the following images in order for your listing:
-
-**Main Image (First Image):**
-- Use: `{image_base_name}_main.jpg` (or .png)
-- This is the cover/title page of the manual
-
-**Additional Images:**
-- Upload the remaining images: `{image_base_name}_additional_*.jpg` (or .png)
-- These show sample pages including the index/table of contents
-- Upload up to 5 images total (1 main + 4 additional)
-
-### 3. Title
-Copy and paste this title:
-```
-{title}
-```
-
-### 4. Description
-Copy and paste this description:
-```
-{description}
-```
-
-### 5. Pricing & Quantity
-- Price: $4.99 (or adjust as needed)
-- Quantity: 9999 (unlimited digital downloads)
-
-### 6. Category & Tags
-- Category: Choose the most relevant equipment category (ATV, Lawn Mower, Generator, etc.)
-- Tags: Add relevant tags like "service manual", "repair manual", "digital download", "{manual.manufacturer or 'manual'}"
-
-### 7. Shipping
-- Set shipping to "Digital Item" or "No shipping required"
-- Buyers will receive an instant download link after purchase
-
-## Tips for Success
-
-- Use high-quality images (already provided)
-- Make sure the title includes manufacturer and model
-- Include all relevant keywords in tags
-- Respond quickly to buyer questions
-- Consider creating variations for different models
-
-## File Information
-
-- PDF File: `{os.path.basename(manual.pdf_path)}`
-- Pages: {page_count}
-- Images Included: {len(valid_images)} (minimum 5 images provided)
-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-"""
-            
-            zipf.writestr('README.md', readme_content)
-            
-            # Add short description file
-            short_desc = f"""Title: {title}
-
-Description:
-{description}
-
-Manufacturer: {manual.manufacturer or 'N/A'}
-Model: {manual.model or 'N/A'}
-Pages: {page_count}
-"""
-            zipf.writestr('description.txt', short_desc)
-        
-        # Read the zip file and return it
-        with open(zip_path, 'rb') as f:
-            from fastapi.responses import FileResponse
-            
-            return FileResponse(
-                path=zip_path,
-                filename=f'{zip_name}_resources.zip',
-                media_type='application/zip'
-            )
-            
-    except Exception as e:
-        manual.status = 'error'
-        manual.error_message = f"Failed to create resources package: {str(e)}"
-        db.commit()
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create resources package: {str(e)}"
-        )
-
 @router.post("/manuals/{manual_id}/process")
 def process_manual(manual_id: int, db: Session = Depends(get_db)):
     """Process a downloaded manual (extract images, generate summary)"""
@@ -903,6 +649,38 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process manual: {str(e)}"
         )
+
+
+@router.get("/manuals/{manual_id}/download-resources")
+def download_resources(manual_id: int, db: Session = Depends(get_db)):
+    """Download the pre-generated resources zip file for a processed manual"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    if not manual.resources_zip_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No resources zip file available for this manual"
+        )
+    
+    if not os.path.exists(manual.resources_zip_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Resources zip file not found on disk"
+        )
+    
+    from fastapi.responses import FileResponse
+    
+    return FileResponse(
+        path=manual.resources_zip_path,
+        filename=os.path.basename(manual.resources_zip_path),
+        media_type='application/zip'
+    )
 
 
 @router.post("/manuals/{manual_id}/list")

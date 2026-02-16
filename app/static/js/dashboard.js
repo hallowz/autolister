@@ -806,9 +806,7 @@ async function downloadResources(manualId) {
     try {
         showToast('Downloading resources...', 'info');
         
-        const response = await fetch(`${API_BASE}/manuals/${manualId}/download-resources`, {
-            method: 'POST'
-        });
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/download-resources`);
         
         if (response.ok) {
             const blob = await response.blob();
@@ -823,7 +821,8 @@ async function downloadResources(manualId) {
             
             showToast('Resources downloaded!', 'success');
         } else {
-            showToast('Failed to download resources', 'error');
+            const error = await response.json();
+            showToast(error.detail || 'Failed to download resources', 'error');
         }
     } catch (error) {
         showToast('Error downloading resources: ' + error.message, 'error');
