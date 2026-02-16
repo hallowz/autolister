@@ -8,7 +8,9 @@ AutoLister is a Python-based application that automatically scrapes PDF manuals 
 
 ## Features
 
-- **Multi-Source Scraping**: Search engines (Google/Bing), equipment forums, and manual-specific websites
+- **Multi-Source Scraping**: Search engines (DuckDuckGo/Google/Bing), equipment forums, and manual-specific websites
+  - **DuckDuckGo**: Free search engine, no API key required
+  - **Google/Bing**: Optional API-based search for better results
 - **Approval Workflow**: Web dashboard for manual review and approval before download
 - **PDF Processing**: Extract text, generate images, and create listing summaries
 - **File-Based Listings**: Create listing files for manual Etsy upload (no API required)
@@ -81,10 +83,19 @@ cp .env.example .env
 ```
 
 Edit `.env` with your API keys and configuration:
-- Google Custom Search API key and CX
-- Bing Search API key
-- Etsy API credentials
-- Other settings as needed
+
+**Required for Basic Functionality:**
+- None! The app works out of the box with DuckDuckGo (free, no API key)
+
+**Optional for Enhanced Search:**
+- Google Custom Search API key and CX (for better Google results)
+- Bing Search API key (for better Bing results)
+
+**Optional for Etsy API Integration:**
+- Etsy API credentials (for direct listing creation)
+
+**Other Settings:**
+- Scraping intervals, PDF limits, image settings, etc.
 
 5. Initialize the database:
 ```bash

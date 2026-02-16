@@ -3,7 +3,7 @@ Background job definitions for scraping and processing
 """
 from typing import List
 from app.database import SessionLocal, Manual, ProcessingLog
-from app.scrapers import GoogleScraper, BingScraper, ForumScraper, ManualSiteScraper
+from app.scrapers import GoogleScraper, BingScraper, DuckDuckGoScraper, ForumScraper, ManualSiteScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.etsy import ListingManager
 from app.config import get_settings
@@ -32,6 +32,7 @@ def run_scraping_job(query: str = None, max_results: int = None):
         # Initialize scrapers
         google_scraper = GoogleScraper(settings.model_dump())
         bing_scraper = BingScraper(settings.model_dump())
+        duckduckgo_scraper = DuckDuckGoScraper(settings.model_dump())
         forum_scraper = ForumScraper(settings.model_dump())
         manual_site_scraper = ManualSiteScraper(settings.model_dump())
         
@@ -56,6 +57,13 @@ def run_scraping_job(query: str = None, max_results: int = None):
                 results.extend(bing_results)
             except Exception as e:
                 print(f"Bing scraper error: {e}")
+            
+            # DuckDuckGo (free, no API key required)
+            try:
+                ddg_results = duckduckgo_scraper.search(search_query)
+                results.extend(ddg_results)
+            except Exception as e:
+                print(f"DuckDuckGo scraper error: {e}")
             
             # Forums
             try:
