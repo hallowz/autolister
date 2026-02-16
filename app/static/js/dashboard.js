@@ -37,10 +37,11 @@ function startAutoRefresh() {
             loadPendingManuals();
         } else if (currentTab === 'processing') {
             loadProcessingManuals();
+            loadQueue(); // Also load queue for real-time updates
         } else if (currentTab === 'ready') {
             loadReadyManuals();
         }
-    }, 30000); // Refresh every 30 seconds
+    }, 5000); // Refresh every 5 seconds for real-time updates
 }
 
 // Stop auto-refresh
@@ -174,6 +175,92 @@ async function loadProcessingManuals() {
             </div>
         `;
     }
+}
+
+// Load queue
+async function loadQueue() {
+    const container = document.getElementById('queue-list');
+    
+    if (!container) return; // Container might not exist on all pages
+    
+    try {
+        const response = await fetch(`${API_BASE}/queue`);
+        const queue = await response.json();
+        
+        if (queue.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-list-ol"></i>
+                    <h5>Queue is empty</h5>
+                    <p>Approve manuals to add them to the processing queue.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="queue-container">';
+        queue.forEach((item, index) => {
+            html += createQueueItem(item, index);
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading queue: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Create queue item HTML
+function createQueueItem(item, index) {
+    const stateClass = item.processing_state || 'queued';
+    const stateLabel = stateClass.charAt(0).toUpperCase() + stateClass.slice(1);
+    const stateIcons = {
+        'queued': 'bi-clock',
+        'downloading': 'bi-download',
+        'processing': 'bi-gear',
+        'completed': 'bi-check-circle',
+        'failed': 'bi-exclamation-circle'
+    };
+    const stateIcon = stateIcons[stateClass] || 'bi-clock';
+    
+    const isProcessing = stateClass === 'downloading' || stateClass === 'processing';
+    
+    return `
+        <div class="queue-item ${stateClass} ${isProcessing ? 'processing' : ''}" data-manual-id="${item.id}">
+            <div class="queue-position">
+                <span class="position-number">#${item.queue_position}</span>
+            </div>
+            <div class="queue-info">
+                <div class="queue-title">${item.title || 'Untitled Manual'}</div>
+                <div class="queue-meta">
+                    ${item.manufacturer ? `<span>${item.manufacturer}</span>` : ''}
+                    ${item.model ? `<span>${item.model}</span>` : ''}
+                    ${item.year ? `<span>${item.year}</span>` : ''}
+                </div>
+            </div>
+            <div class="queue-state">
+                <span class="badge state-badge ${stateClass}">
+                    <i class="bi ${stateIcon}"></i> ${stateLabel}
+                </span>
+            </div>
+            <div class="queue-actions">
+                <button class="btn btn-sm btn-outline-secondary" onclick="moveQueueItemUp(${item.id})" ${item.queue_position === 1 ? 'disabled' : ''}>
+                    <i class="bi bi-arrow-up"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="moveQueueItemDown(${item.id})">
+                    <i class="bi bi-arrow-down"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="removeFromQueue(${item.id})" ${isProcessing ? 'disabled' : ''}>
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+    `;
 }
 
 // Load ready-to-list manuals
@@ -398,12 +485,32 @@ function createManualActions(manual) {
 
 // Create processing card HTML
 function createProcessingCard(manual) {
+    const processingState = manual.processing_state || 'queued';
+    const queuePosition = manual.queue_position;
+    
+    // Determine state badge
+    let stateBadge = '';
+    let stateClass = 'downloaded';
+    
+    if (processingState === 'queued' && queuePosition) {
+        stateBadge = `<span class="badge status-badge queued">Queue #${queuePosition}</span>`;
+        stateClass = 'queued';
+    } else if (processingState === 'downloading') {
+        stateBadge = `<span class="badge status-badge downloading"><i class="bi bi-download"></i> Downloading</span>`;
+        stateClass = 'downloading';
+    } else if (processingState === 'processing') {
+        stateBadge = `<span class="badge status-badge processing"><i class="bi bi-gear"></i> Processing</span>`;
+        stateClass = 'processing';
+    } else {
+        stateBadge = `<span class="badge status-badge downloaded">Downloaded</span>`;
+    }
+    
     return `
         <div class="col-md-6 col-lg-4">
-            <div class="card manual-card downloaded fade-in">
+            <div class="card manual-card ${stateClass} fade-in">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span>${manual.title || 'Untitled Manual'}</span>
-                    <span class="badge status-badge downloaded">Downloaded</span>
+                    ${stateBadge}
                 </div>
                 <div class="card-body">
                     <dl class="manual-details row">
@@ -430,9 +537,19 @@ function createProcessingCard(manual) {
                 </div>
                 <div class="card-footer">
                     <div class="d-flex gap-2">
-                        <button class="btn btn-primary flex-grow-1" onclick="processManual(${manual.id})">
-                            <i class="bi bi-gear"></i> Process
-                        </button>
+                        ${processingState === 'queued' ? `
+                            <button class="btn btn-primary flex-grow-1" onclick="addToQueue(${manual.id})">
+                                <i class="bi bi-list-ol"></i> Add to Queue
+                            </button>
+                        ` : processingState === 'downloading' || processingState === 'processing' ? `
+                            <button class="btn btn-secondary flex-grow-1" disabled>
+                                <i class="bi bi-hourglass-split"></i> ${processingState === 'downloading' ? 'Downloading...' : 'Processing...'}
+                            </button>
+                        ` : `
+                            <button class="btn btn-primary flex-grow-1" onclick="processManual(${manual.id})">
+                                <i class="bi bi-gear"></i> Process
+                            </button>
+                        `}
                         <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -540,6 +657,7 @@ async function approveManual(manualId) {
             showToast(data.message || 'Manual approved and downloaded!', 'success');
             loadPendingManuals();
             loadProcessingManuals();
+            loadQueue(); // Load queue to show the new item
             loadReadyManuals();
             loadAllManuals();
             loadStats();
@@ -800,6 +918,7 @@ function refreshAllData() {
     loadStats();
     loadPendingManuals();
     loadProcessingManuals();
+    loadQueue(); // Also refresh queue
     loadReadyManuals();
     loadAllManuals();
     loadFileListings();
@@ -1270,5 +1389,165 @@ async function uploadPDF() {
         showToast('Error uploading PDF: ' + error.message, 'error');
     } finally {
         progressDiv.classList.add('d-none');
+    }
+}
+
+
+// ==================== Queue Management Functions ====================
+
+// Add manual to queue
+async function addToQueue(manualId) {
+    try {
+        showToast('Adding to queue...', 'info');
+        
+        const response = await fetch(`${API_BASE}/queue/${manualId}/add`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showToast(`Added to queue at position ${data.queue_position}`, 'success');
+            loadProcessingManuals();
+            loadQueue();
+            loadStats();
+        } else {
+            showToast('Failed to add to queue', 'error');
+        }
+    } catch (error) {
+        showToast('Error adding to queue: ' + error.message, 'error');
+    }
+}
+
+// Remove from queue
+async function removeFromQueue(manualId) {
+    if (!confirm('Remove this manual from the queue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/queue/${manualId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showToast('Removed from queue', 'success');
+            loadProcessingManuals();
+            loadQueue();
+            loadStats();
+        } else {
+            showToast('Failed to remove from queue', 'error');
+        }
+    } catch (error) {
+        showToast('Error removing from queue: ' + error.message, 'error');
+    }
+}
+
+// Move queue item up
+async function moveQueueItemUp(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/queue/${manualId}/move-up`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            loadQueue();
+        } else {
+            showToast('Failed to move item', 'error');
+        }
+    } catch (error) {
+        showToast('Error moving item: ' + error.message, 'error');
+    }
+}
+
+// Move queue item down
+async function moveQueueItemDown(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/queue/${manualId}/move-down`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            loadQueue();
+        } else {
+            showToast('Failed to move item', 'error');
+        }
+    } catch (error) {
+        showToast('Error moving item: ' + error.message, 'error');
+    }
+}
+
+// Start queue processing
+async function startQueueProcessing() {
+    try {
+        const response = await fetch(`${API_BASE}/queue/process`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Queue processing started', 'success');
+            startQueueStatusPolling();
+        } else {
+            showToast('Failed to start queue processing', 'error');
+        }
+    } catch (error) {
+        showToast('Error starting queue processing: ' + error.message, 'error');
+    }
+}
+
+// Load queue status
+async function loadQueueStatus() {
+    try {
+        const response = await fetch(`${API_BASE}/queue/status`);
+        const status = await response.json();
+        
+        // Update queue status display if it exists
+        const statusBadge = document.getElementById('queue-status-badge');
+        const statusText = document.getElementById('queue-status-text');
+        
+        if (statusBadge && statusText) {
+            if (status.running) {
+                statusBadge.textContent = 'Running';
+                statusBadge.className = 'badge bg-success';
+                statusText.textContent = 'Processing queue...';
+            } else {
+                statusBadge.textContent = 'Idle';
+                statusBadge.className = 'badge bg-secondary';
+                statusText.textContent = 'Queue idle';
+            }
+        }
+        
+        return status.running;
+    } catch (error) {
+        console.error('Error loading queue status:', error);
+        return false;
+    }
+}
+
+// Start polling for queue status
+let queueStatusInterval = null;
+
+function startQueueStatusPolling() {
+    if (queueStatusInterval) {
+        clearInterval(queueStatusInterval);
+    }
+    
+    queueStatusInterval = setInterval(async () => {
+        const isRunning = await loadQueueStatus();
+        if (!isRunning) {
+            stopQueueStatusPolling();
+        }
+        // Always refresh queue display
+        loadQueue();
+        loadProcessingManuals();
+        loadReadyManuals();
+        loadStats();
+    }, 3000); // Poll every 3 seconds
+}
+
+// Stop polling for queue status
+function stopQueueStatusPolling() {
+    if (queueStatusInterval) {
+        clearInterval(queueStatusInterval);
+        queueStatusInterval = null;
     }
 }

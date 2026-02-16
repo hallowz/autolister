@@ -39,11 +39,18 @@ class Manual(Base):
     manufacturer = Column(String, nullable=True)
     model = Column(String, nullable=True)
     year = Column(String, nullable=True)
-    status = Column(String, nullable=False, default='pending', index=True)  # 'pending', 'approved', 'rejected', 'downloaded', 'processed', 'listed', 'error'
+    status = Column(String, nullable=False, default='pending', index=True)  # 'pending', 'approved', 'rejected', 'downloaded', 'processing', 'processed', 'listed', 'error'
     pdf_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     error_message = Column(Text, nullable=True)
+    
+    # Queue and processing state fields
+    queue_position = Column(Integer, nullable=True, index=True)  # Position in processing queue
+    processing_state = Column(String, nullable=True)  # 'queued', 'downloading', 'processing', 'completed', 'failed'
+    processing_started_at = Column(DateTime, nullable=True)
+    processing_completed_at = Column(DateTime, nullable=True)
+    resources_zip_path = Column(String, nullable=True)  # Path to pre-generated resources zip file
     
     # Relationships
     etsy_listing = relationship("EtsyListing", back_populates="manual", uselist=False)

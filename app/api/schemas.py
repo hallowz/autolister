@@ -40,6 +40,11 @@ class ManualResponse(ManualBase):
     created_at: datetime
     updated_at: datetime
     error_message: Optional[str] = None
+    queue_position: Optional[int] = None
+    processing_state: Optional[str] = None
+    processing_started_at: Optional[datetime] = None
+    processing_completed_at: Optional[datetime] = None
+    resources_zip_path: Optional[str] = None
     
     class Config:
         from_attributes = True

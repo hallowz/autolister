@@ -496,3 +496,198 @@ body {
         font-size: 0.9rem;
     }
 }
+
+/* ==================== Queue Styles ==================== */
+.queue-status-card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.queue-status-card .card-body {
+    padding: 1rem 1.5rem;
+}
+
+.queue-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.queue-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.queue-item:hover {
+    background-color: #e9ecef;
+    transform: translateX(5px);
+}
+
+.queue-item.queued {
+    border-left-color: var(--warning-color);
+}
+
+.queue-item.downloading {
+    border-left-color: var(--info-color);
+    animation: pulse 2s infinite;
+}
+
+.queue-item.processing {
+    border-left-color: var(--primary-color);
+    animation: pulse 2s infinite;
+}
+
+.queue-item.completed {
+    border-left-color: var(--success-color);
+}
+
+.queue-item.failed {
+    border-left-color: var(--danger-color);
+}
+
+.queue-item.processing {
+    background-color: #e3f2fd;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.queue-position {
+    flex-shrink: 0;
+    width: 50px;
+    text-align: center;
+}
+
+.position-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: var(--primary-color);
+    color: white;
+    font-weight: bold;
+    font-size: 1rem;
+}
+
+.queue-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.queue-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.queue-meta {
+    font-size: 0.85rem;
+    color: #6c757d;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.queue-meta span {
+    background-color: #e9ecef;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+.queue-state {
+    flex-shrink: 0;
+}
+
+.state-badge {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 20px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.state-badge.queued {
+    background-color: var(--warning-color);
+    color: #000;
+}
+
+.state-badge.downloading {
+    background-color: var(--info-color);
+    color: #fff;
+}
+
+.state-badge.processing {
+    background-color: var(--primary-color);
+    color: #fff;
+}
+
+.state-badge.completed {
+    background-color: var(--success-color);
+    color: #fff;
+}
+
+.state-badge.failed {
+    background-color: var(--danger-color);
+    color: #fff;
+}
+
+.queue-actions {
+    flex-shrink: 0;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.queue-actions .btn {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+}
+
+/* Additional status badges for processing states */
+.status-badge.queued {
+    background-color: var(--warning-color);
+    color: #000;
+}
+
+.status-badge.downloading {
+    background-color: var(--info-color);
+    color: #fff;
+}
+
+.status-badge.processing {
+    background-color: var(--primary-color);
+    color: #fff;
+}
+
+.manual-card.queued .card-header {
+    border-left: 4px solid var(--warning-color);
+}
+
+.manual-card.downloading .card-header {
+    border-left: 4px solid var(--info-color);
+}
+
+.manual-card.processing .card-header {
+    border-left: 4px solid var(--primary-color);
+}

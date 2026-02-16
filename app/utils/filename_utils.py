@@ -239,7 +239,9 @@ def generate_safe_filename(
     if manufacturer:
         parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
     if model:
-        parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
+        # Remove .pdf extension if present in model
+        model_clean = re.sub(r'\.pdf$', '', model, flags=re.IGNORECASE)
+        parts.append(re.sub(r'[^\w\s-]', '', model_clean).strip().replace(' ', '_'))
     
     print(f"[generate_safe_filename] Parts: {parts}")
     result = "_".join(parts) if parts else fallback

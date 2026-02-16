@@ -389,7 +389,7 @@ def process_manual_background(manual_id: int, pdf_path: str):
 
 @router.post("/pending/{manual_id}/approve")
 def approve_manual(manual_id: int, db: Session = Depends(get_db)):
-    """Approve a pending manual and auto-download/process it"""
+    """Approve a pending manual and add to processing queue"""
     manual = db.query(Manual).filter(Manual.id == manual_id).first()
     
     if not manual:
@@ -429,15 +429,16 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
         manual.pdf_path = pdf_path
         db.commit()
         
-        # Process PDF in background thread
-        thread = threading.Thread(target=process_manual_background, args=(manual_id, pdf_path))
-        thread.daemon = True
-        thread.start()
+        # Add to processing queue
+        from app.processors.queue_manager import ProcessingQueueManager
+        queue_manager = ProcessingQueueManager(db)
+        queue_position = queue_manager.add_to_queue(manual_id)
         
         return {
-            "message": "Manual approved and downloaded. Processing in background.",
+            "message": "Manual approved and added to processing queue.",
             "manual_id": manual_id,
-            "status": "downloaded"
+            "status": "downloaded",
+            "queue_position": queue_position
         }
         
     except Exception as e:
@@ -447,7 +448,7 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to process manual: {str(e)}"
+            detail=f"Failed to approve manual: {str(e)}"
         )
 
 
@@ -535,6 +536,19 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
     
     try:
+        # Check if pre-generated resources zip exists
+        if manual.resources_zip_path and os.path.exists(manual.resources_zip_path):
+            # Return the pre-generated zip file
+            from fastapi.responses import FileResponse
+            zip_filename = os.path.basename(manual.resources_zip_path)
+            
+            return FileResponse(
+                path=manual.resources_zip_path,
+                filename=zip_filename,
+                media_type='application/zip'
+            )
+        
+        # Fall back to generating resources on-demand if not pre-generated
         # Import processors
         from app.processors import PDFProcessor, SummaryGenerator
         
@@ -574,7 +588,6 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         
         # If we don't have good metadata, try to extract from PDF filename
         if not pdf_model or not pdf_manufacturer:
-            import os
             pdf_filename = os.path.basename(manual.pdf_path)
             parsed_from_filename = parse_make_model_modelnumber(pdf_filename)
             if not pdf_manufacturer and parsed_from_filename.get('make'):
@@ -1329,3 +1342,205 @@ def mark_site_exhausted(site_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to mark site as exhausted: {str(e)}"
         )
+
+
+# ==================== Queue Management Endpoints ====================
+
+@router.get("/queue")
+def get_queue(db: Session = Depends(get_db)):
+    """Get all manuals currently in the processing queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    queue_manager = ProcessingQueueManager(db)
+    queue = queue_manager.get_queue()
+    
+    return [
+        {
+            "id": manual.id,
+            "title": manual.title or "Untitled",
+            "manufacturer": manual.manufacturer,
+            "model": manual.model,
+            "year": manual.year,
+            "queue_position": manual.queue_position,
+            "processing_state": manual.processing_state,
+            "status": manual.status
+        }
+        for manual in queue
+    ]
+
+
+@router.post("/queue/{manual_id}/add")
+def add_to_queue(manual_id: int, db: Session = Depends(get_db)):
+    """Add a manual to the processing queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    if manual.status not in ('approved', 'downloaded'):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manual must be approved or downloaded to add to queue"
+        )
+    
+    try:
+        queue_manager = ProcessingQueueManager(db)
+        position = queue_manager.add_to_queue(manual_id)
+        
+        return {
+            "message": "Manual added to queue",
+            "manual_id": manual_id,
+            "queue_position": position
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.delete("/queue/{manual_id}")
+def remove_from_queue(manual_id: int, db: Session = Depends(get_db)):
+    """Remove a manual from the processing queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    try:
+        queue_manager = ProcessingQueueManager(db)
+        queue_manager.remove_from_queue(manual_id)
+        
+        return {
+            "message": "Manual removed from queue",
+            "manual_id": manual_id
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.post("/queue/{manual_id}/move")
+def move_in_queue(manual_id: int, new_position: int, db: Session = Depends(get_db)):
+    """Move a manual to a new position in the queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    try:
+        queue_manager = ProcessingQueueManager(db)
+        queue_manager.move_in_queue(manual_id, new_position)
+        
+        return {
+            "message": "Manual moved in queue",
+            "manual_id": manual_id,
+            "new_position": new_position
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/queue/{manual_id}/move-up")
+def move_up_in_queue(manual_id: int, db: Session = Depends(get_db)):
+    """Move a manual one position up in the queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    try:
+        queue_manager = ProcessingQueueManager(db)
+        queue_manager.move_up(manual_id)
+        
+        return {
+            "message": "Manual moved up in queue",
+            "manual_id": manual_id
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/queue/{manual_id}/move-down")
+def move_down_in_queue(manual_id: int, db: Session = Depends(get_db)):
+    """Move a manual one position down in the queue"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    try:
+        queue_manager = ProcessingQueueManager(db)
+        queue_manager.move_down(manual_id)
+        
+        return {
+            "message": "Manual moved down in queue",
+            "manual_id": manual_id
+        }
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/queue/process")
+def start_queue_processing(db: Session = Depends(get_db)):
+    """Start processing the queue (runs in background)"""
+    global _queue_processing_thread, _queue_processing_running
+    
+    if _queue_processing_running:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Queue processing is already running"
+        )
+    
+    _queue_processing_running = True
+    
+    def run_queue():
+        global _queue_processing_running
+        try:
+            from app.tasks.jobs import process_queue
+            
+            # Create a callback function to add logs
+            def log_callback(message):
+                pass  # Could add to a log list if needed
+            
+            process_queue(log_callback=log_callback)
+            
+        except Exception as e:
+            print(f"Queue processing error: {e}")
+        finally:
+            _queue_processing_running = False
+    
+    _queue_processing_thread = threading.Thread(target=run_queue, daemon=True)
+    _queue_processing_thread.start()
+    
+    return {"message": "Queue processing started", "status": "running"}
+
+
+@router.get("/queue/status")
+def get_queue_status(db: Session = Depends(get_db)):
+    """Get the current queue processing status"""
+    from app.processors.queue_manager import ProcessingQueueManager
+    
+    queue_manager = ProcessingQueueManager(db)
+    queue = queue_manager.get_queue()
+    
+    # Count items by processing state
+    state_counts = {}
+    for manual in queue:
+        state = manual.processing_state or 'queued'
+        state_counts[state] = state_counts.get(state, 0) + 1
+    
+    return {
+        "running": _queue_processing_running,
+        "total_in_queue": len(queue),
+        "state_counts": state_counts,
+        "next_manual": queue[0].id if queue else None
+    }
+
+
+# Global queue processing state
+_queue_processing_thread = None
+_queue_processing_running = False

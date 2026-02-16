@@ -173,10 +173,47 @@
             <div class="tab-pane fade" id="processing" role="tabpanel">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h4>Processing Manuals</h4>
-                    <button class="btn btn-primary" onclick="loadProcessingManuals()">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-success" onclick="startQueueProcessing()">
+                            <i class="bi bi-play-fill"></i> Process Queue
+                        </button>
+                        <button class="btn btn-primary" onclick="loadProcessingManuals()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
                 </div>
+                
+                <!-- Queue Status -->
+                <div class="card mb-4 queue-status-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">Processing Queue</h5>
+                                <small class="text-muted" id="queue-status-text">Queue idle</small>
+                            </div>
+                            <span class="badge" id="queue-status-badge">Idle</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Queue Display -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-list-ol"></i> Queue</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="queue-list">
+                            <div class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Downloaded Manuals -->
+                <h5 class="mb-3">Downloaded Manuals (Not in Queue)</h5>
                 <div id="processing-list">
                     <div class="text-center py-5">
                         <div class="spinner-border text-primary" role="status">
