@@ -17,6 +17,7 @@ from app.scrapers import DuckDuckGoScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.etsy import ListingManager
 from app.config import get_settings
+from app.utils import generate_safe_filename
 
 settings = get_settings()
 
@@ -208,7 +209,13 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
     try:
         # Download PDF
         downloader = PDFDownloader()
-        pdf_path = downloader.download(manual.source_url, manual_id)
+        pdf_path = downloader.download(
+            manual.source_url,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         if not pdf_path:
             manual.status = 'error'
@@ -364,7 +371,8 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
         
         # Create a zip file with all resources
-        zip_path = f"./data/manual_{manual_id}_resources.zip"
+        zip_name = generate_safe_filename(manual.manufacturer, manual.model, manual.year)
+        zip_path = f"./data/{zip_name}_resources.zip"
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Add PDF

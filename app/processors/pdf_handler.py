@@ -7,6 +7,7 @@ import requests
 from pathlib import Path
 from typing import Optional
 from app.config import get_settings
+from app.utils import generate_safe_filename
 
 settings = get_settings()
 
@@ -20,13 +21,23 @@ class PDFDownloader:
         self.max_size_mb = settings.max_pdf_size_mb
         self.timeout = settings.request_timeout
     
-    def download(self, url: str, manual_id: int = None) -> Optional[str]:
+    def download(
+        self,
+        url: str,
+        manual_id: int = None,
+        manufacturer: str = None,
+        model: str = None,
+        year: str = None
+    ) -> Optional[str]:
         """
         Download PDF from URL
         
         Args:
             url: URL to download from
             manual_id: Optional manual ID for filename
+            manufacturer: Manufacturer name for meaningful filename
+            model: Model name for meaningful filename
+            year: Year for meaningful filename
             
         Returns:
             Path to downloaded file or None if failed
@@ -61,7 +72,7 @@ class PDFDownloader:
                 return None
             
             # Generate filename
-            filename = self._generate_filename(url, manual_id)
+            filename = self._generate_filename(url, manual_id, manufacturer, model, year)
             filepath = self.download_dir / filename
             
             # Download file
@@ -95,9 +106,22 @@ class PDFDownloader:
             'docs.google.com' in url_lower
         )
     
-    def _generate_filename(self, url: str, manual_id: int = None) -> str:
+    def _generate_filename(
+        self,
+        url: str,
+        manual_id: int = None,
+        manufacturer: str = None,
+        model: str = None,
+        year: str = None
+    ) -> str:
         """Generate unique filename for PDF"""
-        # Create hash of URL for unique filename
+        # Try to generate meaningful filename from metadata
+        if manufacturer or model or year:
+            safe_name = generate_safe_filename(manufacturer, model, year)
+            if safe_name != "manual":
+                return safe_name + ".pdf"
+        
+        # Fallback to hash-based filename
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         
         if manual_id:

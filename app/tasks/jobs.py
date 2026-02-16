@@ -113,7 +113,13 @@ def process_approved_manuals():
         for manual in approved_manuals:
             try:
                 # Download PDF
-                pdf_path = downloader.download(manual.source_url, manual.id)
+                pdf_path = downloader.download(
+                    manual.source_url,
+                    manual.id,
+                    manufacturer=manual.manufacturer,
+                    model=manual.model,
+                    year=manual.year
+                )
                 
                 if not pdf_path:
                     manual.status = 'error'

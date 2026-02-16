@@ -9,6 +9,7 @@ import pdfplumber
 from PIL import Image
 import io
 from app.config import get_settings
+from app.utils import generate_safe_filename
 
 settings = get_settings()
 
@@ -197,22 +198,7 @@ class PDFProcessor:
         Returns:
             Safe filename string
         """
-        import re
-        
-        # Clean and sanitize each part
-        parts = []
-        if manufacturer:
-            parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
-        if year:
-            parts.append(re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_'))
-        if model:
-            parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
-        
-        # Fallback to generic name if no parts
-        if not parts:
-            return "manual"
-        
-        return "_".join(parts)
+        return generate_safe_filename(manufacturer, model, year)
     
     def generate_listing_images(
         self,
