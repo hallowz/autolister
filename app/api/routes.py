@@ -128,6 +128,7 @@ def get_scraping_status():
 @router.get("/scraping/logs")
 def get_scraping_logs():
     """Get all scraping logs from database"""
+    from app.database import SessionLocal
     db = SessionLocal()
     try:
         logs = db.query(ProcessingLog).order_by(
@@ -144,6 +145,8 @@ def get_scraping_logs():
             }
             for log in logs
         ]
+    except Exception as e:
+        return []
     finally:
         db.close()
 
