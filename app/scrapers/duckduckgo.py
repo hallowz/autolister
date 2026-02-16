@@ -69,36 +69,59 @@ class DuckDuckGoScraper(BaseScraper):
             # Extract search results
             result_divs = soup.find_all('div', class_='result')
             
-            # Try to find direct PDF links within the result div
+            # Process each search result
             for div in result_divs:
-                # Look for direct PDF links in the result content
-                pdf_links = div.find_all('a', href=lambda x: x and x.lower().endswith('.pdf'))
-                if pdf_links:
-                    # Use the first direct PDF link found
-                    url = pdf_links[0].get('href', '')
-                    title = pdf_links[0].get_text(strip=True)
-                    # Extract snippet from the result
+                try:
+                    # Extract title and URL from the result
+                    title_elem = div.find('a', class_='result__a')
+                    if not title_elem:
+                        continue
+                    
+                    title = title_elem.get_text(strip=True)
+                    page_url = title_elem.get('href', '')
+                    
+                    if not page_url:
+                        continue
+                    
+                    # Extract snippet/description
                     snippet_elem = div.find('a', class_='result__snippet')
                     snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                    
                     # Extract source
                     source_elem = div.find('span', class_='result__url')
-                    source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
+                    source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(page_url)
                     
-                    # VALIDATE: Only include if URL appears to be a downloadable PDF
-                    if not self._is_valid_pdf_url(url, source):
+                    # Check if this is a direct PDF link
+                    if page_url.lower().endswith('.pdf'):
+                        # Direct PDF link - add it directly
+                        pdf_url = page_url
+                        pdf_title = title
+                    else:
+                        # HTML page - fetch it and extract PDF links
+                        pdf_links = self._extract_pdf_links_from_page(page_url)
+                        if not pdf_links:
+                            continue
+                        
+                        # Use the first PDF link found
+                        pdf_url = pdf_links[0]
+                        pdf_title = title
+                    
+                    # VALIDATE: Only include if URL is a downloadable PDF
+                    if not self._is_valid_pdf_url(pdf_url, source):
                         continue
                     
                     # Extract metadata
-                    metadata = self.extract_pdf_metadata(url, title)
+                    metadata = self.extract_pdf_metadata(pdf_url, pdf_title)
                     metadata['search_engine'] = 'duckduckgo'
                     metadata['query'] = search_query
                     metadata['description'] = snippet
+                    metadata['source_page'] = page_url
                     
                     # Create search result
                     result = PDFResult(
-                        url=url,
+                        url=pdf_url,
                         source_type='duckduckgo',
-                        title=title,
+                        title=pdf_title,
                         equipment_type=metadata.get('equipment_type'),
                         manufacturer=metadata.get('manufacturer'),
                         model=metadata.get('model'),
@@ -111,59 +134,10 @@ class DuckDuckGoScraper(BaseScraper):
                     # Stop if we have enough results
                     if len(results) >= max_results:
                         break
-            
-            # Only process result_divs if we didn't find direct PDF links
-            if not results:
-                # Fall back to original parsing if no direct PDF links found
-                for div in result_divs:
-                    try:
-                        # Extract title
-                        title_elem = div.find('a', class_='result__a')
-                        if not title_elem:
-                            continue
                         
-                        title = title_elem.get_text(strip=True)
-                        url = title_elem.get('href', '')
-                        
-                        # Extract snippet/description
-                        snippet_elem = div.find('a', class_='result__snippet')
-                        snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
-                        
-                        # Extract source
-                        source_elem = div.find('span', class_='result__url')
-                        source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
-                        
-                        # VALIDATE: Only include if URL appears to be a downloadable PDF
-                        if not self._is_valid_pdf_url(url, source):
-                            continue
-                        
-                        # Extract metadata
-                        metadata = self.extract_pdf_metadata(url, title)
-                        metadata['search_engine'] = 'duckduckgo'
-                        metadata['query'] = search_query
-                        metadata['description'] = snippet
-                        
-                        # Create search result
-                        result = PDFResult(
-                            url=url,
-                            source_type='duckduckgo',
-                            title=title,
-                            equipment_type=metadata.get('equipment_type'),
-                            manufacturer=metadata.get('manufacturer'),
-                            model=metadata.get('model'),
-                            year=metadata.get('year'),
-                            metadata=metadata
-                        )
-                        
-                        results.append(result)
-                        
-                        # Stop if we have enough results
-                        if len(results) >= max_results:
-                            break
-                            
-                    except Exception as e:
-                        print(f"Error parsing result: {e}")
-                        continue
+                except Exception as e:
+                    print(f"Error parsing result: {e}")
+                    continue
             
             print(f"DuckDuckGo search returned {len(results)} results for query: {query}")
             
@@ -176,6 +150,110 @@ class DuckDuckGoScraper(BaseScraper):
         time.sleep(random.uniform(1, 3))
         
         return results
+    
+    def _extract_pdf_links_from_page(self, url: str) -> List[str]:
+        """
+        Fetch a page and extract all PDF links from it
+        
+        Args:
+            url: URL of the page to fetch
+            
+        Returns:
+            List of PDF URLs found on the page
+        """
+        pdf_links = []
+        
+        try:
+            response = self.session.get(url, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find all links that end with .pdf
+            for link in soup.find_all('a', href=True):
+                href = link.get('href', '')
+                if href.lower().endswith('.pdf'):
+                    # Convert relative URLs to absolute
+                    if not href.startswith('http'):
+                        href = urllib.parse.urljoin(url, href)
+                    pdf_links.append(href)
+            
+            # Check for open directory listings (Apache/Nginx style)
+            if self._is_directory_listing(soup):
+                dir_links = self._extract_directory_links(soup, url)
+                pdf_links.extend(dir_links)
+            
+            # Check for forum attachments (common patterns)
+            forum_attachments = self._extract_forum_attachments(soup, url)
+            pdf_links.extend(forum_attachments)
+            
+        except Exception as e:
+            print(f"Error extracting PDF links from {url}: {e}")
+        
+        return pdf_links
+    
+    def _is_directory_listing(self, soup: BeautifulSoup) -> bool:
+        """Check if page is a directory listing"""
+        # Look for common directory listing indicators
+        title = soup.find('title')
+        if title and 'index of' in title.get_text().lower():
+            return True
+        
+        # Check for table-based directory listings
+        tables = soup.find_all('table')
+        for table in tables:
+            rows = table.find_all('tr')
+            if len(rows) > 5:  # Multiple rows suggest directory listing
+                return True
+        
+        # Check for common directory listing classes
+        if soup.find(class_='index') or soup.find(class_='directory'):
+            return True
+        
+        return False
+    
+    def _extract_directory_links(self, soup: BeautifulSoup, base_url: str) -> List[str]:
+        """Extract PDF links from directory listing"""
+        pdf_links = []
+        
+        for link in soup.find_all('a', href=True):
+            href = link.get('href', '')
+            # Skip parent directory links and navigation
+            if href.startswith('../') or href.startswith('/') or href.startswith('?'):
+                continue
+            
+            if href.lower().endswith('.pdf'):
+                # Convert relative URLs to absolute
+                if not href.startswith('http'):
+                    href = urllib.parse.urljoin(base_url, href)
+                pdf_links.append(href)
+        
+        return pdf_links
+    
+    def _extract_forum_attachments(self, soup: BeautifulSoup, base_url: str) -> List[str]:
+        """Extract PDF attachments from forum posts"""
+        pdf_links = []
+        
+        # Common forum attachment patterns
+        attachment_selectors = [
+            'a[href*="attachment"]',
+            'a[href*="download"]',
+            'a[href*="file"]',
+            'a[class*="attachment"]',
+            'a[class*="download"]',
+        ]
+        
+        for selector in attachment_selectors:
+            for link in soup.select(selector):
+                href = link.get('href', '')
+                if href.lower().endswith('.pdf'):
+                    # Convert relative URLs to absolute
+                    if not href.startswith('http'):
+                        href = urllib.parse.urljoin(base_url, href)
+                    if href not in pdf_links:
+                        pdf_links.append(href)
+        
+        return pdf_links
     
     def _extract_domain(self, url: str) -> str:
         """Extract domain from URL"""
