@@ -101,6 +101,19 @@ class ProcessingLog(Base):
     manual = relationship("Manual", back_populates="processing_logs")
 
 
+class ScrapedSite(Base):
+    """Track which sites have been scraped to avoid duplicates"""
+    __tablename__ = "scraped_sites"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, nullable=False, unique=True)
+    domain = Column(String, nullable=False)
+    first_scraped_at = Column(DateTime, default=datetime.utcnow)
+    last_scraped_at = Column(DateTime, default=datetime.utcnow)
+    scrape_count = Column(Integer, default=1)
+    status = Column(String, nullable=False, default='active')  # 'active', 'exhausted', 'blocked'
+    notes = Column(Text, nullable=True)
+
 def create_tables():
     """Create all tables in the database"""
     Base.metadata.create_all(bind=engine)

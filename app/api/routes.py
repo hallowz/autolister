@@ -4,7 +4,8 @@ FastAPI routes for the dashboard API
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.database import get_db, Manual, EtsyListing, ProcessingLog
+from app.database import get_db, Manual, EtsyListing, ProcessingLog, ScrapedSite
+from datetime import datetime
 from app.api.schemas import (
     ManualResponse, ManualApproval, EtsyListingResponse,
     StatsResponse, ErrorResponse
@@ -407,3 +408,135 @@ def deactivate_listing(listing_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Listing deactivated successfully"}
+
+
+@router.post("/database/reset")
+def reset_database(db: Session = Depends(get_db)):
+    """Reset database - delete all manuals and listings"""
+    try:
+        # Delete all processing logs
+        db.query(ProcessingLog).delete()
+        
+        # Delete all Etsy listings
+        db.query(EtsyListing).delete()
+        
+        # Delete all manuals
+        db.query(Manual).delete()
+        
+        # Delete all scraped sites tracking
+        db.query(ScrapedSite).delete()
+        
+        db.commit()
+        
+        return {"message": "Database reset successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reset database: {str(e)}"
+        )
+
+
+@router.get("/scraped-sites", response_model=List[dict])
+def get_scraped_sites(db: Session = Depends(get_db)):
+    """Get all scraped sites with statistics"""
+    sites = db.query(ScrapedSite).order_by(ScrapedSite.last_scraped_at.desc()).all()
+    
+    return [
+        {
+            "id": site.id,
+            "url": site.url,
+            "domain": site.domain,
+            "first_scraped_at": site.first_scraped_at.isoformat() if site.first_scraped_at else None,
+            "last_scraped_at": site.last_scraped_at.isoformat() if site.last_scraped_at else None,
+            "scrape_count": site.scrape_count,
+            "status": site.status,
+            "notes": site.notes
+        }
+        for site in sites
+    ]
+
+
+@router.post("/scraped-sites")
+def add_scraped_site(site_data: dict, db: Session = Depends(get_db)):
+    """Add a scraped site to tracking"""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(site_data.get('url', ''))
+        domain = parsed.netloc
+        
+        # Check if site already exists
+        existing = db.query(ScrapedSite).filter(ScrapedSite.url == site_data['url']).first()
+        if existing:
+            # Update existing site
+            existing.last_scraped_at = datetime.utcnow()
+            existing.scrape_count += 1
+            existing.status = 'active'
+            existing.notes = site_data.get('notes', '')
+            db.commit()
+            return {"message": "Scraped site updated", "id": existing.id}
+        
+        # Create new site
+        new_site = ScrapedSite(
+            url=site_data['url'],
+            domain=domain,
+            status='active',
+            notes=site_data.get('notes', '')
+        )
+        db.add(new_site)
+        db.commit()
+        
+        return {"message": "Scraped site added", "id": new_site.id}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to add scraped site: {str(e)}"
+        )
+
+
+@router.delete("/scraped-sites/{site_id}")
+def delete_scraped_site(site_id: int, db: Session = Depends(get_db)):
+    """Delete a scraped site from tracking"""
+    try:
+        site = db.query(ScrapedSite).filter(ScrapedSite.id == site_id).first()
+        if not site:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scraped site not found"
+            )
+        
+        db.delete(site)
+        db.commit()
+        
+        return {"message": "Scraped site deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete scraped site: {str(e)}"
+        )
+
+
+@router.post("/scraped-sites/{site_id}/mark-exhausted")
+def mark_site_exhausted(site_id: int, db: Session = Depends(get_db)):
+    """Mark a scraped site as exhausted (no more results)"""
+    try:
+        site = db.query(ScrapedSite).filter(ScrapedSite.id == site_id).first()
+        if not site:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Scraped site not found"
+            )
+        
+        site.status = 'exhausted'
+        site.notes = 'No more results found in last scrape'
+        db.commit()
+        
+        return {"message": "Site marked as exhausted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark site as exhausted: {str(e)}"
+        )
