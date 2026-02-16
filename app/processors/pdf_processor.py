@@ -1,0 +1,286 @@
+"""
+PDF processing module for extracting text and generating images
+"""
+import os
+from pathlib import Path
+from typing import List, Optional, Dict
+import PyPDF2
+import pdfplumber
+from PIL import Image
+import io
+from app.config import get_settings
+
+settings = get_settings()
+
+
+class PDFProcessor:
+    """Process PDF files to extract text and generate images"""
+    
+    def __init__(self):
+        self.image_dir = Path(settings.database_path).parent / 'images'
+        self.image_dir.mkdir(parents=True, exist_ok=True)
+        self.image_dpi = settings.image_dpi
+        self.image_format = settings.image_format.lower()
+        self.main_image_page = settings.main_image_page
+        self.additional_image_pages = settings.additional_image_pages
+    
+    def extract_metadata(self, pdf_path: str) -> Dict:
+        """
+        Extract metadata from PDF
+        
+        Args:
+            pdf_path: Path to PDF file
+            
+        Returns:
+            Dictionary with metadata
+        """
+        metadata = {
+            'title': None,
+            'author': None,
+            'subject': None,
+            'keywords': None,
+            'creator': None,
+            'producer': None,
+            'page_count': 0
+        }
+        
+        try:
+            with open(pdf_path, 'rb') as f:
+                pdf = PyPDF2.PdfReader(f)
+                
+                # Get document info
+                info = pdf.metadata
+                if info:
+                    metadata['title'] = info.get('/Title')
+                    metadata['author'] = info.get('/Author')
+                    metadata['subject'] = info.get('/Subject')
+                    metadata['keywords'] = info.get('/Keywords')
+                    metadata['creator'] = info.get('/Creator')
+                    metadata['producer'] = info.get('/Producer')
+                
+                # Get page count
+                metadata['page_count'] = len(pdf.pages)
+        
+        except Exception as e:
+            print(f"Error extracting PDF metadata: {e}")
+        
+        return metadata
+    
+    def extract_text(self, pdf_path: str, max_pages: int = 5) -> str:
+        """
+        Extract text from PDF
+        
+        Args:
+            pdf_path: Path to PDF file
+            max_pages: Maximum number of pages to extract text from
+            
+        Returns:
+            Extracted text
+        """
+        text = ""
+        
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                for i, page in enumerate(pdf.pages[:max_pages]):
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += f"\n--- Page {i + 1} ---\n"
+                        text += page_text + "\n"
+        
+        except Exception as e:
+            print(f"Error extracting text from PDF: {e}")
+        
+        return text
+    
+    def extract_first_page_text(self, pdf_path: str) -> str:
+        """
+        Extract text from first page only
+        
+        Args:
+            pdf_path: Path to PDF file
+            
+        Returns:
+            Text from first page
+        """
+        return self.extract_text(pdf_path, max_pages=1)
+    
+    def find_index_page(self, pdf_path: str) -> Optional[int]:
+        """
+        Find the index/table of contents page
+        
+        Args:
+            pdf_path: Path to PDF file
+            
+        Returns:
+            Page number (1-indexed) or None
+        """
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                # Check first 10 pages for index
+                for i, page in enumerate(pdf.pages[:10]):
+                    text = page.extract_text()
+                    if text:
+                        text_lower = text.lower()
+                        # Look for index indicators
+                        index_keywords = ['table of contents', 'contents', 'index', 'toc']
+                        if any(keyword in text_lower for keyword in index_keywords):
+                            return i + 1  # Return 1-indexed page number
+        
+        except Exception as e:
+            print(f"Error finding index page: {e}")
+        
+        return None
+    
+    def convert_page_to_image(
+        self,
+        pdf_path: str,
+        page_num: int,
+        output_path: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Convert a PDF page to an image
+        
+        Args:
+            pdf_path: Path to PDF file
+            page_num: Page number (1-indexed)
+            output_path: Optional output path
+            
+        Returns:
+            Path to generated image or None
+        """
+        try:
+            # Generate output path if not provided
+            if output_path is None:
+                pdf_name = Path(pdf_path).stem
+                output_path = str(
+                    self.image_dir / f"{pdf_name}_page{page_num}.{self.image_format}"
+                )
+            
+            # Use pdfplumber to render page as image
+            with pdfplumber.open(pdf_path) as pdf:
+                if page_num < 1 or page_num > len(pdf.pages):
+                    return None
+                
+                page = pdf.pages[page_num - 1]
+                
+                # Convert to image
+                img = page.to_image(resolution=self.image_dpi)
+                img.save(output_path, format=self.image_format.upper())
+                
+                return output_path
+        
+        except Exception as e:
+            print(f"Error converting page {page_num} to image: {e}")
+            return None
+    
+    def generate_listing_images(
+        self,
+        pdf_path: str,
+        manual_id: int
+    ) -> Dict[str, List[str]]:
+        """
+        Generate images for Etsy listing
+        
+        Args:
+            pdf_path: Path to PDF file
+            manual_id: Manual ID for naming
+            
+        Returns:
+            Dictionary with 'main' and 'additional' image paths
+        """
+        images = {
+            'main': [],
+            'additional': []
+        }
+        
+        try:
+            pdf_name = f"manual_{manual_id}"
+            
+            # Generate main image (first page)
+            main_image_path = self.convert_page_to_image(
+                pdf_path,
+                self.main_image_page,
+                str(self.image_dir / f"{pdf_name}_main.{self.image_format}")
+            )
+            
+            if main_image_path:
+                images['main'].append(main_image_path)
+            
+            # Find index page
+            index_page = self.find_index_page(pdf_path)
+            
+            # Generate additional images
+            pages_to_convert = []
+            
+            # Add index page if found
+            if index_page and index_page != self.main_image_page:
+                pages_to_convert.append(index_page)
+            
+            # Add configured additional pages
+            for page in self.additional_image_pages:
+                if page != self.main_image_page and page not in pages_to_convert:
+                    pages_to_convert.append(page)
+            
+            # Convert pages
+            for i, page_num in enumerate(pages_to_convert[:4]):  # Max 4 additional images
+                image_path = self.convert_page_to_image(
+                    pdf_path,
+                    page_num,
+                    str(self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}")
+                )
+                
+                if image_path:
+                    images['additional'].append(image_path)
+        
+        except Exception as e:
+            print(f"Error generating listing images: {e}")
+        
+        return images
+    
+    def get_page_count(self, pdf_path: str) -> int:
+        """
+        Get total page count of PDF
+        
+        Args:
+            pdf_path: Path to PDF file
+            
+        Returns:
+            Number of pages
+        """
+        try:
+            with open(pdf_path, 'rb') as f:
+                pdf = PyPDF2.PdfReader(f)
+                return len(pdf.pages)
+        except Exception as e:
+            print(f"Error getting page count: {e}")
+            return 0
+    
+    def cleanup_images(self, manual_id: int) -> bool:
+        """
+        Clean up generated images for a manual
+        
+        Args:
+            manual_id: Manual ID
+            
+        Returns:
+            True if successful
+        """
+        try:
+            pdf_name = f"manual_{manual_id}"
+            
+            # Remove main image
+            main_image = self.image_dir / f"{pdf_name}_main.{self.image_format}"
+            if main_image.exists():
+                main_image.unlink()
+            
+            # Remove additional images
+            for i in range(10):  # Check up to 10 additional images
+                additional_image = self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}"
+                if additional_image.exists():
+                    additional_image.unlink()
+            
+            return True
+        
+        except Exception as e:
+            print(f"Error cleaning up images: {e}")
+            return False

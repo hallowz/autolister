@@ -1,0 +1,530 @@
+// AutoLister Dashboard JavaScript
+
+// API Base URL
+const API_BASE = '/api';
+
+// Global state
+let currentTab = 'pending';
+let refreshInterval = null;
+
+// Initialize dashboard
+document.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+    loadPendingManuals();
+    loadAllManuals();
+    loadListings();
+    
+    // Set up auto-refresh
+    startAutoRefresh();
+    
+    // Set up tab change handlers
+    document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+        tab.addEventListener('shown.bs.tab', function(event) {
+            currentTab = event.target.getAttribute('data-bs-target').replace('#', '');
+        });
+    });
+});
+
+// Start auto-refresh
+function startAutoRefresh() {
+    refreshInterval = setInterval(function() {
+        loadStats();
+        if (currentTab === 'pending') {
+            loadPendingManuals();
+        }
+    }, 30000); // Refresh every 30 seconds
+}
+
+// Stop auto-refresh
+function stopAutoRefresh() {
+    if (refreshInterval) {
+        clearInterval(refreshInterval);
+        refreshInterval = null;
+    }
+}
+
+// Load statistics
+async function loadStats() {
+    try {
+        const response = await fetch(`${API_BASE}/stats`);
+        const stats = await response.json();
+        
+        document.getElementById('total-manuals').textContent = stats.total_manuals;
+        document.getElementById('pending-manuals').textContent = stats.pending_manuals;
+        document.getElementById('listed-manuals').textContent = stats.listed_manuals;
+        document.getElementById('active-listings').textContent = stats.active_listings;
+        document.getElementById('pending-count').textContent = stats.pending_manuals;
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load pending manuals
+async function loadPendingManuals() {
+    const container = document.getElementById('pending-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/pending`);
+        const manuals = await response.json();
+        
+        if (manuals.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-inbox"></i>
+                    <h5>No pending manuals</h5>
+                    <p>All caught up! No manuals waiting for approval.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="row">';
+        manuals.forEach(manual => {
+            html += createManualCard(manual, true);
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading pending manuals: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Load all manuals
+async function loadAllManuals() {
+    const container = document.getElementById('manuals-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/manuals`);
+        const manuals = await response.json();
+        
+        if (manuals.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-file-earmark"></i>
+                    <h5>No manuals found</h5>
+                    <p>Start the scraper to discover manuals.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="row">';
+        manuals.forEach(manual => {
+            html += createManualCard(manual, false);
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading manuals: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Load Etsy listings
+async function loadListings() {
+    const container = document.getElementById('listings-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/listings`);
+        const listings = await response.json();
+        
+        if (listings.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-shop"></i>
+                    <h5>No listings found</h5>
+                    <p>Process and list manuals to create Etsy listings.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-hover">';
+        html += `
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        listings.forEach(listing => {
+            html += createListingRow(listing);
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading listings: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Create manual card HTML
+function createManualCard(manual, isPending) {
+    const statusClass = manual.status;
+    const statusLabel = manual.status.charAt(0).toUpperCase() + manual.status.slice(1);
+    
+    return `
+        <div class="col-md-6 col-lg-4">
+            <div class="card manual-card ${statusClass} fade-in">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>${manual.title || 'Untitled Manual'}</span>
+                    <span class="badge status-badge ${statusClass}">${statusLabel}</span>
+                </div>
+                <div class="card-body">
+                    <dl class="manual-details row">
+                        ${manual.manufacturer ? `
+                            <dt class="col-sm-4">Manufacturer:</dt>
+                            <dd class="col-sm-8">${manual.manufacturer}</dd>
+                        ` : ''}
+                        ${manual.model ? `
+                            <dt class="col-sm-4">Model:</dt>
+                            <dd class="col-sm-8">${manual.model}</dd>
+                        ` : ''}
+                        ${manual.year ? `
+                            <dt class="col-sm-4">Year:</dt>
+                            <dd class="col-sm-8">${manual.year}</dd>
+                        ` : ''}
+                        <dt class="col-sm-4">Source:</dt>
+                        <dd class="col-sm-8">${manual.source_type}</dd>
+                        <dt class="col-sm-4">Created:</dt>
+                        <dd class="col-sm-8">${new Date(manual.created_at).toLocaleDateString()}</dd>
+                    </dl>
+                    <a href="${manual.source_url}" target="_blank" class="source-url">
+                        <i class="bi bi-link-45deg"></i> View Source
+                    </a>
+                </div>
+                <div class="card-footer">
+                    ${isPending ? createPendingActions(manual.id) : createManualActions(manual)}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create pending action buttons
+function createPendingActions(manualId) {
+    return `
+        <div class="d-flex gap-2">
+            <button class="btn btn-approve flex-grow-1" onclick="approveManual(${manualId})">
+                <i class="bi bi-check-circle"></i> Approve
+            </button>
+            <button class="btn btn-reject" onclick="rejectManual(${manualId})">
+                <i class="bi bi-x-circle"></i> Reject
+            </button>
+        </div>
+    `;
+}
+
+// Create manual action buttons
+function createManualActions(manual) {
+    let actions = '';
+    
+    switch (manual.status) {
+        case 'approved':
+            actions = `
+                <button class="btn btn-primary w-100" onclick="downloadManual(${manual.id})">
+                    <i class="bi bi-download"></i> Download PDF
+                </button>
+            `;
+            break;
+        case 'downloaded':
+            actions = `
+                <button class="btn btn-primary w-100" onclick="processManual(${manual.id})">
+                    <i class="bi bi-gear"></i> Process Manual
+                </button>
+            `;
+            break;
+        case 'processed':
+            actions = `
+                <button class="btn btn-success w-100" onclick="listOnEtsy(${manual.id})">
+                    <i class="bi bi-shop"></i> List on Etsy
+                </button>
+            `;
+            break;
+        case 'listed':
+            actions = `
+                <button class="btn btn-secondary w-100" disabled>
+                    <i class="bi bi-check-circle"></i> Listed
+                </button>
+            `;
+            break;
+        case 'error':
+            actions = `
+                <button class="btn btn-outline-danger w-100" onclick="showManualDetails(${manual.id})">
+                    <i class="bi bi-exclamation-triangle"></i> View Error
+                </button>
+            `;
+            break;
+        default:
+            actions = `<span class="text-muted">No actions available</span>`;
+    }
+    
+    return actions;
+}
+
+// Create listing row HTML
+function createListingRow(listing) {
+    const statusClass = listing.status;
+    const statusLabel = listing.status.charAt(0).toUpperCase() + listing.status.slice(1);
+    
+    return `
+        <tr>
+            <td>${listing.id}</td>
+            <td>${listing.title.substring(0, 50)}${listing.title.length > 50 ? '...' : ''}</td>
+            <td>$${listing.price.toFixed(2)}</td>
+            <td><span class="badge status-badge ${statusClass}">${statusLabel}</span></td>
+            <td>${new Date(listing.created_at).toLocaleDateString()}</td>
+            <td>
+                ${listing.status === 'draft' ? `
+                    <button class="btn btn-sm btn-success" onclick="activateListing(${listing.id})">
+                        <i class="bi bi-play-circle"></i> Activate
+                    </button>
+                ` : ''}
+                ${listing.status === 'active' ? `
+                    <button class="btn btn-sm btn-warning" onclick="deactivateListing(${listing.id})">
+                        <i class="bi bi-pause-circle"></i> Deactivate
+                    </button>
+                ` : ''}
+            </td>
+        </tr>
+    `;
+}
+
+// Approve manual
+async function approveManual(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/pending/${manualId}/approve`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Manual approved!', 'success');
+            loadPendingManuals();
+            loadStats();
+        } else {
+            showToast('Failed to approve manual', 'error');
+        }
+    } catch (error) {
+        showToast('Error approving manual: ' + error.message, 'error');
+    }
+}
+
+// Reject manual
+async function rejectManual(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/pending/${manualId}/reject`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Manual rejected', 'warning');
+            loadPendingManuals();
+            loadStats();
+        } else {
+            showToast('Failed to reject manual', 'error');
+        }
+    } catch (error) {
+        showToast('Error rejecting manual: ' + error.message, 'error');
+    }
+}
+
+// Download manual
+async function downloadManual(manualId) {
+    try {
+        showToast('Downloading manual...', 'info');
+        
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/download`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showToast('Manual downloaded successfully!', 'success');
+            loadAllManuals();
+            loadStats();
+        } else {
+            showToast('Failed to download manual', 'error');
+        }
+    } catch (error) {
+        showToast('Error downloading manual: ' + error.message, 'error');
+    }
+}
+
+// Process manual
+async function processManual(manualId) {
+    try {
+        showToast('Processing manual...', 'info');
+        
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/process`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Manual processed successfully!', 'success');
+            loadAllManuals();
+            loadStats();
+        } else {
+            showToast('Failed to process manual', 'error');
+        }
+    } catch (error) {
+        showToast('Error processing manual: ' + error.message, 'error');
+    }
+}
+
+// List on Etsy
+async function listOnEtsy(manualId) {
+    try {
+        showToast('Creating Etsy listing...', 'info');
+        
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/list`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showToast('Etsy listing created!', 'success');
+            loadAllManuals();
+            loadListings();
+            loadStats();
+        } else {
+            showToast('Failed to create Etsy listing', 'error');
+        }
+    } catch (error) {
+        showToast('Error creating listing: ' + error.message, 'error');
+    }
+}
+
+// Activate listing
+async function activateListing(listingId) {
+    try {
+        const response = await fetch(`${API_BASE}/listings/${listingId}/activate`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Listing activated!', 'success');
+            loadListings();
+            loadStats();
+        } else {
+            showToast('Failed to activate listing', 'error');
+        }
+    } catch (error) {
+        showToast('Error activating listing: ' + error.message, 'error');
+    }
+}
+
+// Deactivate listing
+async function deactivateListing(listingId) {
+    try {
+        const response = await fetch(`${API_BASE}/listings/${listingId}/deactivate`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Listing deactivated', 'warning');
+            loadListings();
+            loadStats();
+        } else {
+            showToast('Failed to deactivate listing', 'error');
+        }
+    } catch (error) {
+        showToast('Error deactivating listing: ' + error.message, 'error');
+    }
+}
+
+// Show manual details
+async function showManualDetails(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/manuals/${manualId}`);
+        const manual = await response.json();
+        
+        const modalTitle = document.getElementById('manualModalTitle');
+        const modalBody = document.getElementById('manualModalBody');
+        const modalFooter = document.getElementById('manualModalFooter');
+        
+        modalTitle.textContent = manual.title || 'Manual Details';
+        
+        modalBody.innerHTML = `
+            <dl class="manual-details">
+                <dt>Status:</dt>
+                <dd><span class="badge status-badge ${manual.status}">${manual.status}</span></dd>
+                <dt>Source URL:</dt>
+                <dd><a href="${manual.source_url}" target="_blank">${manual.source_url}</a></dd>
+                <dt>Source Type:</dt>
+                <dd>${manual.source_type}</dd>
+                ${manual.manufacturer ? `<dt>Manufacturer:</dt><dd>${manual.manufacturer}</dd>` : ''}
+                ${manual.model ? `<dt>Model:</dt><dd>${manual.model}</dd>` : ''}
+                ${manual.year ? `<dt>Year:</dt><dd>${manual.year}</dd>` : ''}
+                <dt>Created:</dt>
+                <dd>${new Date(manual.created_at).toLocaleString()}</dd>
+                <dt>Updated:</dt>
+                <dd>${new Date(manual.updated_at).toLocaleString()}</dd>
+                ${manual.error_message ? `
+                    <dt>Error:</dt>
+                    <dd class="text-danger">${manual.error_message}</dd>
+                ` : ''}
+            </dl>
+        `;
+        
+        modalFooter.innerHTML = `
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        `;
+        
+        const modal = new bootstrap.Modal(document.getElementById('manualModal'));
+        modal.show();
+    } catch (error) {
+        showToast('Error loading manual details', 'error');
+    }
+}
+
+// Refresh pending manuals
+function refreshPending() {
+    loadPendingManuals();
+    showToast('Refreshed!', 'info');
+}
+
+// Search manuals
+function searchManuals() {
+    const searchTerm = document.getElementById('manuals-search').value;
+    // TODO: Implement search functionality
+    showToast('Search not yet implemented', 'warning');
+}
+
+// Show toast notification
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('liveToast');
+    const toastTitle = document.getElementById('toast-title');
+    const toastMessage = document.getElementById('toast-message');
+    
+    toast.className = 'toast';
+    toast.classList.add(type);
+    
+    toastTitle.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    toastMessage.textContent = message;
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}

@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  autolister:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: autolister
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../config:/app/config
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - autolister-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: autolister-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - autolister-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: autolister-celery
+    restart: unless-stopped
+    command: celery -A app.tasks worker --loglevel=info
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../config:/app/config
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis
+    networks:
+      - autolister-network
+
+  celery-beat:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: autolister-beat
+    restart: unless-stopped
+    command: celery -A app.tasks beat --loglevel=info
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+      - ../config:/app/config
+    env_file:
+      - ../.env
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - redis
+    networks:
+      - autolister-network
+
+volumes:
+  redis-data:
+
+networks:
+  autolister-network:
+    driver: bridge
