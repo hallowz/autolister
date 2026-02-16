@@ -327,12 +327,21 @@ def process_manual_background(manual_id: int, pdf_path: str):
         # Extract text
         text = processor.extract_first_page_text(manual.pdf_path)
         
+        # Extract model_number from model if available
+        model_number = None
+        if manual.model:
+            import re
+            number_match = re.search(r'\d+', manual.model)
+            if number_match:
+                model_number = number_match.group()
+        
         # Generate images with meaningful filenames
         images = processor.generate_listing_images(
             manual.pdf_path,
             manual_id,
             manufacturer=manual.manufacturer,
             model=manual.model,
+            model_number=model_number,
             year=manual.year
         )
         
@@ -543,6 +552,7 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             manual_id,
             manufacturer=manual.manufacturer,
             model=manual.model,
+            model_number=model_number,
             year=manual.year
         )
         
@@ -551,10 +561,19 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         pdf_model = manual.model or pdf_metadata.get('model')
         pdf_year = manual.year or pdf_metadata.get('year')
         
-        # Generate meaningful zip filename using manufacturer, model, year
+        # Extract model_number from model if available
+        model_number = None
+        if pdf_model:
+            import re
+            number_match = re.search(r'\d+', pdf_model)
+            if number_match:
+                model_number = number_match.group()
+        
+        # Generate meaningful zip filename using manufacturer, model, year, model_number
         zip_name = generate_safe_filename(
             manufacturer=manual.manufacturer,
             model=pdf_model,
+            model_number=model_number,
             year=pdf_year,
             title=manual.title
         )
@@ -584,6 +603,7 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             image_base_name = generate_safe_filename(
                 manufacturer=manual.manufacturer,
                 model=pdf_model,
+                model_number=model_number,
                 year=pdf_year,
                 title=manual.title
             )
@@ -718,12 +738,21 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
         # Extract text
         text = processor.extract_first_page_text(manual.pdf_path)
         
+        # Extract model_number from model if available
+        model_number = None
+        if manual.model:
+            import re
+            number_match = re.search(r'\d+', manual.model)
+            if number_match:
+                model_number = number_match.group()
+        
         # Generate images
         images = processor.generate_listing_images(
             manual.pdf_path,
             manual_id,
             manufacturer=manual.manufacturer,
             model=manual.model,
+            model_number=model_number,
             year=manual.year
         )
         
@@ -789,6 +818,14 @@ def list_on_etsy(manual_id: int, db: Session = Depends(get_db)):
         pdf_metadata = processor.extract_metadata(manual.pdf_path)
         text = processor.extract_first_page_text(manual.pdf_path)
         
+        # Extract model_number from model if available
+        model_number = None
+        if manual.model:
+            import re
+            number_match = re.search(r'\d+', manual.model)
+            if number_match:
+                model_number = number_match.group()
+        
         # Generate title and description
         title = summary_gen.generate_title(
             {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
@@ -806,6 +843,7 @@ def list_on_etsy(manual_id: int, db: Session = Depends(get_db)):
             manual_id,
             manufacturer=manual.manufacturer,
             model=manual.model,
+            model_number=model_number,
             year=manual.year
         )
         
@@ -885,6 +923,14 @@ def upload_to_etsy(manual_id: int, db: Session = Depends(get_db)):
         pdf_metadata = processor.extract_metadata(manual.pdf_path)
         text = processor.extract_first_page_text(manual.pdf_path)
         
+        # Extract model_number from model if available
+        model_number = None
+        if manual.model:
+            import re
+            number_match = re.search(r'\d+', manual.model)
+            if number_match:
+                model_number = number_match.group()
+        
         # Generate title and description
         title = summary_gen.generate_title(
             {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
@@ -902,6 +948,7 @@ def upload_to_etsy(manual_id: int, db: Session = Depends(get_db)):
             manual_id,
             manufacturer=manual.manufacturer,
             model=manual.model,
+            model_number=model_number,
             year=manual.year
         )
         

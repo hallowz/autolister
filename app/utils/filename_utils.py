@@ -182,6 +182,7 @@ def extract_model_year_from_title(title: str) -> tuple:
 def generate_safe_filename(
     manufacturer: Optional[str] = None,
     model: Optional[str] = None,
+    model_number: Optional[str] = None,
     year: Optional[str] = None,
     title: Optional[str] = None,
     fallback: str = "manual"
@@ -192,12 +193,13 @@ def generate_safe_filename(
     Args:
         manufacturer: Manufacturer name
         model: Model name
+        model_number: Model number
         year: Year
         title: Manual title (used as fallback for model/year extraction)
         fallback: Fallback name if no metadata is provided
         
     Returns:
-        Safe filename string
+        Safe filename string in format: year_make_model_modelnumber
     """
     parts = []
     
@@ -208,18 +210,23 @@ def generate_safe_filename(
             manufacturer = parsed['make']
         if not model and parsed.get('model'):
             model = parsed['model']
+        if not model_number and parsed.get('model_number'):
+            model_number = parsed['model_number']
         if not year:
             # Try to extract year from title
             year_match = re.search(r'\b(19|20)\d{2}\b', title)
             if year_match:
                 year = year_match.group()
     
-    if manufacturer:
-        parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
+    # Build parts in order: year, make, model, model_number
     if year:
         parts.append(re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_'))
+    if manufacturer:
+        parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
     if model:
         parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
+    if model_number:
+        parts.append(re.sub(r'[^\w\s-]', '', model_number).strip().replace(' ', '_'))
     
     # Return meaningful name if we have parts, otherwise fallback
     return "_".join(parts) if parts else fallback

@@ -233,19 +233,20 @@ class PDFProcessor:
             print(f"Error converting page {page_num} to image: {e}")
             return None
     
-    def _generate_safe_filename(self, manufacturer: str, model: str, year: str) -> str:
+    def _generate_safe_filename(self, manufacturer: str, model: str, model_number: str = None, year: str = None) -> str:
         """
         Generate a safe filename from manual metadata
         
         Args:
             manufacturer: Manufacturer name
             model: Model name
+            model_number: Model number
             year: Year
             
         Returns:
             Safe filename string
         """
-        return generate_safe_filename(manufacturer, model, year)
+        return generate_safe_filename(manufacturer, model, model_number, year)
     
     def generate_listing_images(
         self,
@@ -253,6 +254,7 @@ class PDFProcessor:
         manual_id: int,
         manufacturer: str = None,
         model: str = None,
+        model_number: str = None,
         year: str = None
     ) -> Dict[str, List[str]]:
         """
@@ -263,6 +265,7 @@ class PDFProcessor:
             manual_id: Manual ID for naming
             manufacturer: Manufacturer name
             model: Model name
+            model_number: Model number
             year: Year
             
         Returns:
@@ -295,8 +298,15 @@ class PDFProcessor:
                 if model_match and not model:
                     model = model_match.group()
             
+            # Extract model_number from model if it's not provided
+            if not model_number and model:
+                # Try to extract numeric part from model
+                number_match = re.search(r'\d+', model)
+                if number_match:
+                    model_number = number_match.group()
+            
             # Generate meaningful filename
-            pdf_name = self._generate_safe_filename(manufacturer, model, year)
+            pdf_name = self._generate_safe_filename(manufacturer, model, model_number, year)
              
             # Generate main image (first page)
             main_image_path = self.convert_page_to_image(
@@ -388,6 +398,7 @@ class PDFProcessor:
         manual_id: int = None,
         manufacturer: str = None,
         model: str = None,
+        model_number: str = None,
         year: str = None
     ) -> bool:
         """
@@ -397,6 +408,7 @@ class PDFProcessor:
             manual_id: Manual ID (for backward compatibility)
             manufacturer: Manufacturer name
             model: Model name
+            model_number: Model number
             year: Year
             
         Returns:
@@ -405,7 +417,7 @@ class PDFProcessor:
         try:
             # Try to use meaningful filename if metadata is provided
             if manufacturer or model or year:
-                pdf_name = self._generate_safe_filename(manufacturer, model, year)
+                pdf_name = self._generate_safe_filename(manufacturer, model, model_number, year)
             else:
                 # Fallback to old naming scheme
                 pdf_name = f"manual_{manual_id}"

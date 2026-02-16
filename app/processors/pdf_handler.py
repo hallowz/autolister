@@ -130,9 +130,16 @@ class PDFDownloader:
                 if re.match(r'^[a-z]{2,}\d+', part.lower()) and not model:
                     model = part.upper()
         
+        # Extract model_number from model if available
+        model_number = None
+        if model:
+            number_match = re.search(r'\d+', model)
+            if number_match:
+                model_number = number_match.group()
+        
         # Try to generate meaningful filename from metadata
         if manufacturer or model or year:
-            safe_name = generate_safe_filename(manufacturer, model, year)
+            safe_name = generate_safe_filename(manufacturer, model, model_number, year)
             # Use the generated name as long as it has more than just manufacturer
             if safe_name and safe_name != "manual":
                 return safe_name + ".pdf"
