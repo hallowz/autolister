@@ -87,6 +87,11 @@ class DuckDuckGoScraper(BaseScraper):
                     source_elem = div.find('span', class_='result__url')
                     source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
                     
+                    # VALIDATE: Only include if URL appears to be a downloadable PDF
+                    # Check if URL ends with .pdf OR if it's from a known PDF/manual site
+                    if not self._is_valid_pdf_url(url, source):
+                        continue
+                    
                     # Extract metadata
                     metadata = self.extract_pdf_metadata(url, title)
                     metadata['search_engine'] = 'duckduckgo'
@@ -138,6 +143,43 @@ class DuckDuckGoScraper(BaseScraper):
             return domain
         except Exception:
             return 'unknown'
+    
+    def _is_valid_pdf_url(self, url: str, source: str) -> bool:
+        """
+        Validate if URL points to a downloadable PDF file
+        
+        Only returns True if:
+        1. URL ends with .pdf (direct PDF link)
+        2. OR URL is from a known PDF/manual site
+        
+        This ensures only valid, downloadable PDFs are shown for approval.
+        """
+        url_lower = url.lower()
+        source_lower = source.lower()
+        
+        # Direct PDF link - most reliable
+        if url_lower.endswith('.pdf'):
+            return True
+        
+        # Known PDF/manual sites that host downloadable files
+        pdf_sites = [
+            'manualslib', 'manualsdir', 'emanualonline',
+            'manual', 'service-manual', 'owner-manual',
+            'repair-manual', 'workshop-manual', 'parts-manual',
+            'scribd', 'issuu', 'yumpu',
+            'drive.google.com', 'dropbox.com', 'mediafire.com',
+            'mega.nz', '4shared.com', 'zippyshare.com'
+        ]
+        
+        for site in pdf_sites:
+            if site in url_lower or site in source_lower:
+                return True
+        
+        # URL contains pdf indicator (less reliable but useful)
+        if 'pdf' in url_lower or 'filetype=pdf' in url_lower:
+            return True
+        
+        return False
     
     def is_pdf_link(self, url: str) -> bool:
         """Check if URL points to a PDF file"""
