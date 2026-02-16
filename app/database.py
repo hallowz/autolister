@@ -41,6 +41,8 @@ class Manual(Base):
     year = Column(String, nullable=True)
     status = Column(String, nullable=False, default='pending', index=True)  # 'pending', 'approved', 'rejected', 'downloaded', 'processing', 'processed', 'listed', 'error'
     pdf_path = Column(String, nullable=True)
+    description = Column(Text, nullable=True)  # Generated listing description
+    tags = Column(String, nullable=True)  # Comma-separated tags for Etsy
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     error_message = Column(Text, nullable=True)

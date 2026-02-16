@@ -304,7 +304,8 @@ class ListingManager:
         description: str,
         pdf_path: str,
         image_paths: List[str],
-        price: float = None
+        price: float = None,
+        tags: List[str] = None
     ) -> Optional[int]:
         """
         Create a complete digital listing with images and file
@@ -315,12 +316,13 @@ class ListingManager:
             pdf_path: Path to PDF file
             image_paths: List of image paths
             price: Listing price
+            tags: List of tags for the listing
             
         Returns:
             Listing ID or None
         """
-        # Create listing
-        listing_id = self.create_listing(title, description, price)
+        # Create listing with tags
+        listing_id = self.create_listing(title, description, price, tags=tags)
         
         if not listing_id:
             return None

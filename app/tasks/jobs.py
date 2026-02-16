@@ -5,6 +5,7 @@ from typing import List, Optional
 from app.database import SessionLocal, Manual, ProcessingLog
 from app.scrapers import DuckDuckGoScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
+from app.processors.listing_generator import ListingContentGenerator
 from app.processors.queue_manager import ProcessingQueueManager
 from app.etsy import ListingManager
 from app.config import get_settings
@@ -226,24 +227,48 @@ def create_etsy_listings():
         
         listing_manager = ListingManager()
         processor = PDFProcessor()
-        summary_gen = SummaryGenerator()
         
         for manual in processed_manuals:
             try:
-                # Extract metadata and text
-                pdf_metadata = processor.extract_metadata(manual.pdf_path)
-                text = processor.extract_first_page_text(manual.pdf_path)
+                # Use pre-generated title, description, and tags if available
+                title = manual.title
+                description = manual.description
+                tags = manual.tags.split(',') if manual.tags else None
                 
-                # Generate title and description
-                title = summary_gen.generate_title(
-                    {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-                    text
-                )
-                description = summary_gen.generate_description(
-                    {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-                    text,
-                    processor.get_page_count(manual.pdf_path)
-                )
+                # If no pre-generated content, generate it now
+                if not title or not description:
+                    print(f"Generating listing content for manual {manual.id}")
+                    listing_gen = ListingContentGenerator()
+                    
+                    # Extract metadata
+                    pdf_metadata = processor.extract_metadata(manual.pdf_path)
+                    page_count = processor.get_page_count(manual.pdf_path)
+                    
+                    # Prepare metadata for listing generator
+                    listing_metadata = {
+                        'manufacturer': manual.manufacturer or pdf_metadata.get('manufacturer'),
+                        'model': manual.model or pdf_metadata.get('model'),
+                        'year': manual.year or pdf_metadata.get('year'),
+                        'title': manual.title or pdf_metadata.get('title'),
+                        'page_count': page_count
+                    }
+                    
+                    # Generate listing content
+                    listing_content = listing_gen.generate_all_content(
+                        manual.pdf_path,
+                        listing_metadata
+                    )
+                    
+                    if listing_content['success']:
+                        title = listing_content['seo_title']
+                        description = listing_content['description']
+                        tags = listing_content['tags']
+                        
+                        # Update manual with generated content
+                        manual.title = title
+                        manual.description = description
+                        manual.tags = ','.join(tags) if tags else None
+                        db.commit()
                 
                 # Generate images
                 images = processor.generate_listing_images(
@@ -254,13 +279,14 @@ def create_etsy_listings():
                     year=manual.year
                 )
                 
-                # Create Etsy listing
+                # Create Etsy listing with tags
                 listing_id = listing_manager.create_digital_listing(
                     title=title,
                     description=description,
                     pdf_path=manual.pdf_path,
                     image_paths=images['main'] + images['additional'],
-                    price=settings.etsy_default_price
+                    price=settings.etsy_default_price,
+                    tags=tags
                 )
                 
                 if listing_id:
@@ -346,7 +372,7 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
         
         downloader = PDFDownloader()
         processor = PDFProcessor()
-        summary_gen = SummaryGenerator()
+        listing_gen = ListingContentGenerator()
         
         # Download PDF
         print(f"[process_single_manual] Processing manual_id={manual_id}")
@@ -400,23 +426,60 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
             year=manual.year
         )
         
-        # Generate title and description
-        log(f"Generating title and description for manual {manual_id}")
-        title = summary_gen.generate_title(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text
-        )
-        description = summary_gen.generate_description(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text,
-            page_count
+        # Generate listing content using AI
+        log(f"Generating listing content for manual {manual_id}")
+        
+        # Prepare metadata for listing generator
+        listing_metadata = {
+            'manufacturer': manual.manufacturer or pdf_metadata.get('manufacturer'),
+            'model': manual.model or pdf_metadata.get('model'),
+            'year': manual.year or pdf_metadata.get('year'),
+            'title': manual.title or pdf_metadata.get('title'),
+            'page_count': page_count
+        }
+        
+        # Generate listing content
+        listing_content = listing_gen.generate_all_content(
+            pdf_path,
+            listing_metadata
         )
         
-        # Update manual with processed data
-        if not manual.title:
-            manual.title = title
-        manual.description = description
-        db.commit()
+        if listing_content['success']:
+            seo_title = listing_content['seo_title']
+            description = listing_content['description']
+            tags = listing_content['tags']
+            
+            # Update manual with processed data
+            if not manual.title:
+                manual.title = seo_title
+            manual.description = description
+            manual.tags = ','.join(tags) if tags else None
+            db.commit()
+            
+            log(f"Generated SEO title: {seo_title[:50]}...")
+            log(f"Generated {len(tags)} tags")
+        else:
+            log(f"Warning: AI listing generation failed: {listing_content['error']}")
+            # Fallback to old method
+            summary_gen = SummaryGenerator()
+            seo_title = summary_gen.generate_title(
+                {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+                text
+            )
+            description = summary_gen.generate_description(
+                {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+                text,
+                page_count
+            )
+            
+            if not manual.title:
+                manual.title = seo_title
+            manual.description = description
+            db.commit()
+        
+        title = manual.title
+        description = manual.description
+        tags = manual.tags.split(',') if manual.tags else []
         
         # Generate resources zip file
         log(f"Generating resources zip for manual {manual_id}")
@@ -433,7 +496,7 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
                 log(f"Failed to remove old zip file {old_zip}: {e}")
         
         resources_zip_path = generate_resources_zip(
-            manual, pdf_metadata, text, page_count, images, title, description
+            manual, pdf_metadata, text, page_count, images, title, description, tags
         )
         
         # Mark as complete
@@ -457,7 +520,7 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
 
 def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
                           page_count: int, images: dict, title: str,
-                          description: str) -> str:
+                          description: str, tags: list = None) -> str:
     """
     Generate a resources zip file for a manual
     
@@ -469,6 +532,7 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
         images: Generated images dict
         title: Generated title
         description: Generated description
+        tags: List of tags
         
     Returns:
         Path to the generated zip file
@@ -565,19 +629,34 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
             title=manual.title
         )
         
-        # Generate and add README.md
-        readme_content = f"""# Listing Instructions for: {title}
+        # Generate unified listing data file (replaces README and description.txt)
+        listing_data_content = f"""# Listing Data for: {title}
 
-## Quick Start Guide
+## SEO Title
+{title}
 
-### 1. Upload the PDF
-- Go to your Etsy shop manager
-- Click "Add a listing"
-- Upload the PDF file: `{pdf_filename_in_zip}`
-- This will be the digital file buyers download
+## Description
+{description}
 
-### 2. Upload Images
-Use the following images in order for your listing:
+## Tags
+{', '.join(tags) if tags else 'No tags generated'}
+
+## Manual Information
+- Manufacturer: {manual.manufacturer or 'N/A'}
+- Model: {manual.model or 'N/A'}
+- Year: {manual.year or 'N/A'}
+- Pages: {page_count}
+- PDF File: `{pdf_filename_in_zip}`
+
+## Files Included in This Package
+
+### 1. PDF Manual
+- File: `{pdf_filename_in_zip}`
+- This is the digital file that buyers will download
+- Fully searchable PDF format
+
+### 2. Listing Images
+Use these images for your Etsy listing:
 
 **Main Image (First Image):**
 - Use: `{image_base_name}.jpg` (or .png)
@@ -588,28 +667,44 @@ Use the following images in order for your listing:
 - These show sample pages including the index/table of contents
 - Upload up to 5 images total (1 main + 4 additional)
 
-### 3. Title
-Copy and paste this title:
+## Etsy Listing Instructions
+
+### Step 1: Upload the PDF
+1. Go to your Etsy shop manager
+2. Click "Add a listing"
+3. Upload the PDF file: `{pdf_filename_in_zip}`
+4. This will be the digital file buyers download
+
+### Step 2: Upload Images
+1. Upload the main image first
+2. Then upload additional images in order
+3. Use all provided images for best results
+
+### Step 3: Set Title
+Copy and paste the SEO title from above:
 ```
 {title}
 ```
 
-### 4. Description
-Copy and paste this description:
+### Step 4: Set Description
+Copy and paste the description from above:
 ```
 {description}
 ```
 
-### 5. Pricing & Quantity
+### Step 5: Set Tags
+Copy and paste the tags from above:
+```
+{', '.join(tags) if tags else 'No tags generated'}
+```
+
+### Step 6: Pricing & Quantity
 - Price: $4.99 (or adjust as needed)
 - Quantity: 9999 (unlimited digital downloads)
 
-### 6. Category & Tags
+### Step 7: Category & Shipping
 - Category: Choose the most relevant equipment category (ATV, Lawn Mower, Generator, etc.)
-- Tags: Add relevant tags like "service manual", "repair manual", "digital download", "{manual.manufacturer or 'manual'}"
-
-### 7. Shipping
-- Set shipping to "Digital Item" or "No shipping required"
+- Shipping: Set to "Digital Item" or "No shipping required"
 - Buyers will receive an instant download link after purchase
 
 ## Tips for Success
@@ -620,27 +715,11 @@ Copy and paste this description:
 - Respond quickly to buyer questions
 - Consider creating variations for different models
 
-## File Information
-
-- PDF File: `{pdf_filename_in_zip}`
-- Pages: {page_count}
-- Images Included: {len(valid_images)} (minimum 5 images provided)
-- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+## Generated
+{datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
 """
         
-        zipf.writestr('README.md', readme_content)
-        
-        # Add short description file
-        short_desc = f"""Title: {title}
-
-Description:
-{description}
-
-Manufacturer: {manual.manufacturer or 'N/A'}
-Model: {manual.model or 'N/A'}
-Pages: {page_count}
-"""
-        zipf.writestr('description.txt', short_desc)
+        zipf.writestr('LISTING_DATA.txt', listing_data_content)
     
     return zip_path
 
