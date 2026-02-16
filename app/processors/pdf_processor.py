@@ -165,7 +165,19 @@ class PDFProcessor:
                 
                 # Convert to image
                 img = page.to_image(resolution=self.image_dpi)
-                img.save(output_path, format=self.image_format.upper())
+                
+                # Convert PIL Image to RGB if needed (JPEG doesn't support palette mode)
+                if hasattr(img, 'original'):
+                    pil_img = img.original
+                else:
+                    pil_img = img
+                
+                # Convert to RGB mode if necessary
+                if pil_img.mode != 'RGB':
+                    pil_img = pil_img.convert('RGB')
+                
+                # Save the image
+                pil_img.save(output_path, format=self.image_format.upper())
                 
                 return output_path
         

@@ -3,6 +3,7 @@ FastAPI routes for the dashboard API
 """
 import os
 import zipfile
+import threading
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
@@ -124,6 +125,58 @@ def get_pending_manuals(db: Session = Depends(get_db)):
     return manuals
 
 
+def process_manual_background(manual_id: int, pdf_path: str):
+    """Background task to process a manual after download"""
+    from app.database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        manual = db.query(Manual).filter(Manual.id == manual_id).first()
+        if not manual:
+            return
+        
+        # Process PDF (extract images, generate summary)
+        processor = PDFProcessor()
+        summary_gen = SummaryGenerator()
+        
+        # Extract metadata
+        pdf_metadata = processor.extract_metadata(manual.pdf_path)
+        
+        # Extract text
+        text = processor.extract_first_page_text(manual.pdf_path)
+        
+        # Generate images
+        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        
+        # Generate title and description
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
+        description = summary_gen.generate_description(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text,
+            processor.get_page_count(manual.pdf_path)
+        )
+        
+        # Update manual
+        if not manual.title:
+            manual.title = title
+        
+        manual.description = description
+        manual.status = 'processed'
+        db.commit()
+        
+    except Exception as e:
+        manual = db.query(Manual).filter(Manual.id == manual_id).first()
+        if manual:
+            manual.status = 'error'
+            manual.error_message = str(e)
+            db.commit()
+    finally:
+        db.close()
+
+
 @router.post("/pending/{manual_id}/approve")
 def approve_manual(manual_id: int, db: Session = Depends(get_db)):
     """Approve a pending manual and auto-download/process it"""
@@ -160,43 +213,15 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
         manual.pdf_path = pdf_path
         db.commit()
         
-        # Process PDF (extract images, generate summary)
-        processor = PDFProcessor()
-        summary_gen = SummaryGenerator()
-        
-        # Extract metadata
-        pdf_metadata = processor.extract_metadata(manual.pdf_path)
-        
-        # Extract text
-        text = processor.extract_first_page_text(manual.pdf_path)
-        
-        # Generate images
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
-        
-        # Generate title and description
-        title = summary_gen.generate_title(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text
-        )
-        description = summary_gen.generate_description(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text,
-            processor.get_page_count(manual.pdf_path)
-        )
-        
-        # Update manual
-        if not manual.title:
-            manual.title = title
-        
-        manual.status = 'processed'
-        db.commit()
+        # Process PDF in background thread
+        thread = threading.Thread(target=process_manual_background, args=(manual_id, pdf_path))
+        thread.daemon = True
+        thread.start()
         
         return {
-            "message": "Manual approved, downloaded, and processed successfully",
+            "message": "Manual approved and downloaded. Processing in background.",
             "manual_id": manual_id,
-            "title": title,
-            "description": description,
-            "images": images
+            "status": "downloaded"
         }
         
     except Exception as e:

@@ -33,6 +33,10 @@ function startAutoRefresh() {
         loadStats();
         if (currentTab === 'pending') {
             loadPendingManuals();
+        } else if (currentTab === 'processing') {
+            loadProcessingManuals();
+        } else if (currentTab === 'ready') {
+            loadReadyManuals();
         }
     }, 30000); // Refresh every 30 seconds
 }
@@ -523,7 +527,7 @@ function createListingRow(listing) {
 // Approve manual
 async function approveManual(manualId) {
     try {
-        showToast('Approving and processing manual...', 'info');
+        showToast('Approving and downloading manual...', 'info');
         
         const response = await fetch(`${API_BASE}/pending/${manualId}/approve`, {
             method: 'POST'
@@ -531,7 +535,7 @@ async function approveManual(manualId) {
         
         if (response.ok) {
             const data = await response.json();
-            showToast('Manual approved, downloaded, and processed!', 'success');
+            showToast(data.message || 'Manual approved and downloaded!', 'success');
             loadPendingManuals();
             loadProcessingManuals();
             loadReadyManuals();
