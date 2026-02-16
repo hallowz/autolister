@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from pathlib import Path
 from app.database import init_db
 from app.api.routes import router
+from app.api.file_routes import router as file_router
 from app.config import get_settings
 
 settings = get_settings()
@@ -20,6 +21,7 @@ app = FastAPI(
 
 # Include API routes
 app.include_router(router)
+app.include_router(file_router)
 
 # Initialize database on startup
 @app.on_event("startup")

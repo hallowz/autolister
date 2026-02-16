@@ -26,7 +26,7 @@
                         <a class="nav-link" href="#manuals">All Manuals</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#listings">Etsy Listings</a>
+                        <a class="nav-link" href="#listings">File Listings</a>
                     </li>
                 </ul>
             </div>
@@ -55,8 +55,8 @@
             <div class="col-md-3">
                 <div class="card stats-card success">
                     <div class="card-body text-center">
-                        <h5 class="card-title">Listed</h5>
-                        <h2 class="stat-number" id="listed-manuals">0</h2>
+                        <h5 class="card-title">File Listings</h5>
+                        <h2 class="stat-number" id="file-listings">0</h2>
                     </div>
                 </div>
             </div>
@@ -127,10 +127,13 @@
                 </div>
             </div>
 
-            <!-- Etsy Listings Tab -->
+            <!-- File Listings Tab -->
             <div class="tab-pane fade" id="listings" role="tabpanel">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h4>Etsy Listings</h4>
+                    <h4>File Listings</h4>
+                    <button class="btn btn-success" onclick="exportCSV()">
+                        <i class="bi bi-download"></i> Export CSV
+                    </button>
                 </div>
                 <div id="listings-list">
                     <div class="text-center py-5">
@@ -139,6 +142,7 @@
                         </div>
                     </div>
                 </div>
+            </div>
             </div>
         </div>
     </div>

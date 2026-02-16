@@ -11,7 +11,7 @@ AutoLister is a Python-based application that automatically scrapes PDF manuals 
 - **Multi-Source Scraping**: Search engines (Google/Bing), equipment forums, and manual-specific websites
 - **Approval Workflow**: Web dashboard for manual review and approval before download
 - **PDF Processing**: Extract text, generate images, and create listing summaries
-- **Etsy Integration**: Create listings with images and digital downloads
+- **File-Based Listings**: Create listing files for manual Etsy upload (no API required)
 - **Background Tasks**: Automated scraping and processing with Celery
 - **Docker Support**: Easy deployment on Raspberry Pi
 
@@ -61,6 +61,8 @@ AutoLister/
 git clone https://github.com/yourusername/AutoLister.git
 cd AutoLister
 ```
+
+**Note**: This app now works WITHOUT Etsy API credentials. You can create file-based listings that can be manually uploaded to Etsy.
 
 2. Create a virtual environment:
 ```bash
@@ -149,16 +151,24 @@ The dashboard provides:
 
 ### API Endpoints
 
+**Manual Management API**:
 - `GET /api/stats` - System statistics
 - `GET /api/pending` - Pending manuals for approval
 - `POST /api/pending/{id}/approve` - Approve a manual
 - `POST /api/pending/{id}/reject` - Reject a manual
 - `POST /api/manuals/{id}/download` - Download a PDF
 - `POST /api/manuals/{id}/process` - Process a PDF
-- `POST /api/manuals/{id}/list` - Create Etsy listing
-- `GET /api/listings` - List all Etsy listings
-- `POST /api/listings/{id}/activate` - Activate a listing
-- `POST /api/listings/{id}/deactivate` - Deactivate a listing
+
+**File-Based Listing API** (No Etsy API Required):
+- `GET /api/files/listings` - Get all file listings
+- `GET /api/files/listings/{id}` - Get specific listing details
+- `GET /api/files/listings/{id}/files` - Get listing files
+- `POST /api/files/listings` - Create a new file listing
+- `PUT /api/files/listings/{id}/status` - Update listing status
+- `DELETE /api/files/listings/{id}` - Delete a listing
+- `GET /api/files/export/csv` - Export listings to CSV
+- `GET /api/files/download/{filename}` - Download a file from listings directory
+- `GET /api/files/statistics` - Get listing statistics
 
 ### Background Tasks
 
@@ -202,10 +212,27 @@ ETSY_SHOP_ID=your_shop_id
 
 ### Important Note
 
-The Etsy Open API has limitations:
-- Digital file uploads may not be supported via API
-- You may need to manually upload PDFs through the Etsy dashboard
-- The app will create listings with images, but you'll need to attach the digital file manually
+**Two Modes of Operation**:
+
+1. **Etsy API Mode** (Optional):
+   - Requires Etsy API credentials
+   - Creates listings directly on Etsy
+   - Uploads images automatically
+   - Digital file upload may require manual action due to API limitations
+
+2. **File-Based Mode** (Default - No API Required):
+   - Creates listing files in `data/listings/` directory
+   - Each listing has its own folder with PDF, images, and README.txt
+   - Includes upload instructions for Etsy
+   - No API credentials required
+   - Works offline and can be used with any marketplace
+   - Each listing has its own folder with PDF and images
+   - Includes a README.txt with upload instructions
+   - You manually upload files to Etsy through the dashboard
+   - No API credentials required
+   - Works offline and can be used with any marketplace
+
+The app supports both modes. Use file-based mode if you don't want to deal with Etsy API setup or rate limits.
 
 ## Development
 

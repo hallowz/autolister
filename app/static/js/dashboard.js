@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadPendingManuals();
     loadAllManuals();
-    loadListings();
+    loadFileListings();
     
     // Set up auto-refresh
     startAutoRefresh();
@@ -51,8 +51,7 @@ async function loadStats() {
         
         document.getElementById('total-manuals').textContent = stats.total_manuals;
         document.getElementById('pending-manuals').textContent = stats.pending_manuals;
-        document.getElementById('listed-manuals').textContent = stats.listed_manuals;
-        document.getElementById('active-listings').textContent = stats.active_listings;
+        document.getElementById('file-listings').textContent = stats.file_listings || 0;
         document.getElementById('pending-count').textContent = stats.pending_manuals;
     } catch (error) {
         console.error('Error loading stats:', error);
@@ -298,6 +297,9 @@ function createListingRow(listing) {
             <td><span class="badge status-badge ${statusClass}">${statusLabel}</span></td>
             <td>${new Date(listing.created_at).toLocaleDateString()}</td>
             <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="viewListingFiles('${listing.id}')">
+                    <i class="bi bi-folder"></i> Files
+                </button>
                 ${listing.status === 'draft' ? `
                     <button class="btn btn-sm btn-success" onclick="activateListing(${listing.id})">
                         <i class="bi bi-play-circle"></i> Activate
@@ -527,4 +529,148 @@ function showToast(message, type = 'info') {
     
     const bsToast = new bootstrap.Toast(toast);
     bsToast.show();
+}
+
+// Load file listings
+async function loadFileListings() {
+    const container = document.getElementById('listings-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/files/listings`);
+        const data = await response.json();
+        
+        if (data.listings && data.listings.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-file-earmark"></i>
+                    <h5>No file listings found</h5>
+                    <p>Process manuals to create file listings.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-hover">';
+        html += `
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Title</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        data.listings.forEach(listing => {
+            const statusClass = listing.status;
+            const statusLabel = listing.status.charAt(0).toUpperCase() + listing.status.slice(1);
+            
+            html += `
+                <tr>
+                    <td>${listing.id}</td>
+                    <td>${listing.title.substring(0, 50)}${listing.title.length > 50 ? '...' : ''}</td>
+                    <td>$${listing.price.toFixed(2)}</td>
+                    <td><span class="badge status-badge ${statusClass}">${statusLabel}</span></td>
+                    <td>${new Date(listing.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewListingFiles('${listing.id}')">
+                            <i class="bi bi-folder"></i> Files
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="updateListingStatus('${listing.id}', 'uploaded')">
+                            <i class="bi bi-check-circle"></i> Mark Uploaded
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteListing('${listing.id}')">
+                            <i class="bi bi-trash"></i> Delete
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading file listings: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// View listing files
+function viewListingFiles(listingId) {
+    // Open file listing details modal
+    // For now, just show a toast
+    showToast('File details feature - check data/listings directory', 'info');
+}
+
+// Update listing status
+async function updateListingStatus(listingId, status) {
+    try {
+        const response = await fetch(`${API_BASE}/files/listings/${listingId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: status })
+        });
+        
+        if (response.ok) {
+            showToast('Listing status updated', 'success');
+            loadFileListings();
+        } else {
+            showToast('Failed to update listing status', 'error');
+        }
+    } catch (error) {
+        showToast('Error updating listing status: ' + error.message, 'error');
+    }
+}
+
+// Delete listing
+async function deleteListing(listingId) {
+    if (!confirm('Are you sure you want to delete this listing?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/files/listings/${listingId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showToast('Listing deleted successfully', 'success');
+            loadFileListings();
+        } else {
+            showToast('Failed to delete listing', 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting listing: ' + error.message, 'error');
+    }
+}
+
+// Export CSV
+async function exportCSV() {
+    try {
+        const response = await fetch(`${API_BASE}/files/export/csv`);
+        const data = await response.json();
+        
+        if (data.path) {
+            // Create download link
+            const filename = data.path.split('/').pop();
+            window.location.href = `/api/files/download/${filename}`;
+            
+            showToast('CSV exported successfully', 'success');
+        } else {
+            showToast('Failed to export CSV', 'error');
+        }
+    } catch (error) {
+        showToast('Error exporting CSV: ' + error.message, 'error');
+    }
 }
