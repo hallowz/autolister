@@ -41,6 +41,7 @@ class Manual(Base):
     year = Column(String, nullable=True)
     status = Column(String, nullable=False, default='pending', index=True)  # 'pending', 'approved', 'rejected', 'downloaded', 'processed', 'listed', 'error'
     pdf_path = Column(String, nullable=True)
+    resources_ready = Column(Boolean, nullable=False, default=False)  # Whether resources (images, description) are ready for download
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     error_message = Column(Text, nullable=True)

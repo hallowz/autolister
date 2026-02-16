@@ -515,6 +515,12 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             detail="Manual is not processed yet"
         )
     
+    if not manual.resources_ready:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Resources are not ready yet. Please wait for processing to complete."
+        )
+    
     if not manual.pdf_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -758,15 +764,44 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
             year=manual.year
         )
         
-        # Generate title and description
+        # Try to generate AI description if available
+        from app.processors.pdf_ai_extractor import PDFAIExtractor
+        ai_extractor = PDFAIExtractor()
+        
+        if ai_extractor.is_available():
+            try:
+                # Extract text for description generation
+                pdf_text = processor.extract_first_page_text(manual.pdf_path)
+                page_count = processor.get_page_count(manual.pdf_path)
+                
+                # Generate AI description
+                ai_description = ai_extractor.generate_description(
+                    manufacturer=manual.manufacturer or 'Unknown',
+                    model=manual.model or 'Unknown',
+                    year=manual.year or 'Unknown',
+                    pdf_text=pdf_text,
+                    page_count=page_count
+                )
+                
+                if ai_description:
+                    description = ai_description
+                    print(f"✓ AI description generated for manual {manual_id}")
+            except Exception as e:
+                print(f"⚠️  AI description generation failed: {e}")
+                # Fall back to regular description generation
+        
+        # If AI description wasn't generated, use regular method
+        if not description:
+            description = summary_gen.generate_description(
+                {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+                text,
+                processor.get_page_count(manual.pdf_path)
+            )
+        
+        # Generate title
         title = summary_gen.generate_title(
             {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
             text
-        )
-        description = summary_gen.generate_description(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text,
-            processor.get_page_count(manual.pdf_path)
         )
         
         # Update manual
@@ -774,6 +809,7 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
             manual.title = title
         
         manual.status = 'processed'
+        manual.resources_ready = True  # Mark resources as ready for download
         db.commit()
         
         return {
