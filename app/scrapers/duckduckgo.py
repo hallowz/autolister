@@ -160,6 +160,10 @@ class DuckDuckGoScraper(BaseScraper):
                         # Stop if we have enough results
                         if len(results) >= max_results:
                             break
+                            
+                    except Exception as e:
+                        print(f"Error parsing result: {e}")
+                        continue
             
             print(f"DuckDuckGo search returned {len(results)} results for query: {query}")
             
