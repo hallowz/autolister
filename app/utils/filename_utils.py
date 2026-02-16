@@ -47,10 +47,10 @@ def extract_model_year_from_title(title: str) -> tuple:
     
     # If no model found, try to extract from title (look for capitalized words after manufacturer)
     if not model and title_without_year:
-        # Remove common words
+        # Remove common words using regex (more portable than str.replace with flags)
         words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions']
         for word in words_to_remove:
-            title_without_year = title_without_year.replace(word, '', flags=re.IGNORECASE)
+            title_without_year = re.sub(r'\b' + re.escape(word) + r'\b', '', title_without_year, flags=re.IGNORECASE)
         
         # Split by spaces and look for multi-word models
         words = [w for w in title_without_year.split() if w.strip()]
