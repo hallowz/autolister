@@ -24,8 +24,8 @@ router = APIRouter(prefix="/api", tags=["API"])
 
 @router.get("/stats", response_model=StatsResponse)
 def get_stats(db: Session = Depends(get_db)):
-    """Get system statistics"""
-    total_manuals = db.query(Manual).count()
+    """Get system statistics (excluding rejected manuals)"""
+    total_manuals = db.query(Manual).filter(Manual.status != 'rejected').count()
     pending_manuals = db.query(Manual).filter(Manual.status == 'pending').count()
     approved_manuals = db.query(Manual).filter(Manual.status == 'approved').count()
     downloaded_manuals = db.query(Manual).filter(Manual.status == 'downloaded').count()
@@ -49,11 +49,16 @@ def get_stats(db: Session = Depends(get_db)):
 @router.get("/manuals", response_model=List[ManualResponse])
 def get_manuals(
     status: str = None,
+    include_rejected: bool = False,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
     """Get all manuals, optionally filtered by status"""
     query = db.query(Manual)
+    
+    # Exclude rejected by default unless explicitly requested
+    if not include_rejected:
+        query = query.filter(Manual.status != 'rejected')
     
     if status:
         query = query.filter(Manual.status == status)
@@ -76,6 +81,39 @@ def get_manual(manual_id: int, db: Session = Depends(get_db)):
     return manual
 
 
+@router.delete("/manuals/{manual_id}")
+def delete_manual(manual_id: int, db: Session = Depends(get_db)):
+    """Delete a manual"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    # Delete associated files if they exist
+    if manual.pdf_path and os.path.exists(manual.pdf_path):
+        try:
+            os.remove(manual.pdf_path)
+        except Exception as e:
+            print(f"Error deleting PDF file: {e}")
+    
+    # Delete generated images
+    try:
+        from app.processors import PDFProcessor
+        processor = PDFProcessor()
+        processor.cleanup_images(manual_id)
+    except Exception as e:
+        print(f"Error cleaning up images: {e}")
+    
+    # Delete from database
+    db.delete(manual)
+    db.commit()
+    
+    return {"message": "Manual deleted successfully", "manual_id": manual_id}
+
+
 @router.get("/pending", response_model=List[ManualResponse])
 def get_pending_manuals(db: Session = Depends(get_db)):
     """Get all pending manuals for approval"""
@@ -88,7 +126,7 @@ def get_pending_manuals(db: Session = Depends(get_db)):
 
 @router.post("/pending/{manual_id}/approve")
 def approve_manual(manual_id: int, db: Session = Depends(get_db)):
-    """Approve a pending manual for download"""
+    """Approve a pending manual and auto-download/process it"""
     manual = db.query(Manual).filter(Manual.id == manual_id).first()
     
     if not manual:
@@ -103,13 +141,73 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
             detail="Manual is not pending"
         )
     
-    manual.status = 'approved'
-    db.commit()
-    
-    # Trigger download task (would use Celery in production)
-    # For now, just update status
-    
-    return {"message": "Manual approved for download", "manual_id": manual_id}
+    try:
+        # Download PDF
+        downloader = PDFDownloader()
+        pdf_path = downloader.download(manual.source_url, manual_id)
+        
+        if not pdf_path:
+            manual.status = 'error'
+            manual.error_message = "Failed to download PDF"
+            db.commit()
+            
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to download PDF"
+            )
+        
+        manual.status = 'downloaded'
+        manual.pdf_path = pdf_path
+        db.commit()
+        
+        # Process PDF (extract images, generate summary)
+        processor = PDFProcessor()
+        summary_gen = SummaryGenerator()
+        
+        # Extract metadata
+        pdf_metadata = processor.extract_metadata(manual.pdf_path)
+        
+        # Extract text
+        text = processor.extract_first_page_text(manual.pdf_path)
+        
+        # Generate images
+        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        
+        # Generate title and description
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
+        description = summary_gen.generate_description(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text,
+            processor.get_page_count(manual.pdf_path)
+        )
+        
+        # Update manual
+        if not manual.title:
+            manual.title = title
+        
+        manual.status = 'processed'
+        db.commit()
+        
+        return {
+            "message": "Manual approved, downloaded, and processed successfully",
+            "manual_id": manual_id,
+            "title": title,
+            "description": description,
+            "images": images
+        }
+        
+    except Exception as e:
+        manual.status = 'error'
+        manual.error_message = str(e)
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process manual: {str(e)}"
+        )
 
 
 @router.post("/pending/{manual_id}/reject")
@@ -230,15 +328,12 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             if os.path.exists(manual.pdf_path):
                 zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
             
-            # Add images from ./data/images/
-            images_dir = "./data/images"
-            if os.path.exists(images_dir):
-                # Look for images matching this manual
-                for image_file in os.listdir(images_dir):
-                    if f"manual_{manual_id}" in image_file:
-                        image_path = os.path.join(images_dir, image_file)
-                        if os.path.isfile(image_path):
-                            zipf.write(image_path, os.path.basename(image_path))
+            # Add generated images directly to zip
+            all_images = images.get('main', []) + images.get('additional', [])
+            for image_path in all_images:
+                if os.path.exists(image_path):
+                    # Use just the filename in the zip
+                    zipf.write(image_path, os.path.basename(image_path))
             
             # Generate and add README.md
             readme_content = f"""# Listing Instructions for: {title}
@@ -498,6 +593,29 @@ def list_on_etsy(manual_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create listing: {str(e)}"
         )
+
+
+@router.post("/manuals/{manual_id}/mark-listed")
+def mark_as_listed(manual_id: int, db: Session = Depends(get_db)):
+    """Manually mark a processed manual as listed (after manual Etsy listing)"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    if manual.status != 'processed':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manual is not processed"
+        )
+    
+    manual.status = 'listed'
+    db.commit()
+    
+    return {"message": "Manual marked as listed successfully", "manual_id": manual_id}
 
 
 @router.get("/listings", response_model=List[EtsyListingResponse])

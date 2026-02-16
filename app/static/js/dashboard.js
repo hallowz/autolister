@@ -11,6 +11,8 @@ let refreshInterval = null;
 document.addEventListener('DOMContentLoaded', function() {
     loadStats();
     loadPendingManuals();
+    loadProcessingManuals();
+    loadReadyManuals();
     loadAllManuals();
     loadFileListings();
     
@@ -53,6 +55,8 @@ async function loadStats() {
         document.getElementById('pending-manuals').textContent = stats.pending_manuals;
         document.getElementById('file-listings').textContent = stats.file_listings || 0;
         document.getElementById('pending-count').textContent = stats.pending_manuals;
+        document.getElementById('processing-count').textContent = stats.downloaded_manuals || 0;
+        document.getElementById('ready-count').textContent = stats.processed_manuals || 0;
     } catch (error) {
         console.error('Error loading stats:', error);
     }
@@ -125,6 +129,78 @@ async function loadAllManuals() {
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i>
                 Error loading manuals: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Load processing manuals
+async function loadProcessingManuals() {
+    const container = document.getElementById('processing-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/manuals?status=downloaded`);
+        const manuals = await response.json();
+        
+        if (manuals.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-gear"></i>
+                    <h5>No processing manuals</h5>
+                    <p>Manuals will appear here after being downloaded.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="row">';
+        manuals.forEach(manual => {
+            html += createProcessingCard(manual);
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading processing manuals: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Load ready-to-list manuals
+async function loadReadyManuals() {
+    const container = document.getElementById('ready-list');
+    
+    try {
+        const response = await fetch(`${API_BASE}/manuals?status=processed`);
+        const manuals = await response.json();
+        
+        if (manuals.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="bi bi-check-circle"></i>
+                    <h5>No ready manuals</h5>
+                    <p>Process manuals to make them ready for listing.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '<div class="row">';
+        manuals.forEach(manual => {
+            html += createReadyCard(manual);
+        });
+        html += '</div>';
+        
+        container.innerHTML = html;
+    } catch (error) {
+        container.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading ready manuals: ${error.message}
             </div>
         `;
     }
@@ -244,40 +320,67 @@ function createManualActions(manual) {
     switch (manual.status) {
         case 'approved':
             actions = `
-                <button class="btn btn-primary w-100" onclick="downloadManual(${manual.id})">
-                    <i class="bi bi-download"></i> Download PDF
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-grow-1" onclick="downloadManual(${manual.id})">
+                        <i class="bi bi-download"></i> Download
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             `;
             break;
         case 'downloaded':
             actions = `
-                <button class="btn btn-primary w-100" onclick="processManual(${manual.id})">
-                    <i class="bi bi-gear"></i> Process Manual
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary flex-grow-1" onclick="processManual(${manual.id})">
+                        <i class="bi bi-gear"></i> Process
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             `;
             break;
         case 'processed':
             actions = `
-                <button class="btn btn-success w-100 mb-2" onclick="listOnEtsy(${manual.id})">
-                    <i class="bi bi-shop"></i> List on Etsy
-                </button>
-                <button class="btn btn-primary w-100" onclick="downloadResources(${manual.id})">
-                    <i class="bi bi-download"></i> Download Resources
-                </button>
+                <div class="d-flex flex-column gap-2">
+                    <button class="btn btn-success w-100" onclick="downloadResources(${manual.id})">
+                        <i class="bi bi-download"></i> Download Resources
+                    </button>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary flex-grow-1" onclick="markAsListed(${manual.id})">
+                            <i class="bi bi-check-circle"></i> Mark Listed
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
             `;
             break;
         case 'listed':
             actions = `
-                <button class="btn btn-secondary w-100" disabled>
-                    <i class="bi bi-check-circle"></i> Listed
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-secondary flex-grow-1" disabled>
+                        <i class="bi bi-check-circle"></i> Listed
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             `;
             break;
         case 'error':
             actions = `
-                <button class="btn btn-outline-danger w-100" onclick="showManualDetails(${manual.id})">
-                    <i class="bi bi-exclamation-triangle"></i> View Error
-                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-danger flex-grow-1" onclick="showManualDetails(${manual.id})">
+                        <i class="bi bi-exclamation-triangle"></i> View Error
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
             `;
             break;
         default:
@@ -285,6 +388,105 @@ function createManualActions(manual) {
     }
     
     return actions;
+}
+
+// Create processing card HTML
+function createProcessingCard(manual) {
+    return `
+        <div class="col-md-6 col-lg-4">
+            <div class="card manual-card downloaded fade-in">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>${manual.title || 'Untitled Manual'}</span>
+                    <span class="badge status-badge downloaded">Downloaded</span>
+                </div>
+                <div class="card-body">
+                    <dl class="manual-details row">
+                        ${manual.manufacturer ? `
+                            <dt class="col-sm-4">Manufacturer:</dt>
+                            <dd class="col-sm-8">${manual.manufacturer}</dd>
+                        ` : ''}
+                        ${manual.model ? `
+                            <dt class="col-sm-4">Model:</dt>
+                            <dd class="col-sm-8">${manual.model}</dd>
+                        ` : ''}
+                        ${manual.year ? `
+                            <dt class="col-sm-4">Year:</dt>
+                            <dd class="col-sm-8">${manual.year}</dd>
+                        ` : ''}
+                        <dt class="col-sm-4">Source:</dt>
+                        <dd class="col-sm-8">${manual.source_type}</dd>
+                        <dt class="col-sm-4">Created:</dt>
+                        <dd class="col-sm-8">${new Date(manual.created_at).toLocaleDateString()}</dd>
+                    </dl>
+                    <a href="${manual.source_url}" target="_blank" class="source-url">
+                        <i class="bi bi-link-45deg"></i> View Source
+                    </a>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary flex-grow-1" onclick="processManual(${manual.id})">
+                            <i class="bi bi-gear"></i> Process
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create ready-to-list card HTML
+function createReadyCard(manual) {
+    return `
+        <div class="col-md-6 col-lg-4">
+            <div class="card manual-card processed fade-in">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>${manual.title || 'Untitled Manual'}</span>
+                    <span class="badge status-badge processed">Ready</span>
+                </div>
+                <div class="card-body">
+                    <dl class="manual-details row">
+                        ${manual.manufacturer ? `
+                            <dt class="col-sm-4">Manufacturer:</dt>
+                            <dd class="col-sm-8">${manual.manufacturer}</dd>
+                        ` : ''}
+                        ${manual.model ? `
+                            <dt class="col-sm-4">Model:</dt>
+                            <dd class="col-sm-8">${manual.model}</dd>
+                        ` : ''}
+                        ${manual.year ? `
+                            <dt class="col-sm-4">Year:</dt>
+                            <dd class="col-sm-8">${manual.year}</dd>
+                        ` : ''}
+                        <dt class="col-sm-4">Source:</dt>
+                        <dd class="col-sm-8">${manual.source_type}</dd>
+                        <dt class="col-sm-4">Created:</dt>
+                        <dd class="col-sm-8">${new Date(manual.created_at).toLocaleDateString()}</dd>
+                    </dl>
+                    <a href="${manual.source_url}" target="_blank" class="source-url">
+                        <i class="bi bi-link-45deg"></i> View Source
+                    </a>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex flex-column gap-2">
+                        <button class="btn btn-success w-100" onclick="downloadResources(${manual.id})">
+                            <i class="bi bi-download"></i> Download Resources
+                        </button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary flex-grow-1" onclick="markAsListed(${manual.id})">
+                                <i class="bi bi-check-circle"></i> Mark Listed
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteManual(${manual.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // Create listing row HTML
@@ -321,13 +523,19 @@ function createListingRow(listing) {
 // Approve manual
 async function approveManual(manualId) {
     try {
+        showToast('Approving and processing manual...', 'info');
+        
         const response = await fetch(`${API_BASE}/pending/${manualId}/approve`, {
             method: 'POST'
         });
         
         if (response.ok) {
-            showToast('Manual approved!', 'success');
+            const data = await response.json();
+            showToast('Manual approved, downloaded, and processed!', 'success');
             loadPendingManuals();
+            loadProcessingManuals();
+            loadReadyManuals();
+            loadAllManuals();
             loadStats();
         } else {
             showToast('Failed to approve manual', 'error');
@@ -353,6 +561,52 @@ async function rejectManual(manualId) {
         }
     } catch (error) {
         showToast('Error rejecting manual: ' + error.message, 'error');
+    }
+}
+
+// Delete manual
+async function deleteManual(manualId) {
+    if (!confirm('Are you sure you want to delete this manual? This cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/manuals/${manualId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showToast('Manual deleted successfully', 'success');
+            loadPendingManuals();
+            loadProcessingManuals();
+            loadReadyManuals();
+            loadAllManuals();
+            loadStats();
+        } else {
+            showToast('Failed to delete manual', 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting manual: ' + error.message, 'error');
+    }
+}
+
+// Mark manual as listed
+async function markAsListed(manualId) {
+    try {
+        const response = await fetch(`${API_BASE}/manuals/${manualId}/mark-listed`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            showToast('Manual marked as listed!', 'success');
+            loadReadyManuals();
+            loadAllManuals();
+            loadStats();
+        } else {
+            showToast('Failed to mark manual as listed', 'error');
+        }
+    } catch (error) {
+        showToast('Error marking manual as listed: ' + error.message, 'error');
     }
 }
 
@@ -389,6 +643,8 @@ async function processManual(manualId) {
         
         if (response.ok) {
             showToast('Manual processed successfully!', 'success');
+            loadProcessingManuals();
+            loadReadyManuals();
             loadAllManuals();
             loadStats();
         } else {
