@@ -2,7 +2,123 @@
 Utility functions for generating meaningful filenames
 """
 import re
-from typing import Optional
+from typing import Optional, Dict, Tuple
+
+
+def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None) -> Dict[str, Optional[str]]:
+    """
+    Parse make, model, and model number from a title
+    
+    Args:
+        title: Manual title (e.g., "Honda Honda Sxs1000 Service Manual")
+        manufacturer: Optional manufacturer name if already known
+        
+    Returns:
+        Dictionary with 'make', 'model', 'model_number' keys
+    """
+    if not title:
+        return {'make': None, 'model': None, 'model_number': None}
+    
+    result = {
+        'make': manufacturer,
+        'model': None,
+        'model_number': None
+    }
+    
+    # Common manufacturers (case-insensitive)
+    common_manufacturers = [
+        'Honda', 'Yamaha', 'Polaris', 'Suzuki', 'Kawasaki', 'Can-Am',
+        'Toro', 'Craftsman', 'John Deere', 'Husqvarna',
+        'Kubota', 'Massey Ferguson', 'New Holland',
+        'Generac', 'Champion', 'Westinghouse', 'Briggs & Stratton',
+        'Kohler', 'Tecumseh', 'Onan', 'Cummins', 'Perkins',
+        'Cub Cadet', 'MTD', 'Ariens', 'Gravely', 'Scag',
+        'Dixon', 'Bobcat', 'Case', 'Ford', 'New Holland',
+        'International', 'Massey Ferguson', 'Allis Chalmers',
+        'Deutz', 'Fendt', 'Valtra', 'Lamborghini', 'Same'
+    ]
+    
+    title_clean = title.strip()
+    
+    # Extract make if not provided
+    if not result['make']:
+        title_upper = title_clean.upper()
+        for maker in common_manufacturers:
+            if maker.upper() in title_upper:
+                result['make'] = maker
+                # Remove manufacturer from title for model extraction
+                title_clean = re.sub(r'\b' + re.escape(maker) + r'\b', '', title_clean, flags=re.IGNORECASE).strip()
+                break
+    
+    # Remove common words
+    words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions', 'repair', 'maintenance']
+    for word in words_to_remove:
+        title_clean = re.sub(r'\b' + re.escape(word) + r'\b', '', title_clean, flags=re.IGNORECASE)
+    
+    title_clean = re.sub(r'\s+', ' ', title_clean).strip()
+    
+    # Extract model and model number
+    # Common equipment type words to exclude from model matching
+    equipment_words = ['atv', 'utv', 'quad', 'side', 'lawn', 'mower', 'tractor',
+                     'generator', 'engine', 'motor', 'riding', 'push', 'zero',
+                     'turn', 'compact', 'farm', 'portable', 'inverter']
+    
+    # Pattern 1: Look for standalone alphanumeric codes (e.g., "D105", "Sxs1000")
+    # This should be checked first for short codes like "D105"
+    alnum_pattern = r'\b([A-Za-z]{1,2}\d{2,}[A-Za-z0-9]*)\b'
+    alnum_match = re.search(alnum_pattern, title_clean)
+    
+    if alnum_match:
+        full_model = alnum_match.group(1)
+        result['model'] = full_model
+        
+        # Extract model number (the numeric part)
+        number_match = re.search(r'\d+', full_model)
+        if number_match:
+            result['model_number'] = number_match.group()
+    else:
+        # Pattern 2: Look for longer alphanumeric codes (e.g., TRX450R, Foreman500)
+        model_pattern = r'\b([A-Za-z]{3,}\d{2,}[A-Za-z0-9]*)\b'
+        model_match = re.search(model_pattern, title_clean)
+        
+        if model_match:
+            full_model = model_match.group(1)
+            # Check if it's an equipment word (skip if it is)
+            word_part = re.sub(r'\d+', '', full_model).lower()
+            if word_part not in equipment_words:
+                result['model'] = full_model
+                
+                # Extract model number (the numeric part)
+                number_match = re.search(r'\d+', full_model)
+                if number_match:
+                    result['model_number'] = number_match.group()
+        
+        if not result['model']:
+            # Pattern 3: Look for word + number combination (e.g., "Grizzly 700", "Sportsman 500")
+            # This handles cases where the model name is a word followed by a number
+            word_number_pattern = r'\b([A-Za-z]{4,})\s+(\d{2,})\b'
+            word_number_match = re.search(word_number_pattern, title_clean)
+            
+            if word_number_match:
+                word_part = word_number_match.group(1)
+                number_part = word_number_match.group(2)
+                # Check if it's an equipment word (skip if it is)
+                if word_part.lower() not in equipment_words:
+                    result['model'] = f"{word_part}{number_part}"
+                    result['model_number'] = number_part
+        
+        if not result['model']:
+            # Fallback: try to extract model from remaining words
+            words = title_clean.split()
+            if words:
+                # Take the first meaningful word as model
+                result['model'] = words[0]
+                # Try to extract number from it
+                number_match = re.search(r'\d+', result['model'])
+                if number_match:
+                    result['model_number'] = number_match.group()
+    
+    return result
 
 
 def extract_model_year_from_title(title: str) -> tuple:
@@ -87,11 +203,16 @@ def generate_safe_filename(
     
     # If we don't have model or year, try to extract from title
     if not model and not year and title:
-        extracted_model, extracted_year = extract_model_year_from_title(title)
-        if not model:
-            model = extracted_model
+        parsed = parse_make_model_modelnumber(title, manufacturer)
+        if not manufacturer and parsed.get('make'):
+            manufacturer = parsed['make']
+        if not model and parsed.get('model'):
+            model = parsed['model']
         if not year:
-            year = extracted_year
+            # Try to extract year from title
+            year_match = re.search(r'\b(19|20)\d{2}\b', title)
+            if year_match:
+                year = year_match.group()
     
     if manufacturer:
         parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))

@@ -375,10 +375,11 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         pdf_model = manual.model or pdf_metadata.get('model')
         pdf_year = manual.year or pdf_metadata.get('year')
         
+        # Generate meaningful zip filename using manufacturer, model, year
         zip_name = generate_safe_filename(
-            manual.manufacturer,
-            pdf_model,
-            pdf_year,
+            manufacturer=manual.manufacturer,
+            model=pdf_model,
+            year=pdf_year,
             title=manual.title
         )
         zip_path = f"./data/{zip_name}_resources.zip"
@@ -403,6 +404,14 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
                 print(f"All images: {all_images}")
             
             # Generate and add README.md
+            # Get the base filename for images (manufacturer-based naming)
+            image_base_name = generate_safe_filename(
+                manufacturer=manual.manufacturer,
+                model=pdf_model,
+                year=pdf_year,
+                title=manual.title
+            )
+            
             readme_content = f"""# Listing Instructions for: {title}
 
 ## Quick Start Guide
@@ -417,11 +426,11 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
 Use the following images in order for your listing:
 
 **Main Image (First Image):**
-- Use: `manual_{manual_id}_main.jpg` (or .png)
+- Use: `{image_base_name}_main.jpg` (or .png)
 - This is the cover/title page of the manual
 
 **Additional Images:**
-- Upload the remaining images: `manual_{manual_id}_additional_*.jpg` (or .png)
+- Upload the remaining images: `{image_base_name}_additional_*.jpg` (or .png)
 - These show sample pages including the index/table of contents
 - Upload up to 5 images total (1 main + 4 additional)
 
@@ -485,7 +494,7 @@ Pages: {page_count}
             
             return FileResponse(
                 path=zip_path,
-                filename=f'manual_{manual_id}_resources.zip',
+                filename=f'{zip_name}_resources.zip',
                 media_type='application/zip'
             )
             
