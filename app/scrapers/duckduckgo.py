@@ -72,7 +72,7 @@ class DuckDuckGoScraper(BaseScraper):
             # Try to find direct PDF links within the result div
             for div in result_divs:
                 # Look for direct PDF links in the result content
-                pdf_links = div.find_all('a', href=lambda x: x and x.get('href', '').lower().endswith('.pdf'))
+                pdf_links = div.find_all('a', href=lambda x: x and x.lower().endswith('.pdf'))
                 if pdf_links:
                     # Use the first direct PDF link found
                     url = pdf_links[0].get('href', '')
