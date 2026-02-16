@@ -352,6 +352,7 @@ body {
     max-height: 400px;
     overflow-y: auto;
     font-size: 0.9rem;
+    scroll-behavior: smooth;
 }
 
 .log-entry {

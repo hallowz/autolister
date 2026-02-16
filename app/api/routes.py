@@ -114,7 +114,7 @@ def get_scraping_status():
     
     return {
         "running": _scraping_running,
-        "logs": _scraping_log
+        "logs": list(_scraping_log)
     }
 
 
