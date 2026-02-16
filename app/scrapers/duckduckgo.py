@@ -161,57 +161,6 @@ class DuckDuckGoScraper(BaseScraper):
                         if len(results) >= max_results:
                             break
             
-            for div in result_divs:
-                try:
-                    # Extract title
-                    title_elem = div.find('a', class_='result__a')
-                    if not title_elem:
-                        continue
-                    
-                    title = title_elem.get_text(strip=True)
-                    url = title_elem.get('href', '')
-                    
-                    # Extract snippet/description
-                    snippet_elem = div.find('a', class_='result__snippet')
-                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
-                    
-                    # Extract source
-                    source_elem = div.find('span', class_='result__url')
-                    source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
-                    
-                    # VALIDATE: Only include if URL appears to be a downloadable PDF
-                    # Check if URL ends with .pdf OR if it's from a known PDF/manual site
-                    if not self._is_valid_pdf_url(url, source):
-                        continue
-                    
-                    # Extract metadata
-                    metadata = self.extract_pdf_metadata(url, title)
-                    metadata['search_engine'] = 'duckduckgo'
-                    metadata['query'] = search_query
-                    metadata['description'] = snippet
-                    
-                    # Create search result
-                    result = PDFResult(
-                        url=url,
-                        source_type='duckduckgo',
-                        title=title,
-                        equipment_type=metadata.get('equipment_type'),
-                        manufacturer=metadata.get('manufacturer'),
-                        model=metadata.get('model'),
-                        year=metadata.get('year'),
-                        metadata=metadata
-                    )
-                    
-                    results.append(result)
-                    
-                    # Stop if we have enough results
-                    if len(results) >= max_results:
-                        break
-                        
-                except Exception as e:
-                    print(f"Error parsing result: {e}")
-                    continue
-            
             print(f"DuckDuckGo search returned {len(results)} results for query: {query}")
             
         except requests.RequestException as e:
