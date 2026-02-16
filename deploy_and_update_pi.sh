@@ -85,7 +85,7 @@ echo '--- Step 3: Rebuilding Docker images ---' && \
 docker-compose build && \
 echo '' && \
 echo '--- Step 4: Regenerating database ---' && \
-docker-compose run --rm web python -c \"from app.database import regenerate_db; regenerate_db()\" && \
+docker-compose run --rm autolister python -c \"from app.database import regenerate_db; regenerate_db()\" && \
 echo '' && \
 echo '--- Step 5: Starting Docker services ---' && \
 docker-compose up -d && \

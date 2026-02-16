@@ -81,7 +81,7 @@ Write-Host "Docker images rebuilt" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "Step 4: Regenerating database..." -ForegroundColor Yellow
-ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose run --rm web python -c 'from app.database import regenerate_db; regenerate_db()'"
+ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose run --rm autolister python -c 'from app.database import regenerate_db; regenerate_db()'"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Database regeneration failed!" -ForegroundColor Red
     exit 1
