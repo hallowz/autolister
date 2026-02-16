@@ -1,0 +1,23 @@
+# Search Terms Configuration
+# Equipment categories and search terms for AutoLister
+
+equipment_categories:
+  - name: ATV/UTV
+    brands: [Honda, Yamaha, Polaris, Suzuki, Kawasaki, Can-Am]
+    types: [ATV, UTV, Side by Side, Quad]
+    keywords: [manual, service manual, owner manual, repair manual]
+  
+  - name: Lawnmowers
+    brands: [Toro, Craftsman, John Deere, Honda, Husqvarna]
+    types: [Lawn Mower, Riding Mower, Push Mower, Zero Turn]
+    keywords: [manual, service manual, owner manual]
+  
+  - name: Tractors
+    brands: [John Deere, Kubota, Massey Ferguson, New Holland]
+    types: [Tractor, Compact Tractor, Farm Tractor]
+    keywords: [manual, service manual, operator manual]
+  
+  - name: Generators
+    brands: [Honda, Generac, Champion, Westinghouse]
+    types: [Generator, Portable Generator, Inverter Generator]
+    keywords: [manual, owner manual, service manual]

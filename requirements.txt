@@ -27,8 +27,8 @@ pypdf==4.0.1
 Pillow==10.2.0
 img2pdf==0.5.1
 
-# Etsy API
-etsy-python==0.3.0
+# Etsy API (optional - only needed for direct Etsy API integration)
+# etsy-python==0.3.0
 
 # Configuration
 pyyaml==6.0.1
