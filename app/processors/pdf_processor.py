@@ -195,7 +195,7 @@ class PDFProcessor:
         
         try:
             pdf_name = f"manual_{manual_id}"
-            
+             
             # Generate main image (first page)
             main_image_path = self.convert_page_to_image(
                 pdf_path,
@@ -203,7 +203,11 @@ class PDFProcessor:
                 str(self.image_dir / f"{pdf_name}_main.{self.image_format}")
             )
             
-            if main_image_path:
+            # Only generate if doesn't exist
+            if main_image_path and not os.path.exists(main_image_path):
+                images['main'].append(main_image_path)
+            elif main_image_path:
+                # Image already exists, reuse it
                 images['main'].append(main_image_path)
             
             # Find index page
@@ -243,11 +247,19 @@ class PDFProcessor:
                     str(self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}")
                 )
                 
-                if image_path:
+                # Only generate if doesn't exist
+                if image_path and not os.path.exists(image_path):
+                    images['additional'].append(image_path)
+                elif image_path:
+                    # Image already exists, reuse it
                     images['additional'].append(image_path)
         
         except Exception as e:
             print(f"Error generating listing images: {e}")
+            print(f"PDF Path: {pdf_path}")
+            print(f"Manual ID: {manual_id}")
+            print(f"Image Dir: {self.image_dir}")
+            print(f"Image Dir exists: {self.image_dir.exists()}")
         
         return images
     

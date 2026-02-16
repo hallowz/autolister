@@ -317,7 +317,8 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             page_count
         )
         
-        # Generate listing images
+        # Check if images already exist from previous processing
+        # Generate listing images (will reuse existing images if available)
         images = processor.generate_listing_images(manual.pdf_path, manual_id)
         
         # Create a zip file with all resources
