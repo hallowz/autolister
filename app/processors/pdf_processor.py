@@ -22,7 +22,7 @@ class PDFProcessor:
         self.image_dpi = settings.image_dpi
         self.image_format = settings.image_format.lower()
         self.main_image_page = settings.main_image_page
-        self.additional_image_pages = settings.additional_image_pages
+        self.additional_image_pages = settings.additional_image_pages_list
     
     def extract_metadata(self, pdf_path: str) -> Dict:
         """

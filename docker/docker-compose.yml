@@ -48,7 +48,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: autolister-celery
     restart: unless-stopped
-    command: celery -A app.tasks worker --loglevel=info
+    command: celery -A app.tasks.celery_app worker --loglevel=info
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
@@ -68,7 +68,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: autolister-beat
     restart: unless-stopped
-    command: celery -A app.tasks beat --loglevel=info
+    command: celery -A app.tasks.celery_app beat --loglevel=info
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs

@@ -44,7 +44,23 @@ class Settings(BaseSettings):
     image_dpi: int = 150
     image_format: str = "jpeg"
     main_image_page: int = 1
-    additional_image_pages: List[int] = Field(default_factory=lambda: [2, 3, 4])
+    additional_image_pages: str = "2, 3, 4"  # Store as comma-separated string, parse later
+    
+    @property
+    def additional_image_pages_list(self) -> List[int]:
+        """Parse additional_image_pages as JSON array or comma-separated list"""
+        import json
+        try:
+            # Try JSON array format first: [2, 3, 4]
+            return json.loads(self.additional_image_pages)
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to comma-separated parsing: 2, 3, 4
+            if isinstance(self.additional_image_pages, str):
+                try:
+                    return [int(x.strip()) for x in self.additional_image_pages.split(',')]
+                except (ValueError, AttributeError):
+                    return [2, 3, 4]
+            return [2, 3, 4]
     
     # Database
     database_path: str = "./data/autolister.db"
