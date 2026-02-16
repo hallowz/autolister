@@ -217,18 +217,12 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         
         # Read the zip file and return it
         with open(zip_path, 'rb') as f:
-            from fastapi.responses import StreamingResponse
-            import io
+            from fastapi.responses import FileResponse
             
-            zip_content = f.read()
-            zip_bytes = io.BytesIO(zip_content)
-            
-            return StreamingResponse(
-                io.BytesIO(zip_content),
-                media_type='application/zip',
-                headers={
-                    'Content-Disposition': f'attachment; filename=manual_{manual_id}_resources.zip'
-                }
+            return FileResponse(
+                path=zip_path,
+                filename=f'manual_{manual_id}_resources.zip',
+                media_type='application/zip'
             )
             
     except Exception as e:
