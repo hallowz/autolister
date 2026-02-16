@@ -78,22 +78,12 @@ def start_scraping(
             from app.tasks.jobs import run_scraping_job
             _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": "Running scraping job..."})
             
-            # Capture stdout from scraping job
-            import sys
-            from io import StringIO
-            old_stdout = sys.stdout
-            sys.stdout = StringIO()
+            # Create a callback function to add logs directly
+            def log_callback(message):
+                _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": message})
             
-            run_scraping_job(query=query, max_results=max_results)
-            
-            # Get captured output
-            captured_output = sys.stdout.getvalue()
-            sys.stdout = old_stdout
-            
-            # Add captured lines as log entries
-            for line in captured_output.split('\n'):
-                if line.strip():
-                    _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": line})
+            # Pass the callback to the scraping job
+            run_scraping_job(query=query, max_results=max_results, log_callback=log_callback)
             
             _scraping_log.append({"time": datetime.utcnow().isoformat(), "message": "Scraping job completed!"})
         except Exception as e:

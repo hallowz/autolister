@@ -11,15 +11,22 @@ from app.config import get_settings
 settings = get_settings()
 
 
-def run_scraping_job(query: str = None, max_results: int = None):
+def run_scraping_job(query: str = None, max_results: int = None, log_callback=None):
     """
     Run a scraping job to discover PDF manuals
     
     Args:
         query: Optional specific query to search for
         max_results: Optional maximum results per search
+        log_callback: Optional callback function for logging
     """
     db = SessionLocal()
+    
+    # Helper function for logging
+    def log(message):
+        print(message)  # Still print to stdout for backward compatibility
+        if log_callback:
+            log_callback(message)
     
     try:
         # Get search queries
@@ -29,23 +36,28 @@ def run_scraping_job(query: str = None, max_results: int = None):
         queries = [query] if query else search_config.get_search_queries()
         max_results = max_results or settings.max_results_per_search
         
+        log(f"Starting scraping job with {len(queries)} search queries")
+        log(f"Max results per search: {max_results}")
+        
         # Initialize scraper (only DuckDuckGo - free, no API key required)
         duckduckgo_scraper = DuckDuckGoScraper(settings.model_dump())
         
         total_discovered = 0
         
-        for search_query in queries:
-            print(f"Searching for: {search_query}")
+        for idx, search_query in enumerate(queries, 1):
+            log(f"Searching for: {search_query} ({idx}/{len(queries)})")
             
             # Search using DuckDuckGo (free, no API key required)
             results = []
             try:
                 ddg_results = duckduckgo_scraper.search(search_query)
                 results.extend(ddg_results)
+                log(f"Found {len(ddg_results)} results from DuckDuckGo")
             except Exception as e:
-                print(f"DuckDuckGo scraper error: {e}")
+                log(f"DuckDuckGo scraper error: {e}")
             
             # Save results to database
+            new_count = 0
             for result in results[:max_results]:
                 # Check if URL already exists
                 existing = db.query(Manual).filter(
@@ -65,10 +77,12 @@ def run_scraping_job(query: str = None, max_results: int = None):
                     )
                     db.add(manual)
                     total_discovered += 1
+                    new_count += 1
             
             db.commit()
+            log(f"Saved {new_count} new manuals from '{search_query}'")
         
-        print(f"Scraping job completed. Discovered {total_discovered} new manuals.")
+        log(f"Scraping job completed. Discovered {total_discovered} new manuals total.")
         
         # Log completion
         log = ProcessingLog(
@@ -80,7 +94,7 @@ def run_scraping_job(query: str = None, max_results: int = None):
         db.commit()
         
     except Exception as e:
-        print(f"Scraping job error: {e}")
+        log(f"Scraping job error: {e}")
         
         # Log error
         log = ProcessingLog(
