@@ -974,11 +974,13 @@ async function exportCSV() {
 
 // Start scraping
 async function startScraping() {
+    console.log('startScraping() called');
     try {
         const response = await fetch(`${API_BASE}/scraping/start`, {
             method: 'POST'
         });
         const data = await response.json();
+        console.log('Start scraping response:', data);
         
         if (data.status === 'running') {
             showToast('Scraping started successfully', 'success');
@@ -989,17 +991,20 @@ async function startScraping() {
             showToast('Failed to start scraping', 'error');
         }
     } catch (error) {
+        console.error('Error starting scraping:', error);
         showToast('Error starting scraping: ' + error.message, 'error');
     }
 }
 
 // Stop scraping
 async function stopScraping() {
+    console.log('stopScraping() called');
     try {
         const response = await fetch(`${API_BASE}/scraping/stop`, {
             method: 'POST'
         });
         const data = await response.json();
+        console.log('Stop scraping response:', data);
         
         if (data.status === 'stopped') {
             showToast('Scraping stopped', 'info');
@@ -1008,6 +1013,7 @@ async function stopScraping() {
             showToast('Failed to stop scraping', 'error');
         }
     } catch (error) {
+        console.error('Error stopping scraping:', error);
         showToast('Error stopping scraping: ' + error.message, 'error');
     }
 }
@@ -1116,6 +1122,7 @@ function stopScrapingStatusPolling() {
 
 // Show all scraping logs in modal
 async function showScrapingLogs() {
+    console.log('showScrapingLogs() called');
     const modal = new bootstrap.Modal(document.getElementById('logsModal'));
     const logsContainer = document.getElementById('all-logs');
     
@@ -1173,6 +1180,7 @@ async function showScrapingLogs() {
 
 // Upload PDF file
 async function uploadPDF() {
+    console.log('uploadPDF() called');
     const fileInput = document.getElementById('pdfFile');
     const progressDiv = document.getElementById('uploadProgress');
     const resultDiv = document.getElementById('uploadResult');
@@ -1180,6 +1188,7 @@ async function uploadPDF() {
     const file = fileInput.files[0];
     
     if (!file) {
+        console.log('No file selected');
         showToast('Please select a PDF file', 'error');
         return;
     }
