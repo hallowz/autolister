@@ -174,7 +174,7 @@ def download_manual(manual_id: int, db: Session = Depends(get_db)):
 
 @router.post("/manuals/{manual_id}/download-resources")
 def download_resources(manual_id: int, db: Session = Depends(get_db)):
-    """Download all resources (PDF, images, README) for a processed manual"""
+    """Download all resources (PDF, images, README, description) for a processed manual"""
     manual = db.query(Manual).filter(Manual.id == manual_id).first()
     
     if not manual:
@@ -196,26 +196,126 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
     
     try:
+        # Import processors
+        from app.processors import PDFProcessor, SummaryGenerator
+        
+        # Process PDF to get content
+        processor = PDFProcessor()
+        summary_gen = SummaryGenerator()
+        
+        # Extract metadata and text
+        pdf_metadata = processor.extract_metadata(manual.pdf_path)
+        text = processor.extract_first_page_text(manual.pdf_path)
+        page_count = processor.get_page_count(manual.pdf_path)
+        
+        # Generate title and description
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
+        description = summary_gen.generate_description(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text,
+            page_count
+        )
+        
+        # Generate listing images
+        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        
         # Create a zip file with all resources
         zip_path = f"./data/manual_{manual_id}_resources.zip"
-        resources_dir = f"./data/manual_{manual_id}"
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
             # Add PDF
             if os.path.exists(manual.pdf_path):
                 zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
             
-            # Add images directory if it exists
-            images_dir = os.path.join(resources_dir, 'images')
+            # Add images from ./data/images/
+            images_dir = "./data/images"
             if os.path.exists(images_dir):
+                # Look for images matching this manual
                 for image_file in os.listdir(images_dir):
-                    image_path = os.path.join(images_dir, image_file)
-                    zipf.write(image_path, os.path.basename(image_path))
+                    if f"manual_{manual_id}" in image_file:
+                        image_path = os.path.join(images_dir, image_file)
+                        if os.path.isfile(image_path):
+                            zipf.write(image_path, os.path.basename(image_path))
             
-            # Add README if it exists
-            readme_path = os.path.join(resources_dir, 'README.md')
-            if os.path.exists(readme_path):
-                zipf.write(readme_path, 'README.md')
+            # Generate and add README.md
+            readme_content = f"""# Listing Instructions for: {title}
+
+## Quick Start Guide
+
+### 1. Upload the PDF
+- Go to your Etsy shop manager
+- Click "Add a listing"
+- Upload the PDF file: `{os.path.basename(manual.pdf_path)}`
+- This will be the digital file buyers download
+
+### 2. Upload Images
+Use the following images in order for your listing:
+
+**Main Image (First Image):**
+- Use: `manual_{manual_id}_main.jpg` (or .png)
+- This is the cover/title page of the manual
+
+**Additional Images:**
+- Upload the remaining images: `manual_{manual_id}_additional_*.jpg` (or .png)
+- These show sample pages including the index/table of contents
+- Upload up to 5 images total (1 main + 4 additional)
+
+### 3. Title
+Copy and paste this title:
+```
+{title}
+```
+
+### 4. Description
+Copy and paste this description:
+```
+{description}
+```
+
+### 5. Pricing & Quantity
+- Price: $4.99 (or adjust as needed)
+- Quantity: 9999 (unlimited digital downloads)
+
+### 6. Category & Tags
+- Category: Choose the most relevant equipment category (ATV, Lawn Mower, Generator, etc.)
+- Tags: Add relevant tags like "service manual", "repair manual", "digital download", "{manual.manufacturer or 'manual'}"
+
+### 7. Shipping
+- Set shipping to "Digital Item" or "No shipping required"
+- Buyers will receive an instant download link after purchase
+
+## Tips for Success
+
+- Use high-quality images (already provided)
+- Make sure the title includes manufacturer and model
+- Include all relevant keywords in tags
+- Respond quickly to buyer questions
+- Consider creating variations for different models
+
+## File Information
+
+- PDF File: `{os.path.basename(manual.pdf_path)}`
+- Pages: {page_count}
+- Images Included: {len(images.get('main', [])) + len(images.get('additional', []))}
+- Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+            
+            zipf.writestr('README.md', readme_content)
+            
+            # Add short description file
+            short_desc = f"""Title: {title}
+
+Description:
+{description}
+
+Manufacturer: {manual.manufacturer or 'N/A'}
+Model: {manual.model or 'N/A'}
+Pages: {page_count}
+"""
+            zipf.writestr('description.txt', short_desc)
         
         # Read the zip file and return it
         with open(zip_path, 'rb') as f:
