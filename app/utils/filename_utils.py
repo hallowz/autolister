@@ -16,7 +16,11 @@ def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None)
     Returns:
         Dictionary with 'make', 'model', 'model_number' keys
     """
+    print(f"[parse_make_model_modelnumber] === START ===")
+    print(f"[parse_make_model_modelnumber] Input: title='{title}', manufacturer='{manufacturer}'")
+    
     if not title:
+        print(f"[parse_make_model_modelnumber] No title provided, returning defaults")
         return {'make': None, 'model': None, 'model_number': None}
     
     result = {
@@ -48,6 +52,7 @@ def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None)
                 result['make'] = maker
                 # Remove manufacturer from title for model extraction
                 title_clean = re.sub(r'\b' + re.escape(maker) + r'\b', '', title_clean, flags=re.IGNORECASE).strip()
+                print(f"[parse_make_model_modelnumber] Found manufacturer '{maker}', cleaned title: '{title_clean}'")
                 break
     
     # Remove common words
@@ -118,6 +123,8 @@ def parse_make_model_modelnumber(title: str, manufacturer: Optional[str] = None)
                 if number_match:
                     result['model_number'] = number_match.group()
     
+    print(f"[parse_make_model_modelnumber] Result: {result}")
+    print(f"[parse_make_model_modelnumber] === END ===")
     return result
 
 
@@ -202,48 +209,70 @@ def generate_safe_filename(
     parts = []
     
     # Debug logging
-    print(f"[generate_safe_filename] Input: manufacturer={manufacturer}, model={model}, year={year}, title={title}")
+    print(f"[generate_safe_filename] === START ===")
+    print(f"[generate_safe_filename] Input: manufacturer={manufacturer}, model={model}, year={year}, title={title}, fallback={fallback}")
     
     # If we don't have model or year, try to extract from title
     if not model and not year and title:
+        print(f"[generate_safe_filename] No model/year provided, attempting to extract from title...")
         parsed = parse_make_model_modelnumber(title, manufacturer)
         print(f"[generate_safe_filename] Parsed from title: {parsed}")
         if not manufacturer and parsed.get('make'):
             manufacturer = parsed['make']
+            print(f"[generate_safe_filename] Updated manufacturer from title: {manufacturer}")
         if not model and parsed.get('model'):
             model = parsed['model']
+            print(f"[generate_safe_filename] Updated model from title: {model}")
         if not year:
             # Try to extract year from title
             year_match = re.search(r'\b(19|20)\d{2}\b', title)
             if year_match:
                 year = year_match.group()
+                print(f"[generate_safe_filename] Extracted year from title: {year}")
     
     # If we still don't have a model, try to extract any alphanumeric code from title
     if not model and title:
+        print(f"[generate_safe_filename] Still no model, trying alphanumeric pattern extraction...")
         # Remove common words and look for alphanumeric patterns
         words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions', 'repair', 'maintenance', 'pdf']
         title_clean = title
         for word in words_to_remove:
             title_clean = re.sub(r'\b' + re.escape(word) + r'\b', '', title_clean, flags=re.IGNORECASE)
         title_clean = re.sub(r'[^\w\s]', '', title_clean).strip()
+        print(f"[generate_safe_filename] Cleaned title for pattern matching: '{title_clean}'")
         
         # Look for alphanumeric patterns
         alnum_match = re.search(r'\b([A-Za-z]+\d+[A-Za-z0-9]*|\d+[A-Za-z]+[A-Za-z0-9]*)\b', title_clean)
         if alnum_match:
             model = alnum_match.group(1)
+            print(f"[generate_safe_filename] Extracted model from alphanumeric pattern: {model}")
+        else:
+            print(f"[generate_safe_filename] No alphanumeric pattern found")
+    
+    print(f"[generate_safe_filename] Final values before building parts:")
+    print(f"  manufacturer: '{manufacturer}'")
+    print(f"  model: '{model}'")
+    print(f"  year: '{year}'")
     
     # Build parts in order: year, make, model
     # Note: model_number is NOT added separately since it's typically part of the model name
     if year:
-        parts.append(re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_'))
+        year_part = re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_')
+        parts.append(year_part)
+        print(f"[generate_safe_filename] Added year part: '{year_part}'")
     if manufacturer:
-        parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
+        manufacturer_part = re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_')
+        parts.append(manufacturer_part)
+        print(f"[generate_safe_filename] Added manufacturer part: '{manufacturer_part}'")
     if model:
         # Remove .pdf extension if present in model
         model_clean = re.sub(r'\.pdf$', '', model, flags=re.IGNORECASE)
-        parts.append(re.sub(r'[^\w\s-]', '', model_clean).strip().replace(' ', '_'))
+        model_part = re.sub(r'[^\w\s-]', '', model_clean).strip().replace(' ', '_')
+        parts.append(model_part)
+        print(f"[generate_safe_filename] Added model part: '{model_part}' (original: '{model}')")
     
-    print(f"[generate_safe_filename] Parts: {parts}")
+    print(f"[generate_safe_filename] Parts list: {parts}")
     result = "_".join(parts) if parts else fallback
-    print(f"[generate_safe_filename] Result: {result}")
+    print(f"[generate_safe_filename] Result: '{result}'")
+    print(f"[generate_safe_filename] === END ===")
     return result

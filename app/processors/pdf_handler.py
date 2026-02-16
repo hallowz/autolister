@@ -44,10 +44,16 @@ class PDFDownloader:
         Returns:
             Path to downloaded file or None if failed
         """
+        print(f"[PDFDownloader.download] Starting download")
+        print(f"[PDFDownloader.download] URL: {url}")
+        print(f"[PDFDownloader.download] manual_id: {manual_id}")
+        print(f"[PDFDownloader.download] manufacturer: {manufacturer}")
+        print(f"[PDFDownloader.download] model: {model}")
+        print(f"[PDFDownloader.download] year: {year}")
         try:
             # Validate URL
             if not self._is_valid_pdf_url(url):
-                print(f"Invalid PDF URL: {url}")
+                print(f"[PDFDownloader.download] Invalid PDF URL: {url}")
                 return None
             
             # Download with streaming
@@ -75,6 +81,7 @@ class PDFDownloader:
             
             # Download file first with a temporary filename
             temp_filename = self._generate_filename(url, manual_id, manufacturer, model, year)
+            print(f"[PDFDownloader.download] Generated temp filename: {temp_filename}")
             filepath = self.download_dir / temp_filename
             
             # Download file
@@ -91,16 +98,20 @@ class PDFDownloader:
             
             # Use AI to extract metadata from the PDF for better filename
             final_filename = self._generate_filename_with_ai(filepath, url, manual_id, manufacturer, model, year)
+            print(f"[PDFDownloader.download] AI-generated filename: {final_filename}")
             
             # Rename if AI extraction produced a better filename
             if final_filename and final_filename != temp_filename:
                 final_filepath = self.download_dir / final_filename
+                print(f"[PDFDownloader.download] Renaming from {temp_filename} to {final_filename}")
                 # Handle filename collision
                 if final_filepath.exists():
                     final_filepath = self.download_dir / f"{final_filename[:-4]}_{hashlib.md5(url.encode()).hexdigest()[:8]}.pdf"
+                    print(f"[PDFDownloader.download] Filename collision detected, using: {final_filepath.name}")
                 filepath.rename(final_filepath)
                 filepath = final_filepath
             
+            print(f"[PDFDownloader.download] Final filepath: {filepath}")
             return str(filepath)
         
         except requests.RequestException as e:
@@ -131,18 +142,29 @@ class PDFDownloader:
         """Generate unique filename for PDF"""
         import re
         
+        print(f"[_generate_filename] Input parameters:")
+        print(f"  url: {url}")
+        print(f"  manual_id: {manual_id}")
+        print(f"  manufacturer: {manufacturer}")
+        print(f"  model: {model}")
+        print(f"  year: {year}")
+        
         # Try to extract model/year from URL if not provided
         if not model or not year:
+            print(f"[_generate_filename] Extracting model/year from URL...")
             # Extract from URL path
             url_parts = url.split('/')
+            print(f"[_generate_filename] URL parts: {url_parts}")
             for part in url_parts:
                 # Look for year (4 digits starting with 19 or 20)
                 year_match = re.search(r'\b(19|20)\d{2}\b', part)
                 if year_match and not year:
                     year = year_match.group()
+                    print(f"[_generate_filename] Extracted year from URL part '{part}': {year}")
                 # Look for model patterns (letters followed by numbers)
                 if re.match(r'^[a-z]{2,}\d+', part.lower()) and not model:
                     model = part.upper()
+                    print(f"[_generate_filename] Extracted model from URL part '{part}': {model}")
         
         # Extract model_number from model if available
         model_number = None
@@ -150,21 +172,38 @@ class PDFDownloader:
             number_match = re.search(r'\d+', model)
             if number_match:
                 model_number = number_match.group()
+                print(f"[_generate_filename] Extracted model_number: {model_number}")
+        
+        print(f"[_generate_filename] After URL extraction:")
+        print(f"  manufacturer: {manufacturer}")
+        print(f"  model: {model}")
+        print(f"  model_number: {model_number}")
+        print(f"  year: {year}")
         
         # Try to generate meaningful filename from metadata
         if manufacturer or model or year:
+            print(f"[_generate_filename] Generating safe filename from metadata...")
             safe_name = generate_safe_filename(manufacturer, model, model_number, year)
+            print(f"[_generate_filename] Generated safe_name: {safe_name}")
             # Use the generated name as long as it has more than just manufacturer
             if safe_name and safe_name != "manual":
-                return safe_name + ".pdf"
+                result = safe_name + ".pdf"
+                print(f"[_generate_filename] Returning filename: {result}")
+                return result
+            else:
+                print(f"[_generate_filename] safe_name is '{safe_name}', using fallback")
         
         # Fallback to hash-based filename
+        print(f"[_generate_filename] Using hash-based filename fallback")
         url_hash = hashlib.md5(url.encode()).hexdigest()[:12]
         
         if manual_id:
-            return f"manual_{manual_id}_{url_hash}.pdf"
+            result = f"manual_{manual_id}_{url_hash}.pdf"
         else:
-            return f"manual_{url_hash}.pdf"
+            result = f"manual_{url_hash}.pdf"
+        
+        print(f"[_generate_filename] Returning fallback filename: {result}")
+        return result
     
     def _generate_filename_with_ai(
         self,
@@ -189,14 +228,23 @@ class PDFDownloader:
         Returns:
             Generated filename or None if AI extraction fails
         """
+        print(f"[_generate_filename_with_ai] Input parameters:")
+        print(f"  filepath: {filepath}")
+        print(f"  url: {url}")
+        print(f"  manufacturer: {manufacturer}")
+        print(f"  model: {model}")
+        print(f"  year: {year}")
+        
         # Check if AI extractor is available
         if not self.ai_extractor.is_available():
-            print("AI extractor not available (GROQ_API_KEY not configured)")
+            print("[_generate_filename_with_ai] AI extractor not available (GROQ_API_KEY not configured)")
             return None
         
         try:
             # Extract metadata using AI
+            print(f"[_generate_filename_with_ai] Extracting metadata from PDF with AI...")
             extracted = self.ai_extractor.extract_from_pdf(str(filepath))
+            print(f"[_generate_filename_with_ai] AI extraction result: {extracted}")
             
             if not extracted.get('success'):
                 print(f"AI extraction failed: {extracted.get('error')}")
@@ -207,12 +255,24 @@ class PDFDownloader:
             ai_model = extracted.get('model') or model
             ai_year = extracted.get('year') or year
             
+            print(f"[_generate_filename_with_ai] AI-extracted/final values:")
+            print(f"  ai_manufacturer: {ai_manufacturer}")
+            print(f"  ai_model: {ai_model}")
+            print(f"  ai_year: {ai_year}")
+            
             # Generate filename from extracted data
             if ai_manufacturer or ai_model or ai_year:
+                print(f"[_generate_filename_with_ai] Generating safe filename from AI data...")
                 safe_name = generate_safe_filename(ai_manufacturer, ai_model, ai_year)
+                print(f"[_generate_filename_with_ai] Generated safe_name: {safe_name}")
                 if safe_name and safe_name != "manual":
-                    return safe_name + ".pdf"
+                    result = safe_name + ".pdf"
+                    print(f"[_generate_filename_with_ai] Returning filename: {result}")
+                    return result
+                else:
+                    print(f"[_generate_filename_with_ai] safe_name is '{safe_name}', returning None")
             
+            print(f"[_generate_filename_with_ai] No valid data for filename, returning None")
             return None
         
         except Exception as e:

@@ -132,6 +132,13 @@ def process_approved_manuals():
         for manual in approved_manuals:
             try:
                 # Download PDF
+                print(f"[process_approved_manuals] Processing manual_id={manual.id}")
+                print(f"[process_approved_manuals] Manual details:")
+                print(f"  source_url: {manual.source_url}")
+                print(f"  title: {manual.title}")
+                print(f"  manufacturer: {manual.manufacturer}")
+                print(f"  model: {manual.model}")
+                print(f"  year: {manual.year}")
                 pdf_path = downloader.download(
                     manual.source_url,
                     manual.id,
@@ -342,6 +349,13 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
         summary_gen = SummaryGenerator()
         
         # Download PDF
+        print(f"[process_single_manual] Processing manual_id={manual_id}")
+        print(f"[process_single_manual] Manual details:")
+        print(f"  source_url: {manual.source_url}")
+        print(f"  title: {manual.title}")
+        print(f"  manufacturer: {manual.manufacturer}")
+        print(f"  model: {manual.model}")
+        print(f"  year: {manual.year}")
         pdf_path = downloader.download(
             manual.source_url,
             manual.id,

@@ -406,6 +406,13 @@ def approve_manual(manual_id: int, db: Session = Depends(get_db)):
     
     try:
         # Download PDF
+        print(f"[approve_manual] Approving manual_id={manual_id}")
+        print(f"[approve_manual] Manual details:")
+        print(f"  source_url: {manual.source_url}")
+        print(f"  title: {manual.title}")
+        print(f"  manufacturer: {manual.manufacturer}")
+        print(f"  model: {manual.model}")
+        print(f"  year: {manual.year}")
         downloader = PDFDownloader()
         pdf_path = downloader.download(
             manual.source_url,
@@ -493,8 +500,21 @@ def download_manual(manual_id: int, db: Session = Depends(get_db)):
         )
     
     # Download PDF
+    print(f"[download_manual] Downloading PDF for manual_id={manual_id}")
+    print(f"[download_manual] Manual details:")
+    print(f"  source_url: {manual.source_url}")
+    print(f"  title: {manual.title}")
+    print(f"  manufacturer: {manual.manufacturer}")
+    print(f"  model: {manual.model}")
+    print(f"  year: {manual.year}")
     downloader = PDFDownloader()
-    pdf_path = downloader.download(manual.source_url, manual_id)
+    pdf_path = downloader.download(
+        manual.source_url,
+        manual_id,
+        manufacturer=manual.manufacturer,
+        model=manual.model,
+        year=manual.year
+    )
     
     if not pdf_path:
         manual.status = 'error'
