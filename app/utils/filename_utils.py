@@ -182,7 +182,6 @@ def extract_model_year_from_title(title: str) -> tuple:
 def generate_safe_filename(
     manufacturer: Optional[str] = None,
     model: Optional[str] = None,
-    model_number: Optional[str] = None,
     year: Optional[str] = None,
     title: Optional[str] = None,
     fallback: str = "manual"
@@ -193,13 +192,12 @@ def generate_safe_filename(
     Args:
         manufacturer: Manufacturer name
         model: Model name
-        model_number: Model number
         year: Year
         title: Manual title (used as fallback for model/year extraction)
         fallback: Fallback name if no metadata is provided
         
     Returns:
-        Safe filename string in format: year_make_model_modelnumber
+        Safe filename string in format: year_make_model
     """
     parts = []
     
@@ -210,23 +208,34 @@ def generate_safe_filename(
             manufacturer = parsed['make']
         if not model and parsed.get('model'):
             model = parsed['model']
-        if not model_number and parsed.get('model_number'):
-            model_number = parsed['model_number']
         if not year:
             # Try to extract year from title
             year_match = re.search(r'\b(19|20)\d{2}\b', title)
             if year_match:
                 year = year_match.group()
     
-    # Build parts in order: year, make, model, model_number
+    # If we still don't have a model, try to extract any alphanumeric code from title
+    if not model and title:
+        # Remove common words and look for alphanumeric patterns
+        words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions', 'repair', 'maintenance', 'pdf']
+        title_clean = title
+        for word in words_to_remove:
+            title_clean = re.sub(r'\b' + re.escape(word) + r'\b', '', title_clean, flags=re.IGNORECASE)
+        title_clean = re.sub(r'[^\w\s]', '', title_clean).strip()
+        
+        # Look for alphanumeric patterns
+        alnum_match = re.search(r'\b([A-Za-z]+\d+[A-Za-z0-9]*|\d+[A-Za-z]+[A-Za-z0-9]*)\b', title_clean)
+        if alnum_match:
+            model = alnum_match.group(1)
+    
+    # Build parts in order: year, make, model
+    # Note: model_number is NOT added separately since it's typically part of the model name
     if year:
         parts.append(re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_'))
     if manufacturer:
         parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
     if model:
         parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
-    if model_number:
-        parts.append(re.sub(r'[^\w\s-]', '', model_number).strip().replace(' ', '_'))
     
     # Return meaningful name if we have parts, otherwise fallback
     return "_".join(parts) if parts else fallback

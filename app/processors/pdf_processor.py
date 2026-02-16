@@ -36,7 +36,7 @@ class PDFProcessor:
             Dictionary with metadata
         """
         import re
-        from app.utils import extract_model_year_from_title
+        from app.utils import extract_model_year_from_title, parse_make_model_modelnumber
         
         metadata = {
             'title': None,
@@ -46,6 +46,7 @@ class PDFProcessor:
             'creator': None,
             'producer': None,
             'page_count': 0,
+            'manufacturer': None,
             'model': None,
             'year': None
         }
@@ -60,11 +61,19 @@ class PDFProcessor:
                     title = info.get('/Title')
                     metadata['title'] = title
                     
-                    # Extract model and year from title
+                    # Extract manufacturer, model and year from title
                     if title:
+                        parsed = parse_make_model_modelnumber(title)
+                        if parsed.get('make'):
+                            metadata['manufacturer'] = parsed['make']
+                        if parsed.get('model'):
+                            metadata['model'] = parsed['model']
+                        
                         model, year = extract_model_year_from_title(title)
-                        metadata['model'] = model
-                        metadata['year'] = year
+                        if model and not metadata['model']:
+                            metadata['model'] = model
+                        if year:
+                            metadata['year'] = year
                     
                     metadata['author'] = info.get('/Author')
                     metadata['subject'] = info.get('/Subject')

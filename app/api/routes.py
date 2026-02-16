@@ -17,7 +17,7 @@ from app.scrapers import DuckDuckGoScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.etsy import ListingManager
 from app.config import get_settings
-from app.utils import generate_safe_filename
+from app.utils import generate_safe_filename, parse_make_model_modelnumber
 
 settings = get_settings()
 
@@ -549,33 +549,35 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         # Use PDF metadata for model/year if not in manual record
         pdf_model = manual.model or pdf_metadata.get('model')
         pdf_year = manual.year or pdf_metadata.get('year')
+        pdf_manufacturer = manual.manufacturer or pdf_metadata.get('manufacturer')
         
-        # Extract model_number from model if available
-        model_number = None
-        if pdf_model:
-            import re
-            number_match = re.search(r'\d+', pdf_model)
-            if number_match:
-                model_number = number_match.group()
+        # If we don't have good metadata, try to extract from PDF filename
+        if not pdf_model or not pdf_manufacturer:
+            import os
+            pdf_filename = os.path.basename(manual.pdf_path)
+            parsed_from_filename = parse_make_model_modelnumber(pdf_filename)
+            if not pdf_manufacturer and parsed_from_filename.get('make'):
+                pdf_manufacturer = parsed_from_filename['make']
+            if not pdf_model and parsed_from_filename.get('model'):
+                pdf_model = parsed_from_filename['model']
         
         # Check if images already exist from previous processing
         # Generate listing images (will reuse existing images if available)
         images = processor.generate_listing_images(
             manual.pdf_path,
             manual_id,
-            manufacturer=manual.manufacturer,
-            model=manual.model,
-            model_number=model_number,
-            year=manual.year
+            manufacturer=pdf_manufacturer,
+            model=pdf_model,
+            year=pdf_year
         )
         
-        # Generate meaningful zip filename using manufacturer, model, year, model_number
+        # Generate meaningful zip filename using manufacturer, model, year
+        # Use manual.title as fallback if we still don't have good data
         zip_name = generate_safe_filename(
-            manufacturer=manual.manufacturer,
+            manufacturer=pdf_manufacturer,
             model=pdf_model,
-            model_number=model_number,
             year=pdf_year,
-            title=manual.title
+            title=manual.title or os.path.basename(manual.pdf_path)
         )
         zip_path = f"./data/{zip_name}_resources.zip"
         
