@@ -69,6 +69,98 @@ class DuckDuckGoScraper(BaseScraper):
             # Extract search results
             result_divs = soup.find_all('div', class_='result')
             
+            # Try to find direct PDF links within the result div
+            for div in result_divs:
+                # Look for direct PDF links in the result content
+                pdf_links = div.find_all('a', href=lambda x: x and x.get('href', '').lower().endswith('.pdf'))
+                if pdf_links:
+                    # Use the first direct PDF link found
+                    url = pdf_links[0].get('href', '')
+                    title = pdf_links[0].get_text(strip=True)
+                    # Extract snippet from the result
+                    snippet_elem = div.find('a', class_='result__snippet')
+                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                    # Extract source
+                    source_elem = div.find('span', class_='result__url')
+                    source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
+                    
+                    # VALIDATE: Only include if URL appears to be a downloadable PDF
+                    if not self._is_valid_pdf_url(url, source):
+                        continue
+                    
+                    # Extract metadata
+                    metadata = self.extract_pdf_metadata(url, title)
+                    metadata['search_engine'] = 'duckduckgo'
+                    metadata['query'] = search_query
+                    metadata['description'] = snippet
+                    
+                    # Create search result
+                    result = PDFResult(
+                        url=url,
+                        source_type='duckduckgo',
+                        title=title,
+                        equipment_type=metadata.get('equipment_type'),
+                        manufacturer=metadata.get('manufacturer'),
+                        model=metadata.get('model'),
+                        year=metadata.get('year'),
+                        metadata=metadata
+                    )
+                    
+                    results.append(result)
+                    
+                    # Stop if we have enough results
+                    if len(results) >= max_results:
+                        break
+            
+            # Only process result_divs if we didn't find direct PDF links
+            if not results:
+                # Fall back to original parsing if no direct PDF links found
+                for div in result_divs:
+                    try:
+                        # Extract title
+                        title_elem = div.find('a', class_='result__a')
+                        if not title_elem:
+                            continue
+                        
+                        title = title_elem.get_text(strip=True)
+                        url = title_elem.get('href', '')
+                        
+                        # Extract snippet/description
+                        snippet_elem = div.find('a', class_='result__snippet')
+                        snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                        
+                        # Extract source
+                        source_elem = div.find('span', class_='result__url')
+                        source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
+                        
+                        # VALIDATE: Only include if URL appears to be a downloadable PDF
+                        if not self._is_valid_pdf_url(url, source):
+                            continue
+                        
+                        # Extract metadata
+                        metadata = self.extract_pdf_metadata(url, title)
+                        metadata['search_engine'] = 'duckduckgo'
+                        metadata['query'] = search_query
+                        metadata['description'] = snippet
+                        
+                        # Create search result
+                        result = PDFResult(
+                            url=url,
+                            source_type='duckduckgo',
+                            title=title,
+                            equipment_type=metadata.get('equipment_type'),
+                            manufacturer=metadata.get('manufacturer'),
+                            model=metadata.get('model'),
+                            year=metadata.get('year'),
+                            metadata=metadata
+                        )
+                        
+                        results.append(result)
+                        
+                        # Stop if we have enough results
+                        if len(results) >= max_results:
+                            break
+            
             for div in result_divs:
                 try:
                     # Extract title
