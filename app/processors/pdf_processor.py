@@ -185,10 +185,42 @@ class PDFProcessor:
             print(f"Error converting page {page_num} to image: {e}")
             return None
     
+    def _generate_safe_filename(self, manufacturer: str, model: str, year: str) -> str:
+        """
+        Generate a safe filename from manual metadata
+        
+        Args:
+            manufacturer: Manufacturer name
+            model: Model name
+            year: Year
+            
+        Returns:
+            Safe filename string
+        """
+        import re
+        
+        # Clean and sanitize each part
+        parts = []
+        if manufacturer:
+            parts.append(re.sub(r'[^\w\s-]', '', manufacturer).strip().replace(' ', '_'))
+        if year:
+            parts.append(re.sub(r'[^\w\s-]', '', year).strip().replace(' ', '_'))
+        if model:
+            parts.append(re.sub(r'[^\w\s-]', '', model).strip().replace(' ', '_'))
+        
+        # Fallback to generic name if no parts
+        if not parts:
+            return "manual"
+        
+        return "_".join(parts)
+    
     def generate_listing_images(
         self,
         pdf_path: str,
-        manual_id: int
+        manual_id: int,
+        manufacturer: str = None,
+        model: str = None,
+        year: str = None
     ) -> Dict[str, List[str]]:
         """
         Generate images for Etsy listing
@@ -196,6 +228,9 @@ class PDFProcessor:
         Args:
             pdf_path: Path to PDF file
             manual_id: Manual ID for naming
+            manufacturer: Manufacturer name
+            model: Model name
+            year: Year
             
         Returns:
             Dictionary with 'main' and 'additional' image paths
@@ -206,7 +241,8 @@ class PDFProcessor:
         }
         
         try:
-            pdf_name = f"manual_{manual_id}"
+            # Generate meaningful filename
+            pdf_name = self._generate_safe_filename(manufacturer, model, year)
              
             # Generate main image (first page)
             main_image_path = self.convert_page_to_image(
@@ -293,30 +329,44 @@ class PDFProcessor:
             print(f"Error getting page count: {e}")
             return 0
     
-    def cleanup_images(self, manual_id: int) -> bool:
+    def cleanup_images(
+        self,
+        manual_id: int = None,
+        manufacturer: str = None,
+        model: str = None,
+        year: str = None
+    ) -> bool:
         """
         Clean up generated images for a manual
         
         Args:
-            manual_id: Manual ID
+            manual_id: Manual ID (for backward compatibility)
+            manufacturer: Manufacturer name
+            model: Model name
+            year: Year
             
         Returns:
             True if successful
         """
         try:
-            pdf_name = f"manual_{manual_id}"
-            
+            # Try to use meaningful filename if metadata is provided
+            if manufacturer or model or year:
+                pdf_name = self._generate_safe_filename(manufacturer, model, year)
+            else:
+                # Fallback to old naming scheme
+                pdf_name = f"manual_{manual_id}"
+             
             # Remove main image
             main_image = self.image_dir / f"{pdf_name}_main.{self.image_format}"
             if main_image.exists():
                 main_image.unlink()
-            
+             
             # Remove additional images
             for i in range(10):  # Check up to 10 additional images
                 additional_image = self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}"
                 if additional_image.exists():
                     additional_image.unlink()
-            
+             
             return True
         
         except Exception as e:

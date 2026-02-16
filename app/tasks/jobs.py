@@ -129,7 +129,13 @@ def process_approved_manuals():
                 # Process PDF
                 pdf_metadata = processor.extract_metadata(pdf_path)
                 text = processor.extract_first_page_text(pdf_path)
-                images = processor.generate_listing_images(pdf_path, manual.id)
+                images = processor.generate_listing_images(
+                    pdf_path,
+                    manual.id,
+                    manufacturer=manual.manufacturer,
+                    model=manual.model,
+                    year=manual.year
+                )
                 
                 # Update manual with processed data
                 if not manual.title:
@@ -208,7 +214,13 @@ def create_etsy_listings():
                 )
                 
                 # Generate images
-                images = processor.generate_listing_images(manual.pdf_path, manual.id)
+                images = processor.generate_listing_images(
+                    manual.pdf_path,
+                    manual.id,
+                    manufacturer=manual.manufacturer,
+                    model=manual.model,
+                    year=manual.year
+                )
                 
                 # Create Etsy listing
                 listing_id = listing_manager.create_digital_listing(

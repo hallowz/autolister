@@ -104,7 +104,12 @@ def delete_manual(manual_id: int, db: Session = Depends(get_db)):
     try:
         from app.processors import PDFProcessor
         processor = PDFProcessor()
-        processor.cleanup_images(manual_id)
+        processor.cleanup_images(
+            manual_id=manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
     except Exception as e:
         print(f"Error cleaning up images: {e}")
     
@@ -145,8 +150,14 @@ def process_manual_background(manual_id: int, pdf_path: str):
         # Extract text
         text = processor.extract_first_page_text(manual.pdf_path)
         
-        # Generate images
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        # Generate images with meaningful filenames
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         # Generate title and description
         title = summary_gen.generate_title(
@@ -344,7 +355,13 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         
         # Check if images already exist from previous processing
         # Generate listing images (will reuse existing images if available)
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         # Create a zip file with all resources
         zip_path = f"./data/manual_{manual_id}_resources.zip"
@@ -500,7 +517,13 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
         text = processor.extract_first_page_text(manual.pdf_path)
         
         # Generate images
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         # Generate title and description
         title = summary_gen.generate_title(
@@ -576,7 +599,13 @@ def list_on_etsy(manual_id: int, db: Session = Depends(get_db)):
         )
         
         # Generate images
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         # Create Etsy listing
         listing_manager = ListingManager()
@@ -666,7 +695,13 @@ def upload_to_etsy(manual_id: int, db: Session = Depends(get_db)):
         )
         
         # Generate images
-        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            year=manual.year
+        )
         
         # Create Etsy listing
         listing_manager = ListingManager()
