@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 from app.config import get_settings
 from app.utils import generate_safe_filename
+from app.processors.pdf_ai_extractor import PDFAIExtractor
 
 settings = get_settings()
 
@@ -20,6 +21,7 @@ class PDFDownloader:
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.max_size_mb = settings.max_pdf_size_mb
         self.timeout = settings.request_timeout
+        self.ai_extractor = PDFAIExtractor()
     
     def download(
         self,
@@ -71,9 +73,9 @@ class PDFDownloader:
                 print(f"File too large: {content_length} bytes (max: {max_size_bytes})")
                 return None
             
-            # Generate filename
-            filename = self._generate_filename(url, manual_id, manufacturer, model, year)
-            filepath = self.download_dir / filename
+            # Download file first with a temporary filename
+            temp_filename = self._generate_filename(url, manual_id, manufacturer, model, year)
+            filepath = self.download_dir / temp_filename
             
             # Download file
             with open(filepath, 'wb') as f:
@@ -82,12 +84,24 @@ class PDFDownloader:
                         f.write(chunk)
             
             # Validate downloaded file
-            if self._validate_pdf(filepath):
-                return str(filepath)
-            else:
+            if not self._validate_pdf(filepath):
                 # Remove invalid file
                 filepath.unlink()
                 return None
+            
+            # Use AI to extract metadata from the PDF for better filename
+            final_filename = self._generate_filename_with_ai(filepath, url, manual_id, manufacturer, model, year)
+            
+            # Rename if AI extraction produced a better filename
+            if final_filename and final_filename != temp_filename:
+                final_filepath = self.download_dir / final_filename
+                # Handle filename collision
+                if final_filepath.exists():
+                    final_filepath = self.download_dir / f"{final_filename[:-4]}_{hashlib.md5(url.encode()).hexdigest()[:8]}.pdf"
+                filepath.rename(final_filepath)
+                filepath = final_filepath
+            
+            return str(filepath)
         
         except requests.RequestException as e:
             print(f"Download error: {e}")
@@ -151,6 +165,59 @@ class PDFDownloader:
             return f"manual_{manual_id}_{url_hash}.pdf"
         else:
             return f"manual_{url_hash}.pdf"
+    
+    def _generate_filename_with_ai(
+        self,
+        filepath: Path,
+        url: str,
+        manual_id: int = None,
+        manufacturer: str = None,
+        model: str = None,
+        year: str = None
+    ) -> Optional[str]:
+        """
+        Generate filename using AI extraction from PDF content
+        
+        Args:
+            filepath: Path to downloaded PDF file
+            url: Original URL
+            manual_id: Optional manual ID
+            manufacturer: Manufacturer name if already known
+            model: Model name if already known
+            year: Year if already known
+            
+        Returns:
+            Generated filename or None if AI extraction fails
+        """
+        # Check if AI extractor is available
+        if not self.ai_extractor.is_available():
+            print("AI extractor not available (GROQ_API_KEY not configured)")
+            return None
+        
+        try:
+            # Extract metadata using AI
+            extracted = self.ai_extractor.extract_from_pdf(str(filepath))
+            
+            if not extracted.get('success'):
+                print(f"AI extraction failed: {extracted.get('error')}")
+                return None
+            
+            # Use AI-extracted data, falling back to provided values
+            ai_manufacturer = extracted.get('manufacturer') or manufacturer
+            ai_model = extracted.get('model') or model
+            ai_year = extracted.get('year') or year
+            
+            # Generate filename from extracted data
+            if ai_manufacturer or ai_model or ai_year:
+                safe_name = generate_safe_filename(ai_manufacturer, ai_model, ai_year)
+                if safe_name and safe_name != "manual":
+                    return safe_name + ".pdf"
+            
+            return None
+        
+        except Exception as e:
+            print(f"Error during AI filename generation: {e}")
+            return None
     
     def _validate_pdf(self, filepath: Path) -> bool:
         """Validate that file is a valid PDF"""

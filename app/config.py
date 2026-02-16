@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # Bing Search API
     bing_api_key: str = ""
     
+    # Groq API (for AI-based PDF metadata extraction)
+    groq_api_key: str = ""
+    
     # Etsy API
     etsy_api_key: str = ""
     etsy_api_secret: str = ""
