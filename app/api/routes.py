@@ -198,7 +198,8 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         zip_path = f"./data/manual_{manual_id}_resources.zip"
         resources_dir = f"./data/manual_{manual_id}"
         
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        from zipfile import ZIP_DEFLATED
+        with zipfile.ZipFile(zip_path, 'w', ZIP_DEFLATED) as zipf:
             # Add PDF
             if os.path.exists(manual.pdf_path):
                 zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
