@@ -315,16 +315,16 @@ class PDFProcessor:
                 if number_match:
                     model_number = number_match.group()
             
-            # Generate meaningful filename
+            # Generate meaningful filename (year_manufacturer_model format)
             print(f"Generating filename with: manufacturer={manufacturer}, model={model}, year={year}")
             pdf_name = self._generate_safe_filename(manufacturer, model, model_number, year)
             print(f"Generated filename: {pdf_name}")
              
-            # Generate main image (first page)
+            # Generate main image (first page) - no suffix
             main_image_path = self.convert_page_to_image(
                 pdf_path,
                 self.main_image_page,
-                str(self.image_dir / f"{pdf_name}_main.{self.image_format}")
+                str(self.image_dir / f"{pdf_name}.{self.image_format}")
             )
             
             # Only generate if doesn't exist
@@ -363,12 +363,12 @@ class PDFProcessor:
                     if next_page <= total_pages and next_page not in pages_to_convert:
                         pages_to_convert.append(next_page)
             
-            # Convert pages (up to 4 additional)
+            # Convert pages (up to 4 additional) - use page number instead of _additional_0
             for i, page_num in enumerate(pages_to_convert[:4]):  # Max 4 additional images
                 image_path = self.convert_page_to_image(
                     pdf_path,
                     page_num,
-                    str(self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}")
+                    str(self.image_dir / f"{pdf_name}_{page_num}.{self.image_format}")
                 )
                 
                 # Only generate if doesn't exist
@@ -434,16 +434,25 @@ class PDFProcessor:
                 # Fallback to old naming scheme
                 pdf_name = f"manual_{manual_id}"
              
-            # Remove main image
-            main_image = self.image_dir / f"{pdf_name}_main.{self.image_format}"
+            # Remove main image (no suffix)
+            main_image = self.image_dir / f"{pdf_name}.{self.image_format}"
             if main_image.exists():
                 main_image.unlink()
              
-            # Remove additional images
+            # Remove additional images (using page numbers)
             for i in range(10):  # Check up to 10 additional images
                 additional_image = self.image_dir / f"{pdf_name}_additional_{i}.{self.image_format}"
                 if additional_image.exists():
                     additional_image.unlink()
+            
+            # Also remove images with page number suffix (new naming scheme)
+            import glob
+            page_images = glob.glob(str(self.image_dir / f"{pdf_name}_*.{self.image_format}"))
+            for page_image in page_images:
+                try:
+                    Path(page_image).unlink()
+                except:
+                    pass
              
             return True
         

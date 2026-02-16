@@ -542,10 +542,13 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
     )
     zip_path = f"./data/{zip_name}_resources.zip"
     
+    # Generate the PDF filename with the same pattern as images
+    pdf_filename_in_zip = f"{zip_name}.pdf"
+    
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # Add PDF
+        # Add PDF with meaningful filename
         if os.path.exists(manual.pdf_path):
-            zipf.write(manual.pdf_path, os.path.basename(manual.pdf_path))
+            zipf.write(manual.pdf_path, pdf_filename_in_zip)
         
         # Add generated images
         all_images = images.get('main', []) + images.get('additional', [])
@@ -570,18 +573,18 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
 ### 1. Upload the PDF
 - Go to your Etsy shop manager
 - Click "Add a listing"
-- Upload the PDF file: `{os.path.basename(manual.pdf_path)}`
+- Upload the PDF file: `{pdf_filename_in_zip}`
 - This will be the digital file buyers download
 
 ### 2. Upload Images
 Use the following images in order for your listing:
 
 **Main Image (First Image):**
-- Use: `{image_base_name}_main.jpg` (or .png)
+- Use: `{image_base_name}.jpg` (or .png)
 - This is the cover/title page of the manual
 
 **Additional Images:**
-- Upload the remaining images: `{image_base_name}_additional_*.jpg` (or .png)
+- Upload the remaining images: `{image_base_name}_*.jpg` (or .png)
 - These show sample pages including the index/table of contents
 - Upload up to 5 images total (1 main + 4 additional)
 
@@ -619,7 +622,7 @@ Copy and paste this description:
 
 ## File Information
 
-- PDF File: `{os.path.basename(manual.pdf_path)}`
+- PDF File: `{pdf_filename_in_zip}`
 - Pages: {page_count}
 - Images Included: {len(valid_images)} (minimum 5 images provided)
 - Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
