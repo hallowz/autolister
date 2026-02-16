@@ -208,7 +208,6 @@ class PDFDownloader:
             ai_year = extracted.get('year') or year
             
             # Generate filename from extracted data
-            # Note: generate_safe_filename signature is (manufacturer, model, year, title=None, fallback="manual")
             if ai_manufacturer or ai_model or ai_year:
                 safe_name = generate_safe_filename(ai_manufacturer, ai_model, ai_year)
                 if safe_name and safe_name != "manual":

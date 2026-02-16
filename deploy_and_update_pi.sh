@@ -84,10 +84,13 @@ echo '' && \
 echo '--- Step 3: Rebuilding Docker images ---' && \
 docker-compose build && \
 echo '' && \
-echo '--- Step 4: Starting Docker services ---' && \
+echo '--- Step 4: Regenerating database ---' && \
+docker-compose run --rm web python -c \"from app.database import regenerate_db; regenerate_db()\" && \
+echo '' && \
+echo '--- Step 5: Starting Docker services ---' && \
 docker-compose up -d && \
 echo '' && \
-echo '--- Step 5: Checking container status ---' && \
+echo '--- Step 6: Checking container status ---' && \
 docker-compose ps && \
 echo '' && \
 echo '--- Deployment Complete! ---' && \

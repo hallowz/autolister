@@ -7,7 +7,7 @@ import threading
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
-from app.database import get_db, Manual, EtsyListing, ProcessingLog, ScrapedSite
+from app.database import get_db, Manual, EtsyListing, ProcessingLog, ScrapedSite, regenerate_db
 from datetime import datetime
 from app.api.schemas import (
     ManualResponse, ManualApproval, EtsyListingResponse,
@@ -46,6 +46,19 @@ def get_stats(db: Session = Depends(get_db)):
         total_listings=total_listings,
         active_listings=active_listings
     )
+
+
+@router.post("/admin/regenerate-db")
+def regenerate_database(db: Session = Depends(get_db)):
+    """Regenerate the database (drop all tables and recreate)"""
+    try:
+        regenerate_db()
+        return {"message": "Database regenerated successfully"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to regenerate database: {str(e)}"
+        )
 
 
 # Global scraping state
@@ -515,12 +528,6 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             detail="Manual is not processed yet"
         )
     
-    if not manual.resources_ready:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Resources are not ready yet. Please wait for processing to complete."
-        )
-    
     if not manual.pdf_path:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -557,6 +564,14 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         pdf_year = manual.year or pdf_metadata.get('year')
         pdf_manufacturer = manual.manufacturer or pdf_metadata.get('manufacturer')
         
+        # Extract model_number from model if available
+        model_number = None
+        if pdf_model:
+            import re
+            number_match = re.search(r'\d+', pdf_model)
+            if number_match:
+                model_number = number_match.group()
+        
         # If we don't have good metadata, try to extract from PDF filename
         if not pdf_model or not pdf_manufacturer:
             import os
@@ -566,6 +581,8 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
                 pdf_manufacturer = parsed_from_filename['make']
             if not pdf_model and parsed_from_filename.get('model'):
                 pdf_model = parsed_from_filename['model']
+            if not model_number and parsed_from_filename.get('model_number'):
+                model_number = parsed_from_filename['model_number']
         
         # Check if images already exist from previous processing
         # Generate listing images (will reuse existing images if available)
@@ -764,33 +781,32 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
             year=manual.year
         )
         
-        # Try to generate AI description if available
-        from app.processors.pdf_ai_extractor import PDFAIExtractor
-        ai_extractor = PDFAIExtractor()
+        # Generate title
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
         
-        if ai_extractor.is_available():
-            try:
-                # Extract text for description generation
-                pdf_text = processor.extract_first_page_text(manual.pdf_path)
-                page_count = processor.get_page_count(manual.pdf_path)
-                
-                # Generate AI description
-                ai_description = ai_extractor.generate_description(
-                    manufacturer=manual.manufacturer or 'Unknown',
-                    model=manual.model or 'Unknown',
-                    year=manual.year or 'Unknown',
-                    pdf_text=pdf_text,
-                    page_count=page_count
-                )
-                
-                if ai_description:
-                    description = ai_description
-                    print(f"✓ AI description generated for manual {manual_id}")
-            except Exception as e:
-                print(f"⚠️  AI description generation failed: {e}")
-                # Fall back to regular description generation
+        # Try to generate description using AI
+        description = None
+        try:
+            from app.processors.pdf_ai_extractor import PDFAIExtractor
+            ai_extractor = PDFAIExtractor()
+            if ai_extractor.is_available():
+                metadata = {
+                    'manufacturer': manual.manufacturer or pdf_metadata.get('manufacturer'),
+                    'model': manual.model or pdf_metadata.get('model'),
+                    'year': manual.year or pdf_metadata.get('year'),
+                    'title': title
+                }
+                ai_result = ai_extractor.generate_description(manual.pdf_path, metadata)
+                if ai_result.get('success'):
+                    description = ai_result.get('description')
+                    print(f"AI-generated description created for manual {manual_id}")
+        except Exception as ai_error:
+            print(f"AI description generation failed, falling back to template: {ai_error}")
         
-        # If AI description wasn't generated, use regular method
+        # Fall back to template description if AI failed
         if not description:
             description = summary_gen.generate_description(
                 {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
@@ -798,18 +814,11 @@ def process_manual(manual_id: int, db: Session = Depends(get_db)):
                 processor.get_page_count(manual.pdf_path)
             )
         
-        # Generate title
-        title = summary_gen.generate_title(
-            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
-            text
-        )
-        
         # Update manual
         if not manual.title:
             manual.title = title
         
         manual.status = 'processed'
-        manual.resources_ready = True  # Mark resources as ready for download
         db.commit()
         
         return {

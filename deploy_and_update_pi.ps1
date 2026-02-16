@@ -80,7 +80,16 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Docker images rebuilt" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "Step 4: Starting Docker services..." -ForegroundColor Yellow
+Write-Host "Step 4: Regenerating database..." -ForegroundColor Yellow
+ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose run --rm web python -c 'from app.database import regenerate_db; regenerate_db()'"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Database regeneration failed!" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Database regenerated" -ForegroundColor Green
+Write-Host ""
+
+Write-Host "Step 5: Starting Docker services..." -ForegroundColor Yellow
 ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose up -d"
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Docker start failed!" -ForegroundColor Red
@@ -89,7 +98,7 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host "Docker services started" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "Step 5: Checking container status..." -ForegroundColor Yellow
+Write-Host "Step 6: Checking container status..." -ForegroundColor Yellow
 ssh $piUsername@$RaspberryPiIP "cd $projectPath/docker && docker-compose ps"
 Write-Host ""
 

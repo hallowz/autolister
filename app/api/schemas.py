@@ -40,7 +40,6 @@ class ManualResponse(ManualBase):
     created_at: datetime
     updated_at: datetime
     error_message: Optional[str] = None
-    resources_ready: bool = False
     
     class Config:
         from_attributes = True

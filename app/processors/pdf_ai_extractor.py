@@ -27,7 +27,6 @@ class PDFAIExtractor:
         self.api_url = "https://api.groq.com/openai/v1/chat/completions"
         self.model = "llama-3.3-70b-versatile"  # Free tier model
         self.timeout = 30
-        self.description_model = "llama-3.3-8b-instant"  # Faster model for descriptions
     
     def extract_from_pdf(
         self,
@@ -88,7 +87,7 @@ class PDFAIExtractor:
                 result['success'] = True
             else:
                 result['error'] = 'AI extraction returned no results'
-            
+        
         except Exception as e:
             result['error'] = f'Extraction error: {str(e)}'
         
@@ -135,7 +134,7 @@ class PDFAIExtractor:
                         text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
             
             return "\n\n".join(text_parts)
-            
+        
         except ImportError:
             # Fallback: try using pdfplumber if PyPDF2 not available
             try:
@@ -158,7 +157,7 @@ class PDFAIExtractor:
                             text_parts.append(f"--- Page {page_num + 1} ---\n{text}")
                 
                 return "\n\n".join(text_parts)
-                
+            
             except ImportError:
                 raise Exception("Neither PyPDF2 nor pdfplumber is installed. Install with: pip install PyPDF2")
         except Exception as e:
@@ -191,8 +190,8 @@ Return ONLY a valid JSON object with these exact keys:
 - year: string (4 digits) or null
 - title: string or null
 
-If you cannot find a piece of information, use null. Do not include any explanations or text outside of JSON."""
-        
+If you cannot find a piece of information, use null. Do not include any explanations or text outside the JSON."""
+
         try:
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -284,75 +283,130 @@ If you cannot find a piece of information, use null. Do not include any explanat
         
         return None
     
-    def is_available(self) -> bool:
-        """Check if the AI extractor is available (API key configured)"""
-        return bool(self.api_key)
-    
     def generate_description(
         self,
-        manufacturer: str,
-        model: str,
-        year: str,
-        pdf_text: str,
-        page_count: int
-    ) -> Optional[str]:
+        pdf_path: str,
+        metadata: Dict,
+        max_pages: int = 5,
+        max_chars_per_page: int = 4000
+    ) -> Dict[str, Optional[str]]:
         """
-        Generate a product description using AI
+        Generate a comprehensive description for the PDF using AI
         
         Args:
-            manufacturer: Manufacturer name
-            model: Model name
-            year: Year
-            pdf_text: Text extracted from PDF
-            page_count: Number of pages in PDF
+            pdf_path: Path to PDF file
+            metadata: Dictionary with manufacturer, model, year, title
+            max_pages: Maximum number of pages to analyze
+            max_chars_per_page: Maximum characters to extract per page
+            
+        Returns:
+            Dictionary with:
+            - description: Generated description
+            - success: Whether generation succeeded
+            - error: Error message if failed
+        """
+        result = {
+            'description': None,
+            'success': False,
+            'error': None
+        }
+        
+        # Check if API key is available
+        if not self.api_key:
+            result['error'] = 'GROQ_API_KEY not configured'
+            return result
+        
+        # Check if PDF exists
+        pdf_file = Path(pdf_path)
+        if not pdf_file.exists():
+            result['error'] = f'PDF file not found: {pdf_path}'
+            return result
+        
+        try:
+            # Extract more text for description generation
+            text_content = self._extract_pdf_text(pdf_path, max_pages, max_chars_per_page)
+            
+            if not text_content or len(text_content.strip()) < 100:
+                result['error'] = 'Could not extract sufficient text from PDF'
+                return result
+            
+            # Use AI to generate description
+            description = self._generate_description_with_ai(text_content, metadata)
+            
+            if description:
+                result['description'] = description
+                result['success'] = True
+            else:
+                result['error'] = 'AI description generation returned no results'
+        
+        except Exception as e:
+            result['error'] = f'Generation error: {str(e)}'
+        
+        return result
+    
+    def _generate_description_with_ai(self, text: str, metadata: Dict) -> Optional[str]:
+        """
+        Use AI to generate a comprehensive description
+        
+        Args:
+            text: Text extracted from PDF
+            metadata: Dictionary with manufacturer, model, year, title
             
         Returns:
             Generated description or None if failed
         """
-        if not self.api_key:
-            return None
+        # Build context from metadata
+        manufacturer = metadata.get('manufacturer', 'Unknown')
+        model = metadata.get('model', 'Unknown')
+        year = metadata.get('year', '')
+        title = metadata.get('title', 'Service Manual')
+        
+        prompt = f"""You are creating a product description for an Etsy listing selling a digital service manual.
+
+Product Information:
+- Manufacturer: {manufacturer}
+- Model: {model}
+- Year: {year if year else 'Not specified'}
+- Title: {title}
+
+PDF Content (first pages):
+{text[:10000]}
+
+Create a compelling, professional Etsy listing description that:
+1. Starts with a clear title using emoji
+2. Lists all key details (manufacturer, model, year, pages if mentioned)
+3. Describes what's included in the manual (based on the content)
+4. Lists the benefits of having this manual
+5. Mentions format (digital PDF, instant download, printable)
+6. Includes delivery information
+7. Has a friendly closing
+
+Use emojis for section headers (📖, 📋, ✅, 💡, 📄, 🚚, 📱, ⚠️).
+Keep it professional but engaging.
+Length: 300-500 words.
+
+Return ONLY the description text, no explanations or extra formatting."""
         
         try:
-            # Prepare the prompt
-            prompt = f"""Generate a compelling product description for Etsy listing based on the following information:
-
-Manufacturer: {manufacturer or 'Unknown'}
-Model: {model or 'Unknown'}
-Year: {year or 'Unknown'}
-PDF Pages: {page_count}
-
-Excerpt from manual:
-{pdf_text[:2000]}
-
-Requirements:
-- Write in an engaging, professional tone
-- Highlight key features and benefits
-- Include relevant keywords for search optimization
-- Keep it under 500 characters
-- Focus on what buyers care about (completeness, condition, usefulness)
-- Do NOT include pricing or shipping information
-
-Return ONLY the description text, no other explanations."""
-            
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
             }
             
             payload = {
-                "model": self.description_model,
+                "model": self.model,
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant that writes compelling product descriptions for Etsy listings. Always respond with only the description text."
+                        "content": "You are a professional copywriter specializing in digital product listings for Etsy. Create engaging, accurate descriptions."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                "temperature": 0.7,  # Higher temperature for more creative descriptions
-                "max_tokens": 600,
+                "temperature": 0.7,  # Slightly higher for more creative descriptions
+                "max_tokens": 1000
             }
             
             response = requests.post(
@@ -366,23 +420,36 @@ Return ONLY the description text, no other explanations."""
             
             # Parse response
             data = response.json()
-            content = data['choices'][0]['message']['content'].strip()
+            description = data['choices'][0]['message']['content'].strip()
             
             # Clean up the description
-            # Remove any quotes or extra formatting
-            content = content.strip('"\'').strip()
+            description = self._clean_description(description)
             
-            if len(content) > 50:  # Minimum reasonable length
-                return content
-            
-            return None
+            return description
         
         except requests.RequestException as e:
-            print(f"Description generation API request failed: {e}")
+            print(f"API request failed: {e}")
             return None
         except Exception as e:
-            print(f"Error during description generation: {e}")
+            print(f"Unexpected error during description generation: {e}")
             return None
+    
+    def _clean_description(self, description: str) -> str:
+        """Clean up the generated description"""
+        # Remove excessive newlines
+        description = description.replace('\n\n\n', '\n\n')
+        
+        # Ensure proper spacing after colons
+        description = description.replace(': ', ': ')
+        
+        # Remove any markdown code blocks if present
+        description = description.replace('```', '').strip()
+        
+        return description
+    
+    def is_available(self) -> bool:
+        """Check if the AI extractor is available (API key configured)"""
+        return bool(self.api_key)
 
 
 # Convenience function for quick extraction

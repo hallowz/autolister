@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function(event) {
             currentTab = event.target.getAttribute('data-bs-target').replace('#', '');
+            // Refresh all data when tab changes
+            refreshAllData();
         });
     });
 });
@@ -648,10 +650,8 @@ async function processManual(manualId) {
         
         if (response.ok) {
             showToast('Manual processed successfully!', 'success');
-            loadProcessingManuals();
-            loadReadyManuals();
-            loadAllManuals();
-            loadStats();
+            // Refresh all data when processing completes
+            refreshAllData();
         } else {
             showToast('Failed to process manual', 'error');
         }
@@ -793,6 +793,16 @@ async function showManualDetails(manualId) {
     } catch (error) {
         showToast('Error loading manual details', 'error');
     }
+}
+
+// Refresh all data
+function refreshAllData() {
+    loadStats();
+    loadPendingManuals();
+    loadProcessingManuals();
+    loadReadyManuals();
+    loadAllManuals();
+    loadFileListings();
 }
 
 // Refresh pending manuals
