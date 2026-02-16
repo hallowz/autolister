@@ -478,6 +478,8 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
     # If we don't have good metadata, try to extract from PDF filename
     if not pdf_model or not pdf_manufacturer:
         pdf_filename = os.path.basename(manual.pdf_path)
+        # Remove hash suffix if present (e.g., _2a126931)
+        pdf_filename = re.sub(r'_[a-f0-9]{8}\.pdf$', '.pdf', pdf_filename, flags=re.IGNORECASE)
         parsed_from_filename = parse_make_model_modelnumber(pdf_filename)
         if not pdf_manufacturer and parsed_from_filename.get('make'):
             pdf_manufacturer = parsed_from_filename['make']
@@ -485,6 +487,21 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
             pdf_model = parsed_from_filename['model']
         if not model_number and parsed_from_filename.get('model_number'):
             model_number = parsed_from_filename['model_number']
+    
+    # Clean up model if it contains multiple models separated by commas
+    if pdf_model and ',' in pdf_model:
+        # Take only the first model from comma-separated list
+        pdf_model = pdf_model.split(',')[0].strip()
+    
+    # Clean up manufacturer if it contains "Co., Ltd." or similar
+    if pdf_manufacturer:
+        pdf_manufacturer = re.sub(r'\s+(Co\.|Inc\.|Ltd\.|Corporation|LLC).*$', '', pdf_manufacturer, flags=re.IGNORECASE).strip()
+    
+    print(f"[generate_resources_zip] Final metadata for zip filename:")
+    print(f"  manufacturer: {pdf_manufacturer}")
+    print(f"  model: {pdf_model}")
+    print(f"  year: {pdf_year}")
+    print(f"  model_number: {model_number}")
     
     # Generate meaningful zip filename
     zip_name = generate_safe_filename(

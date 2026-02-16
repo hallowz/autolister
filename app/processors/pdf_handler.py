@@ -255,6 +255,18 @@ class PDFDownloader:
             ai_model = extracted.get('model') or model
             ai_year = extracted.get('year') or year
             
+            # Clean up manufacturer if it contains "Co., Ltd." or similar
+            if ai_manufacturer:
+                import re
+                ai_manufacturer = re.sub(r'\s+(Co\.|Inc\.|Ltd\.|Corporation|LLC).*$', '', ai_manufacturer, flags=re.IGNORECASE).strip()
+                print(f"[_generate_filename_with_ai] Cleaned manufacturer: {ai_manufacturer}")
+            
+            # Clean up model if it contains multiple models separated by commas
+            if ai_model and ',' in ai_model:
+                # Take only the first model from comma-separated list
+                ai_model = ai_model.split(',')[0].strip()
+                print(f"[_generate_filename_with_ai] Cleaned model (took first from comma-separated list): {ai_model}")
+            
             print(f"[_generate_filename_with_ai] AI-extracted/final values:")
             print(f"  ai_manufacturer: {ai_manufacturer}")
             print(f"  ai_model: {ai_model}")
