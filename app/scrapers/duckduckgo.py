@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 import urllib.parse
 import time
 import random
-from .base import BaseScraper, SearchResult
+from .base import BaseScraper, PDFResult
 
 
 class DuckDuckGoScraper(BaseScraper):
@@ -28,7 +28,7 @@ class DuckDuckGoScraper(BaseScraper):
             'Upgrade-Insecure-Requests': '1'
         })
     
-    def search(self, query: str, max_results: int = 20) -> List[SearchResult]:
+    def search(self, query: str, max_results: int = 20) -> List[PDFResult]:
         """
         Search DuckDuckGo for PDF manuals
         
@@ -37,7 +37,7 @@ class DuckDuckGoScraper(BaseScraper):
             max_results: Maximum number of results to return
             
         Returns:
-            List of SearchResult objects
+            List of PDFResult objects
         """
         results = []
         
@@ -87,16 +87,22 @@ class DuckDuckGoScraper(BaseScraper):
                     source_elem = div.find('span', class_='result__url')
                     source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(url)
                     
+                    # Extract metadata
+                    metadata = self.extract_pdf_metadata(url, title)
+                    metadata['search_engine'] = 'duckduckgo'
+                    metadata['query'] = search_query
+                    metadata['description'] = snippet
+                    
                     # Create search result
-                    result = SearchResult(
-                        title=title,
+                    result = PDFResult(
                         url=url,
-                        source=source,
-                        description=snippet,
-                        metadata={
-                            'search_engine': 'duckduckgo',
-                            'query': search_query
-                        }
+                        source_type='duckduckgo',
+                        title=title,
+                        equipment_type=metadata.get('equipment_type'),
+                        manufacturer=metadata.get('manufacturer'),
+                        model=metadata.get('model'),
+                        year=metadata.get('year'),
+                        metadata=metadata
                     )
                     
                     results.append(result)
@@ -106,15 +112,15 @@ class DuckDuckGoScraper(BaseScraper):
                         break
                         
                 except Exception as e:
-                    self.logger.warning(f"Error parsing result: {e}")
+                    print(f"Error parsing result: {e}")
                     continue
             
-            self.logger.info(f"DuckDuckGo search returned {len(results)} results for query: {query}")
+            print(f"DuckDuckGo search returned {len(results)} results for query: {query}")
             
         except requests.RequestException as e:
-            self.logger.error(f"DuckDuckGo search request failed: {e}")
+            print(f"DuckDuckGo search request failed: {e}")
         except Exception as e:
-            self.logger.error(f"DuckDuckGo search error: {e}")
+            print(f"DuckDuckGo search error: {e}")
         
         # Add random delay to avoid rate limiting
         time.sleep(random.uniform(1, 3))
@@ -137,16 +143,16 @@ class DuckDuckGoScraper(BaseScraper):
         """Check if URL points to a PDF file"""
         return url.lower().endswith('.pdf') or 'pdf' in url.lower()
     
-    def filter_pdf_results(self, results: List[SearchResult]) -> List[SearchResult]:
+    def filter_pdf_results(self, results: List[PDFResult]) -> List[PDFResult]:
         """Filter results to only include PDF links or likely PDF sources"""
         pdf_results = []
         
         for result in results:
             # Direct PDF link
-            if self.is_pdf_link(result.url):
+            if self.is_pdf_url(result.url):
                 pdf_results.append(result)
             # Likely PDF source (manual sites, document repositories)
-            elif self._is_likely_pdf_source(result.url, result.source):
+            elif self._is_likely_pdf_source(result.url, result.source_type):
                 pdf_results.append(result)
         
         return pdf_results
