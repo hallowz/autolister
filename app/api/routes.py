@@ -545,17 +545,6 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             page_count
         )
         
-        # Check if images already exist from previous processing
-        # Generate listing images (will reuse existing images if available)
-        images = processor.generate_listing_images(
-            manual.pdf_path,
-            manual_id,
-            manufacturer=manual.manufacturer,
-            model=manual.model,
-            model_number=model_number,
-            year=manual.year
-        )
-        
         # Create a zip file with all resources
         # Use PDF metadata for model/year if not in manual record
         pdf_model = manual.model or pdf_metadata.get('model')
@@ -568,6 +557,17 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             number_match = re.search(r'\d+', pdf_model)
             if number_match:
                 model_number = number_match.group()
+        
+        # Check if images already exist from previous processing
+        # Generate listing images (will reuse existing images if available)
+        images = processor.generate_listing_images(
+            manual.pdf_path,
+            manual_id,
+            manufacturer=manual.manufacturer,
+            model=manual.model,
+            model_number=model_number,
+            year=manual.year
+        )
         
         # Generate meaningful zip filename using manufacturer, model, year, model_number
         zip_name = generate_safe_filename(
