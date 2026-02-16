@@ -330,10 +330,17 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
             
             # Add generated images directly to zip
             all_images = images.get('main', []) + images.get('additional', [])
-            for image_path in all_images:
-                if os.path.exists(image_path):
+            # Filter out None values and check existence
+            valid_images = [img for img in all_images if img is not None and os.path.exists(img)]
+            
+            if valid_images:
+                for image_path in valid_images:
                     # Use just the filename in the zip
                     zipf.write(image_path, os.path.basename(image_path))
+            else:
+                # If no images were generated, log this
+                print(f"Warning: No valid images found for manual {manual_id}")
+                print(f"All images: {all_images}")
             
             # Generate and add README.md
             readme_content = f"""# Listing Instructions for: {title}
@@ -394,7 +401,7 @@ Copy and paste this description:
 
 - PDF File: `{os.path.basename(manual.pdf_path)}`
 - Pages: {page_count}
-- Images Included: {len(images.get('main', [])) + len(images.get('additional', []))}
+- Images Included: {len(valid_images)} (minimum 5 images provided)
 - Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 """
             
@@ -592,6 +599,94 @@ def list_on_etsy(manual_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create listing: {str(e)}"
+        )
+
+
+@router.post("/manuals/{manual_id}/upload-to-etsy")
+def upload_to_etsy(manual_id: int, db: Session = Depends(get_db)):
+    """Upload a processed manual to Etsy programmatically"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Manual not found"
+        )
+    
+    if manual.status != 'processed':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Manual is not processed"
+        )
+    
+    try:
+        # Process PDF to get content
+        processor = PDFProcessor()
+        summary_gen = SummaryGenerator()
+        
+        # Extract metadata and text
+        pdf_metadata = processor.extract_metadata(manual.pdf_path)
+        text = processor.extract_first_page_text(manual.pdf_path)
+        
+        # Generate title and description
+        title = summary_gen.generate_title(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text
+        )
+        description = summary_gen.generate_description(
+            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+            text,
+            processor.get_page_count(manual.pdf_path)
+        )
+        
+        # Generate images
+        images = processor.generate_listing_images(manual.pdf_path, manual_id)
+        
+        # Create Etsy listing
+        listing_manager = ListingManager()
+        listing_id = listing_manager.create_digital_listing(
+            title=title,
+            description=description,
+            pdf_path=manual.pdf_path,
+            image_paths=images['main'] + images['additional'],
+            price=settings.etsy_default_price
+        )
+        
+        if not listing_id:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to create Etsy listing"
+            )
+        
+        # Create listing record
+        etsy_listing = EtsyListing(
+            manual_id=manual_id,
+            listing_id=listing_id,
+            title=title,
+            description=description,
+            price=settings.etsy_default_price,
+            status='draft'
+        )
+        db.add(etsy_listing)
+        
+        # Update manual status
+        manual.status = 'listed'
+        db.commit()
+        
+        return {
+            "message": "Etsy listing created successfully",
+            "listing_id": listing_id,
+            "etsy_listing_id": etsy_listing.id
+        }
+        
+    except Exception as e:
+        manual.status = 'error'
+        manual.error_message = str(e)
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload to Etsy: {str(e)}"
         )
 
 

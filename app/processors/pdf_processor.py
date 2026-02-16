@@ -212,6 +212,9 @@ class PDFProcessor:
             # Generate additional images
             pages_to_convert = []
             
+            # Get total page count
+            total_pages = self.get_page_count(pdf_path)
+            
             # Add index page if found
             if index_page and index_page != self.main_image_page:
                 pages_to_convert.append(index_page)
@@ -221,7 +224,18 @@ class PDFProcessor:
                 if page != self.main_image_page and page not in pages_to_convert:
                     pages_to_convert.append(page)
             
-            # Convert pages
+            # If we don't have enough pages yet, add evenly distributed pages
+            # We want at least 5 images total (1 main + 4 additional)
+            needed_additional = 5 - len(pages_to_convert)
+            if needed_additional > 0:
+                # Calculate evenly distributed pages
+                step = max(2, total_pages // (needed_additional + 1))
+                for i in range(needed_additional):
+                    next_page = ((i + 1) * step) + self.main_image_page
+                    if next_page <= total_pages and next_page not in pages_to_convert:
+                        pages_to_convert.append(next_page)
+            
+            # Convert pages (up to 4 additional)
             for i, page_num in enumerate(pages_to_convert[:4]):  # Max 4 additional images
                 image_path = self.convert_page_to_image(
                     pdf_path,
