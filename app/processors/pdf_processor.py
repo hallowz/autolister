@@ -35,6 +35,8 @@ class PDFProcessor:
         Returns:
             Dictionary with metadata
         """
+        import re
+        
         metadata = {
             'title': None,
             'author': None,
@@ -42,7 +44,9 @@ class PDFProcessor:
             'keywords': None,
             'creator': None,
             'producer': None,
-            'page_count': 0
+            'page_count': 0,
+            'model': None,
+            'year': None
         }
         
         try:
@@ -52,7 +56,15 @@ class PDFProcessor:
                 # Get document info
                 info = pdf.metadata
                 if info:
-                    metadata['title'] = info.get('/Title')
+                    title = info.get('/Title')
+                    metadata['title'] = title
+                    
+                    # Extract year from title (4 digits starting with 19 or 20)
+                    if title:
+                        year_match = re.search(r'\b(19|20)\d{2}\b', title)
+                        if year_match:
+                            metadata['year'] = year_match.group()
+                    
                     metadata['author'] = info.get('/Author')
                     metadata['subject'] = info.get('/Subject')
                     metadata['keywords'] = info.get('/Keywords')
@@ -227,6 +239,14 @@ class PDFProcessor:
         }
         
         try:
+            # Extract PDF metadata to get model/year if not provided
+            if not model or not year:
+                pdf_metadata = self.extract_metadata(pdf_path)
+                if not model and pdf_metadata.get('model'):
+                    model = pdf_metadata.get('model')
+                if not year and pdf_metadata.get('year'):
+                    year = pdf_metadata.get('year')
+            
             # Generate meaningful filename
             pdf_name = self._generate_safe_filename(manufacturer, model, year)
              

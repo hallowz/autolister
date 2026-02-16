@@ -371,7 +371,16 @@ def download_resources(manual_id: int, db: Session = Depends(get_db)):
         )
         
         # Create a zip file with all resources
-        zip_name = generate_safe_filename(manual.manufacturer, manual.model, manual.year)
+        # Use PDF metadata for model/year if not in manual record
+        pdf_model = manual.model or pdf_metadata.get('model')
+        pdf_year = manual.year or pdf_metadata.get('year')
+        
+        zip_name = generate_safe_filename(
+            manual.manufacturer,
+            pdf_model,
+            pdf_year,
+            title=manual.title
+        )
         zip_path = f"./data/{zip_name}_resources.zip"
         
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
