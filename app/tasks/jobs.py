@@ -473,6 +473,7 @@ def generate_resources_zip(manual: Manual, pdf_metadata: dict, text: str,
     Returns:
         Path to the generated zip file
     """
+    import re
     from app.utils import generate_safe_filename, parse_make_model_modelnumber
     
     print(f"[generate_resources_zip] Input metadata:")
