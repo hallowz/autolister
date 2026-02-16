@@ -420,6 +420,18 @@ def process_single_manual(manual_id: int, log_callback=None) -> bool:
         
         # Generate resources zip file
         log(f"Generating resources zip for manual {manual_id}")
+        
+        # Clean up any old zip files with incorrect names for this manual
+        import os
+        import glob
+        old_zips = glob.glob(f"./data/manual_{manual_id}_*.zip")
+        for old_zip in old_zips:
+            try:
+                os.remove(old_zip)
+                log(f"Removed old zip file: {old_zip}")
+            except Exception as e:
+                log(f"Failed to remove old zip file {old_zip}: {e}")
+        
         resources_zip_path = generate_resources_zip(
             manual, pdf_metadata, text, page_count, images, title, description
         )
