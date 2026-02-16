@@ -83,6 +83,9 @@ class DuckDuckGoScraper(BaseScraper):
                     if not page_url:
                         continue
                     
+                    # Decode DuckDuckGo redirect URLs
+                    page_url = self._decode_ddg_url(page_url)
+                    
                     # Extract snippet/description
                     snippet_elem = div.find('a', class_='result__snippet')
                     snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
@@ -150,6 +153,31 @@ class DuckDuckGoScraper(BaseScraper):
         time.sleep(random.uniform(1, 3))
         
         return results
+    
+    def _decode_ddg_url(self, url: str) -> str:
+        """
+        Decode DuckDuckGo redirect URLs
+        
+        DuckDuckGo uses URLs like: //duckduckgo.com/l/?uddg=URL_ENCODED
+        We need to decode the uddg parameter to get the actual URL.
+        """
+        try:
+            # Check if this is a DuckDuckGo redirect URL
+            if 'duckduckgo.com/l/' in url:
+                # Extract the uddg parameter
+                from urllib.parse import urlparse, parse_qs
+                parsed = urlparse(url)
+                if parsed.query:
+                    params = parse_qs(parsed.query)
+                    uddg = params.get('uddg', [''])[0]
+                    if uddg:
+                        # URL decode the uddg parameter
+                        from urllib.parse import unquote
+                        return unquote(uddg)
+            return url
+        except Exception as e:
+            print(f"Error decoding DDG URL: {e}")
+            return url
     
     def _extract_pdf_links_from_page(self, url: str) -> List[str]:
         """
