@@ -25,8 +25,7 @@ def extract_model_year_from_title(title: str) -> tuple:
     # Remove year from title for model extraction
     title_without_year = re.sub(r'\b(19|20)\d{2}\b', '', title).strip()
     
-    # Try to extract model (look for patterns like "Civic", "Accord", etc.)
-    # This is a simple heuristic - could be improved
+    # Try to extract model (look for patterns like "Civic", "Accord", "Foreman Rubicon", etc.)
     model = None
     
     # Common car models (expand as needed)
@@ -36,13 +35,30 @@ def extract_model_year_from_title(title: str) -> tuple:
         'F-150', 'Mustang', 'Explorer', 'Escape', 'Focus', 'Fusion',
         'Silverado', 'Tahoe', 'Suburban', 'Malibu', 'Equinox',
         'Altima', 'Sentra', 'Pathfinder', 'Rogue', 'Frontier',
-        'Wrangler', 'Cherokee', 'Grand Cherokee', 'Liberty', 'Compass'
+        'Wrangler', 'Cherokee', 'Grand Cherokee', 'Liberty', 'Compass',
+        'Foreman Rubicon', 'Rancher', 'FourTrax', 'Pioneer', 'Recon',
+        'TRX', 'Rincon', 'Rubicon', 'Foreman', 'Rancher'
     ]
     
     for model_name in common_models:
         if model_name.lower() in title_without_year.lower():
             model = model_name
             break
+    
+    # If no model found, try to extract from title (look for capitalized words after manufacturer)
+    if not model and title_without_year:
+        # Remove common words
+        words_to_remove = ['manual', 'service', 'owner', 'handbook', 'guide', 'instructions']
+        for word in words_to_remove:
+            title_without_year = title_without_year.replace(word, '', flags=re.IGNORECASE)
+        
+        # Split by spaces and look for multi-word models
+        words = [w for w in title_without_year.split() if w.strip()]
+        if len(words) >= 2:
+            # Join first two words as potential model
+            model = ' '.join(words[:2])
+        elif words:
+            model = words[0]
     
     return model, year
 

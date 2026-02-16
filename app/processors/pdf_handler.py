@@ -115,10 +115,26 @@ class PDFDownloader:
         year: str = None
     ) -> str:
         """Generate unique filename for PDF"""
+        import re
+        
+        # Try to extract model/year from URL if not provided
+        if not model or not year:
+            # Extract from URL path
+            url_parts = url.split('/')
+            for part in url_parts:
+                # Look for year (4 digits starting with 19 or 20)
+                year_match = re.search(r'\b(19|20)\d{2}\b', part)
+                if year_match and not year:
+                    year = year_match.group()
+                # Look for model patterns (letters followed by numbers)
+                if re.match(r'^[a-z]{2,}\d+', part.lower()) and not model:
+                    model = part.upper()
+        
         # Try to generate meaningful filename from metadata
         if manufacturer or model or year:
             safe_name = generate_safe_filename(manufacturer, model, year)
-            if safe_name != "manual":
+            # Use the generated name as long as it has more than just manufacturer
+            if safe_name and safe_name != "manual":
                 return safe_name + ".pdf"
         
         # Fallback to hash-based filename

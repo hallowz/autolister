@@ -36,6 +36,7 @@ class PDFProcessor:
             Dictionary with metadata
         """
         import re
+        from app.utils import extract_model_year_from_title
         
         metadata = {
             'title': None,
@@ -59,11 +60,11 @@ class PDFProcessor:
                     title = info.get('/Title')
                     metadata['title'] = title
                     
-                    # Extract year from title (4 digits starting with 19 or 20)
+                    # Extract model and year from title
                     if title:
-                        year_match = re.search(r'\b(19|20)\d{2}\b', title)
-                        if year_match:
-                            metadata['year'] = year_match.group()
+                        model, year = extract_model_year_from_title(title)
+                        metadata['model'] = model
+                        metadata['year'] = year
                     
                     metadata['author'] = info.get('/Author')
                     metadata['subject'] = info.get('/Subject')
@@ -246,6 +247,19 @@ class PDFProcessor:
                     model = pdf_metadata.get('model')
                 if not year and pdf_metadata.get('year'):
                     year = pdf_metadata.get('year')
+            
+            # Also try to extract from PDF filename (which comes from URL)
+            import re
+            if not model or not year:
+                pdf_filename = Path(pdf_path).stem
+                # Extract year from filename
+                year_match = re.search(r'\b(19|20)\d{2}\b', pdf_filename)
+                if year_match and not year:
+                    year = year_match.group()
+                # Extract model from filename (letters followed by numbers)
+                model_match = re.search(r'[A-Z]{2,}\d+', pdf_filename)
+                if model_match and not model:
+                    model = model_match.group()
             
             # Generate meaningful filename
             pdf_name = self._generate_safe_filename(manufacturer, model, year)
