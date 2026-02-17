@@ -123,6 +123,27 @@ class ScrapedSite(Base):
     status = Column(String, nullable=False, default='active')  # 'active', 'exhausted', 'blocked'
     notes = Column(Text, nullable=True)
 
+
+class ScrapeJob(Base):
+    """Scrape job model for managing scrape job queue"""
+    __tablename__ = "scrape_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    source_type = Column(String, nullable=False)  # 'search', 'forum', 'manual_site', 'gdrive'
+    query = Column(String, nullable=False)
+    max_results = Column(Integer, nullable=False, default=10)
+    status = Column(String, nullable=False, default='queued', index=True)  # 'queued', 'scheduled', 'running', 'completed', 'failed'
+    scheduled_time = Column(DateTime, nullable=True, index=True)
+    schedule_frequency = Column(String, nullable=True)  # 'daily', 'weekly', 'monthly'
+    equipment_type = Column(String, nullable=True)
+    manufacturer = Column(String, nullable=True)
+    queue_position = Column(Integer, nullable=True, index=True)
+    progress = Column(Integer, nullable=True)  # 0-100
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 def create_tables():
     """Create all tables in the database"""
     Base.metadata.create_all(bind=engine)

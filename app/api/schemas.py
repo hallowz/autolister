@@ -111,3 +111,81 @@ class ErrorResponse(BaseModel):
     """Schema for error responses"""
     error: str
     detail: Optional[str] = None
+
+
+# Scrape Job Queue Schemas
+
+class ScrapeJobCreate(BaseModel):
+    """Schema for creating a scrape job"""
+    name: str
+    source_type: str  # 'search', 'forum', 'manual_site', 'gdrive'
+    query: str
+    max_results: int = 10
+    scheduled_time: Optional[str] = None  # ISO format datetime
+    schedule_frequency: Optional[str] = None  # 'daily', 'weekly', 'monthly'
+    equipment_type: Optional[str] = None
+    manufacturer: Optional[str] = None
+
+
+class ScrapeJobUpdate(BaseModel):
+    """Schema for updating a scrape job"""
+    name: Optional[str] = None
+    source_type: Optional[str] = None
+    query: Optional[str] = None
+    max_results: Optional[int] = None
+    scheduled_time: Optional[str] = None
+    schedule_frequency: Optional[str] = None
+    equipment_type: Optional[str] = None
+    manufacturer: Optional[str] = None
+
+
+class ScrapeJobResponse(BaseModel):
+    """Schema for scrape job response"""
+    id: int
+    name: str
+    source_type: str
+    query: str
+    max_results: int
+    status: str  # 'queued', 'scheduled', 'running', 'completed', 'failed'
+    scheduled_time: Optional[datetime] = None
+    schedule_frequency: Optional[str] = None
+    equipment_type: Optional[str] = None
+    manufacturer: Optional[str] = None
+    queue_position: Optional[int] = None
+    progress: Optional[int] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class ScrapeJobListResponse(BaseModel):
+    """Schema for scrape job list response"""
+    jobs: List[ScrapeJobResponse]
+    stats: dict
+
+
+class ScrapeJobStatsResponse(BaseModel):
+    """Schema for scrape job statistics"""
+    queued: int
+    scheduled: int
+    running: int
+    completed: int
+    failed: int
+
+
+class GenerateConfigRequest(BaseModel):
+    """Schema for generating scrape config with AI"""
+    prompt: str
+
+
+class GenerateConfigResponse(BaseModel):
+    """Schema for generated scrape config response"""
+    name: str
+    source_type: str
+    query: str
+    max_results: int
+    equipment_type: Optional[str] = None
+    manufacturer: Optional[str] = None

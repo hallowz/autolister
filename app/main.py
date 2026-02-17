@@ -8,6 +8,7 @@ from pathlib import Path
 from app.database import init_db
 from app.api.routes import router
 from app.api.file_routes import router as file_router
+from app.api.scrape_routes import router as scrape_router
 from app.config import get_settings
 
 settings = get_settings()
@@ -22,6 +23,7 @@ app = FastAPI(
 # Include API routes
 app.include_router(router)
 app.include_router(file_router)
+app.include_router(scrape_router)
 
 # Initialize database on startup
 @app.on_event("startup")
@@ -61,6 +63,16 @@ async def dashboard():
     if dashboard_path.exists():
         return FileResponse(dashboard_path)
     return {"message": "Dashboard not found"}
+
+
+# Serve scrape queue HTML
+@app.get("/scrape-queue")
+async def scrape_queue():
+    """Serve the scrape queue HTML"""
+    queue_path = Path(__file__).parent / "static" / "scrape-queue.html"
+    if queue_path.exists():
+        return FileResponse(queue_path)
+    return {"message": "Scrape queue not found"}
 
 
 if __name__ == "__main__":
