@@ -218,6 +218,10 @@ def run_multi_site_scraping_job(
                         ScrapedSite.url == domain
                     ).first()
         
+        # Commit scraped sites first to release locks
+        db.commit()
+        log(f"Updated {len(domains_to_track)} scraped sites")
+        
         # Now save the manuals
         for result in results[:max_results] if max_results else results:
             # Check if URL already exists
@@ -243,7 +247,13 @@ def run_multi_site_scraping_job(
             db.add(manual)
             total_discovered += 1
             new_count += 1
+            
+            # Commit every 10 manuals to release database locks
+            if new_count % 10 == 0:
+                db.commit()
+                log(f"Committed batch of {new_count} manuals so far")
         
+        # Final commit for any remaining manuals
         db.commit()
         log(f"Saved {new_count} new manuals from multi-site scraping")
         log(f"Skipped {total_skipped} duplicate URLs")

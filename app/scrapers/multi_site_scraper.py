@@ -214,8 +214,15 @@ class MultiSiteScraper(BaseScraper):
                 if pdf_url_normalized in scraped_urls:
                     continue
                 
-                # Get title from link text or URL
-                title = link.get_text(strip=True) or pdf_url.split('/')[-1]
+                # Get title from link text or URL (prefer link text)
+                title = link.get_text(strip=True)
+                if not title or title.strip() == '':
+                    # Fallback to URL filename if link text is empty
+                    title = pdf_url.split('/')[-1]
+                    # If still empty, use a default title
+                    if not title or title.strip() == '':
+                        title = f"PDF from {urlparse(pdf_url).netloc}"
+                title = title.strip()  # Ensure no leading/trailing whitespace
                 
                 # Check search and exclude terms
                 if not self._matches_search_terms(pdf_url, title):
