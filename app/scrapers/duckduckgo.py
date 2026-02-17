@@ -33,116 +33,132 @@ class DuckDuckGoScraper(BaseScraper):
         Search DuckDuckGo for PDF manuals
         
         Args:
-            query: Search query string
+            query: Search query string (can contain OR for multiple searches)
             max_results: Maximum number of results to return
             
         Returns:
             List of PDFResult objects
         """
         results = []
+        seen_urls = set()  # Track URLs to avoid duplicates
         
-        try:
-            # Add "pdf" to query if not already present
-            if 'pdf' not in query.lower():
-                search_query = f"{query} pdf"
-            else:
-                search_query = query
-            
-            # Prepare search parameters
-            params = {
-                'q': search_query,
-                'kl': 'us-en',  # Region/language
-                'num': max_results
-            }
-            
-            # Make request to DuckDuckGo
-            response = self.session.get(
-                self.base_url,
-                params=params,
-                timeout=self.config.get('request_timeout', 30)
-            )
-            response.raise_for_status()
-            
-            # Parse HTML response
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Extract search results
-            result_divs = soup.find_all('div', class_='result')
-            
-            # Process each search result
-            for div in result_divs:
-                try:
-                    # Extract title and URL from the result
-                    title_elem = div.find('a', class_='result__a')
-                    if not title_elem:
-                        continue
-                    
-                    title = title_elem.get_text(strip=True)
-                    page_url = title_elem.get('href', '')
-                    
-                    if not page_url:
-                        continue
-                    
-                    # Decode DuckDuckGo redirect URLs
-                    page_url = self._decode_ddg_url(page_url)
-                    
-                    # Extract snippet/description
-                    snippet_elem = div.find('a', class_='result__snippet')
-                    snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
-                    
-                    # Extract source
-                    source_elem = div.find('span', class_='result__url')
-                    source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(page_url)
-                    
-                    # Check if this is a direct PDF link
-                    if page_url.lower().endswith('.pdf'):
-                        # Direct PDF link - add it directly
-                        pdf_url = page_url
-                        pdf_title = title
-                    else:
-                        # HTML page - fetch it and extract PDF links
-                        pdf_links = self._extract_pdf_links_from_page(page_url)
-                        if not pdf_links:
+        # Split query by OR (case-insensitive) and search each term separately
+        queries_to_search = []
+        if ' OR ' in query.upper():
+            # Split by OR and strip whitespace
+            queries_to_search = [q.strip() for q in query.split(' OR ')]
+        else:
+            queries_to_search = [query]
+        
+        # Calculate results per query (distribute max_results evenly)
+        results_per_query = max(1, max_results // len(queries_to_search))
+        
+        for search_query in queries_to_search:
+            try:
+                # Add "pdf" to query if not already present
+                if 'pdf' not in search_query.lower():
+                    search_query_with_pdf = f"{search_query} pdf"
+                else:
+                    search_query_with_pdf = search_query
+                
+                # Prepare search parameters
+                params = {
+                    'q': search_query_with_pdf,
+                    'kl': 'us-en',  # Region/language
+                    'num': results_per_query
+                }
+                
+                # Make request to DuckDuckGo
+                response = self.session.get(
+                    self.base_url,
+                    params=params,
+                    timeout=self.config.get('request_timeout', 30)
+                )
+                response.raise_for_status()
+                
+                # Parse HTML response
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Extract search results
+                result_divs = soup.find_all('div', class_='result')
+                
+                # Process each search result
+                for div in result_divs:
+                    try:
+                        # Extract title and URL from the result
+                        title_elem = div.find('a', class_='result__a')
+                        if not title_elem:
                             continue
                         
-                        # Use the first PDF link found
-                        pdf_url = pdf_links[0]
-                        pdf_title = title
-                    
-                    # VALIDATE: Only include if URL is a downloadable PDF
-                    if not self._is_valid_pdf_url(pdf_url, source):
-                        continue
-                    
-                    # Extract metadata
-                    metadata = self.extract_pdf_metadata(pdf_url, pdf_title)
-                    metadata['search_engine'] = 'duckduckgo'
-                    metadata['query'] = search_query
-                    metadata['description'] = snippet
-                    metadata['source_page'] = page_url
-                    
-                    # Create search result
-                    result = PDFResult(
-                        url=pdf_url,
-                        source_type='duckduckgo',
-                        title=pdf_title,
-                        equipment_type=metadata.get('equipment_type'),
-                        manufacturer=metadata.get('manufacturer'),
-                        model=metadata.get('model'),
-                        year=metadata.get('year'),
-                        metadata=metadata
-                    )
-                    
-                    results.append(result)
-                    
-                    # Stop if we have enough results
-                    if len(results) >= max_results:
-                        break
+                        title = title_elem.get_text(strip=True)
+                        page_url = title_elem.get('href', '')
                         
-                except Exception as e:
-                    print(f"Error parsing result: {e}")
-                    continue
+                        if not page_url:
+                            continue
+                        
+                        # Decode DuckDuckGo redirect URLs
+                        page_url = self._decode_ddg_url(page_url)
+                        
+                        # Extract snippet/description
+                        snippet_elem = div.find('a', class_='result__snippet')
+                        snippet = snippet_elem.get_text(strip=True) if snippet_elem else ''
+                        
+                        # Extract source
+                        source_elem = div.find('span', class_='result__url')
+                        source = source_elem.get_text(strip=True) if source_elem else self._extract_domain(page_url)
+                        
+                        # Check if this is a direct PDF link
+                        if page_url.lower().endswith('.pdf'):
+                            # Direct PDF link - add it directly
+                            pdf_url = page_url
+                            pdf_title = title
+                        else:
+                            # HTML page - fetch it and extract PDF links
+                            pdf_links = self._extract_pdf_links_from_page(page_url)
+                            if not pdf_links:
+                                continue
+                            
+                            # Use the first PDF link found
+                            pdf_url = pdf_links[0]
+                            pdf_title = title
+                        
+                        # VALIDATE: Only include if URL is a downloadable PDF
+                        if not self._is_valid_pdf_url(pdf_url, source):
+                            continue
+                        
+                        # Extract metadata
+                        metadata = self.extract_pdf_metadata(pdf_url, pdf_title)
+                        metadata['search_engine'] = 'duckduckgo'
+                        metadata['query'] = search_query
+                        metadata['description'] = snippet
+                        metadata['source_page'] = page_url
+                        
+                        # Create search result
+                        result = PDFResult(
+                            url=pdf_url,
+                            source_type='duckduckgo',
+                            title=pdf_title,
+                            equipment_type=metadata.get('equipment_type'),
+                            manufacturer=metadata.get('manufacturer'),
+                            model=metadata.get('model'),
+                            year=metadata.get('year'),
+                            metadata=metadata
+                        )
+                        
+                        # Only add if we haven't seen this URL before
+                        if result.url not in seen_urls:
+                            results.append(result)
+                            seen_urls.add(result.url)
+                    
+                        # Stop if we have enough results
+                        if len(results) >= max_results:
+                            break
+                    
+                    except Exception as e:
+                        print(f"Error parsing result: {e}")
+                        continue
             
-            print(f"DuckDuckGo search returned {len(results)} results for query: {query}")
+            print(f"DuckDuckGo search returned {len(results)} results for query: {search_query_with_pdf}")
             
         except requests.RequestException as e:
             print(f"DuckDuckGo search request failed: {e}")
