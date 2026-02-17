@@ -183,25 +183,27 @@ function renderJobFolders(jobs) {
 
 // Create job folder HTML
 function createJobFolder(job) {
-    const jobId = job.job_id || 'unknown';
+    const jobId = job.job_id || 'no-job';
     const jobName = job.job_name || 'Unknown Job';
     const jobQuery = job.job_query || '';
     const manualCount = job.manuals.length;
     
     return `
         <div class="job-folder" id="job-folder-${jobId}">
-            <div class="job-folder-header" onclick="toggleJobFolder(${jobId})">
+            <div class="job-folder-header" onclick="toggleJobFolder('${jobId}')">
                 <div class="job-folder-title">
                     <i class="bi bi-folder folder-icon"></i>
                     <span>${escapeHtml(jobName)}</span>
-                    <span class="job-id">#${jobId}</span>
+                    ${job.job_id ? `<span class="job-id">#${jobId}</span>` : ''}
                     ${jobQuery ? `<span class="job-query">(${escapeHtml(jobQuery)})</span>` : ''}
                 </div>
                 <div class="job-folder-actions">
                     <span class="job-folder-count">${manualCount} manual${manualCount !== 1 ? 's' : ''}</span>
-                    <button class="job-folder-delete-btn" onclick="event.stopPropagation(); deleteJob(${jobId})">
-                        <i class="bi bi-trash"></i> Delete Job
-                    </button>
+                    ${job.job_id ? `
+                        <button class="job-folder-delete-btn" onclick="event.stopPropagation(); deleteJob(${jobId})">
+                            <i class="bi bi-trash"></i> Delete Job
+                        </button>
+                    ` : ''}
                     <i class="bi bi-chevron-right job-folder-toggle" id="job-toggle-${jobId}"></i>
                 </div>
             </div>
@@ -262,8 +264,10 @@ function toggleJobFolder(jobId) {
     const body = document.getElementById(`job-body-${jobId}`);
     const toggle = document.getElementById(`job-toggle-${jobId}`);
     
-    body.classList.toggle('expanded');
-    toggle.classList.toggle('rotated');
+    if (body && toggle) {
+        body.classList.toggle('expanded');
+        toggle.classList.toggle('rotated');
+    }
 }
 
 // Sort jobs
@@ -283,6 +287,12 @@ function sortManuals(sortField) {
 
 // Delete job (all pending manuals for a job)
 async function deleteJob(jobId) {
+    // Don't allow deleting 'no-job' folder
+    if (jobId === 'no-job') {
+        showToast('Cannot delete manuals without a job. Please approve or reject individually.', 'warning');
+        return;
+    }
+    
     if (!confirm(`Are you sure you want to delete all pending manuals for job #${jobId}? This action cannot be undone.`)) {
         return;
     }
