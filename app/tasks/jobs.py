@@ -118,23 +118,23 @@ def run_scraping_job(query: str = None, max_results: int = None, log_callback=No
 
 
 def run_multi_site_scraping_job(
-sites: List[str] = None,
-search_terms: List[str] = None,
-exclude_terms: List[str] = None,
-min_pages: int = 5,
-max_pages: int = None,
-min_file_size_mb: float = None,
-max_file_size_mb: float = None,
-follow_links: bool = True,
-max_depth: int = 2,
-extract_directories: bool = True,
-file_extensions: List[str] = None,
-skip_duplicates: bool = True,
-max_results: int = None,
-log_callback: Callable = None
+    sites: List[str] = None,
+    search_terms: List[str] = None,
+    exclude_terms: List[str] = None,
+    min_pages: int = 5,
+    max_pages: int = None,
+    min_file_size_mb: float = None,
+    max_file_size_mb: float = None,
+    follow_links: bool = True,
+    max_depth: int = 2,
+    extract_directories: bool = True,
+    file_extensions: List[str] = None,
+    skip_duplicates: bool = True,
+    max_results: int = None,
+    log_callback: Callable = None
 ):
-"""
-Run a multi-site scraping job to discover PDF manuals
+    """
+    Run a multi-site scraping job to discover PDF manuals
 
 Args:
     sites: List of site URLs to scrape
