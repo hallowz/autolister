@@ -4,8 +4,27 @@
 
 # Configuration
 PI_USERNAME="lane"
-PI_PASSWORD="growtent"
 PROJECT_PATH="~/autolister"
+QUICK_RESTART=false
+SETUP_KEYS=false
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --quick)
+            QUICK_RESTART=true
+            shift
+            ;;
+        --setup-keys)
+            SETUP_KEYS=true
+            shift
+            ;;
+        *)
+            PI_IP="$1"
+            shift
+            ;;
+    esac
+done
 
 # Display banner
 echo "========================================="
@@ -20,20 +39,50 @@ if ! command -v ssh &> /dev/null; then
     exit 1
 fi
 
-# Check if sshpass is available
-if ! command -v sshpass &> /dev/null; then
-    echo "WARNING: sshpass is not installed."
-    echo "The script will prompt for password, or you can install sshpass:"
-    echo "  Ubuntu/Debian: sudo apt install sshpass"
-    echo "  macOS: brew install sshpass"
+# Setup SSH keys if requested
+if [ "$SETUP_KEYS" = true ]; then
+    echo "========================================="
+    echo "  Setting up SSH Key Authentication"
+    echo "========================================="
     echo ""
+    
+    # Check if SSH keys already exist
+    SSH_DIR="$HOME/.ssh"
+    PRIVATE_KEY="$SSH_DIR/id_ed25519"
+    PUBLIC_KEY="$SSH_DIR/id_ed25519.pub"
+    
+    if [ ! -f "$PRIVATE_KEY" ]; then
+        echo "No SSH key found. Generating new ED25519 key..."
+        mkdir -p "$SSH_DIR"
+        chmod 700 "$SSH_DIR"
+        ssh-keygen -t ed25519 -f "$PRIVATE_KEY" -N "" -q
+        echo "✓ SSH key generated successfully"
+    else
+        echo "✓ SSH key already exists at $PRIVATE_KEY"
+    fi
+    
+    # Copy the public key to the Raspberry Pi
+    echo "Copying public key to Raspberry Pi..."
+    echo "You will be prompted for the password ONE TIME only."
+    echo ""
+    
+    ssh-copy-id -i "$PUBLIC_KEY" "$PI_USERNAME@$PI_IP"
+    
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo "✓ SSH key setup complete! You should now be able to connect without a password."
+        echo ""
+        echo "Test the connection by running: ssh $PI_USERNAME@$PI_IP"
+    else
+        echo "✗ SSH key setup failed. Please check your password and try again."
+        exit 1
+    fi
+    exit 0
 fi
 
 # Get Raspberry Pi IP
-if [ -z "$1" ]; then
+if [ -z "$PI_IP" ]; then
     read -p "Enter Raspberry Pi IP address: " PI_IP
-else
-    PI_IP="$1"
 fi
 
 if [ -z "$PI_IP" ]; then
@@ -45,29 +94,58 @@ fi
 echo "Testing connection to Raspberry Pi at $PI_IP..."
 echo ""
 
-if command -v sshpass &> /dev/null; then
-    # Use sshpass for automated authentication
-    sshpass -p "$PI_PASSWORD" ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "echo 'Connection successful'" > /dev/null 2>&1
-else
-    # Manual authentication
-    ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "echo 'Connection successful'" > /dev/null 2>&1
-fi
+ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "echo 'Connection successful'" > /dev/null 2>&1
 
 if [ $? -ne 0 ]; then
     echo "✗ SSH connection failed. Please check:"
     echo "  1. Raspberry Pi is powered on and connected to network"
     echo "  2. IP address is correct: $PI_IP"
     echo "  3. SSH is enabled on Raspberry Pi"
-    echo "  4. Username '$PI_USERNAME' and password are correct"
+    echo "  4. Username '$PI_USERNAME' is correct"
     echo ""
-    echo "Try connecting manually: ssh $PI_USERNAME@$PI_IP"
+    echo "To set up passwordless SSH authentication, run:"
+    echo "  ./deploy_and_update_pi.sh $PI_IP --setup-keys"
+    echo ""
+    echo "Or connect manually to test: ssh $PI_USERNAME@$PI_IP"
     exit 1
 fi
 
 echo "✓ Connection successful!"
 echo ""
 
-# Build the deployment command
+# Quick restart mode - just restart containers
+if [ "$QUICK_RESTART" = true ]; then
+    echo "========================================="
+    echo "  Quick Restart Mode"
+    echo "========================================="
+    echo ""
+    
+    echo "Restarting Docker containers..."
+    ssh "$PI_USERNAME@$PI_IP" "cd $PROJECT_PATH/docker && docker-compose restart autolister"
+    
+    if [ $? -ne 0 ]; then
+        echo "✗ Docker restart failed!"
+        exit 1
+    fi
+    
+    echo "✓ Docker containers restarted"
+    echo ""
+    
+    echo "Checking container status..."
+    ssh "$PI_USERNAME@$PI_IP" "cd $PROJECT_PATH/docker && docker-compose ps"
+    echo ""
+    
+    echo "========================================="
+    echo "  Quick Restart Complete!"
+    echo "========================================="
+    echo ""
+    echo "Your AutoLister application has been restarted."
+    echo "Dashboard: http://$PI_IP:8000"
+    echo ""
+    exit 0
+fi
+
+# Full deployment mode
 echo "========================================="
 echo "  Starting Deployment"
 echo "========================================="
@@ -101,11 +179,7 @@ echo \"  Dashboard: http://$PI_IP:8000\""
 echo "Executing deployment on Raspberry Pi..."
 echo ""
 
-if command -v sshpass &> /dev/null; then
-    sshpass -p "$PI_PASSWORD" ssh -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "$DEPLOY_COMMAND"
-else
-    ssh -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "$DEPLOY_COMMAND"
-fi
+ssh -o StrictHostKeyChecking=no "$PI_USERNAME@$PI_IP" "$DEPLOY_COMMAND"
 
 if [ $? -eq 0 ]; then
     echo ""

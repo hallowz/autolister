@@ -16,7 +16,7 @@ import json
 
 settings = get_settings()
 
-router = APIRouter(prefix="/scrape-jobs", tags=["Scrape Jobs"])
+router = APIRouter(prefix="/api/scrape-jobs", tags=["Scrape Jobs"])
 
 
 def get_queue_position(db: Session) -> int:

@@ -75,6 +75,12 @@ async def scrape_queue():
     return {"message": "Scrape queue not found"}
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Serve favicon - return empty response"""
+    return {"message": "No favicon"}
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
