@@ -681,7 +681,7 @@ def generate_scrape_config(request: GenerateConfigRequest):
 Your task is to generate a scrape job configuration based on the user's description. The configuration MUST include these fields:
 - name: A short, descriptive name for the job
 - source_type: One of: 'multi_site', 'search', 'forum', 'manual_site', 'gdrive' (DEFAULT to 'multi_site' for best results)
-- query: The search query to use - MUST include 'filetype:pdf' operator for PDF files
+- query: The search query to use - use search terms with OR between them for better results
 - max_results: Number of results to fetch (DEFAULT to 100 for comprehensive discovery)
 - equipment_type: Optional - the type of equipment (e.g., Camera, Radio, etc.)
 - manufacturer: Optional - the manufacturer name (e.g., Canon, Nikon, etc.)
@@ -723,7 +723,7 @@ For "Find service manuals", you would generate:
 {
   "name": "Service Manuals Collection",
   "source_type": "multi_site",
-  "query": "service manual filetype:pdf",
+  "query": "service manual OR repair manual OR workshop manual OR service station manual OR technical manual OR maintenance manual OR diagnostic manual OR troubleshooting guide",
   "max_results": 100,
   "equipment_type": null,
   "manufacturer": null,
@@ -738,7 +738,7 @@ For "I want to find vintage Canon camera service manuals from the 1970s", you wo
 {
   "name": "Vintage Canon Service Manuals 1970s",
   "source_type": "multi_site",
-  "query": "Canon service manual filetype:pdf 1970s",
+  "query": "Canon service manual OR repair manual OR workshop manual 1970s",
   "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Canon",
@@ -753,7 +753,7 @@ For "Find Nikon DSLR service manuals", you would generate:
 {
   "name": "Nikon DSLR Service Manuals",
   "source_type": "multi_site",
-  "query": "Nikon DSLR service manual filetype:pdf",
+  "query": "Nikon DSLR service manual OR repair manual OR workshop manual",
   "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Nikon",
@@ -768,7 +768,7 @@ For "Find service manuals for industrial equipment", you would generate:
 {
   "name": "Industrial Equipment Service Manuals",
   "source_type": "multi_site",
-  "query": "industrial equipment service manual filetype:pdf",
+  "query": "industrial equipment service manual OR repair manual OR workshop manual OR technical manual",
   "max_results": 100,
   "equipment_type": "Industrial Equipment",
   "manufacturer": null,
@@ -780,7 +780,7 @@ For "Find service manuals for industrial equipment", you would generate:
 
 IMPORTANT RULES:
 1. DEFAULT to source_type 'multi_site' for comprehensive discovery across many websites
-2. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
+2. Use search terms with OR between them in the query for better results (DO NOT use 'filetype:pdf')
 3. Set min_pages to 5 or higher to avoid short preview documents
 4. Set max_results to 100 for comprehensive discovery (unless user specifies otherwise)
 5. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
@@ -813,7 +813,7 @@ Return ONLY valid JSON, no other text."""
         # Validate and set defaults
         config.setdefault('name', 'Service Manuals Collection')
         config.setdefault('source_type', 'multi_site')
-        config.setdefault('query', 'service manual filetype:pdf')
+        config.setdefault('query', 'service manual OR repair manual OR workshop manual OR service station manual OR technical manual OR maintenance manual OR diagnostic manual OR troubleshooting guide')
         config.setdefault('max_results', 100)
         config.setdefault('equipment_type', None)
         config.setdefault('manufacturer', None)
