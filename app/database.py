@@ -130,9 +130,9 @@ class ScrapeJob(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    source_type = Column(String, nullable=False)  # 'search', 'forum', 'manual_site', 'gdrive'
+    source_type = Column(String, nullable=False)  # 'search', 'forum', 'manual_site', 'gdrive', 'multi_site'
     query = Column(String, nullable=False)
-    max_results = Column(Integer, nullable=False, default=10)
+    max_results = Column(Integer, nullable=False, default=100)  # Increased default to 100
     status = Column(String, nullable=False, default='queued', index=True)  # 'queued', 'scheduled', 'running', 'completed', 'failed'
     scheduled_time = Column(DateTime, nullable=True, index=True)
     schedule_frequency = Column(String, nullable=True)  # 'daily', 'weekly', 'monthly'
@@ -144,8 +144,26 @@ class ScrapeJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     autostart_enabled = Column(Boolean, nullable=False, default=False)  # Whether to auto-start next job in queue
-
-def create_tables():
+    
+    # Advanced scraping settings
+    sites = Column(Text, nullable=True)  # JSON array of site URLs to scrape
+    search_terms = Column(Text, nullable=True)  # Comma-separated search terms
+    exclude_terms = Column(Text, nullable=True)  # Comma-separated terms to exclude
+    min_pages = Column(Integer, nullable=True, default=5)  # Minimum PDF page count
+    max_pages = Column(Integer, nullable=True)  # Maximum PDF page count
+    min_file_size_mb = Column(Float, nullable=True)  # Minimum file size in MB
+    max_file_size_mb = Column(Float, nullable=True)  # Maximum file size in MB
+    follow_links = Column(Boolean, nullable=True, default=True)  # Whether to follow links on pages
+    max_depth = Column(Integer, nullable=True, default=2)  # Maximum link depth to follow
+    extract_directories = Column(Boolean, nullable=True, default=True)  # Whether to extract PDFs from directories
+    file_extensions = Column(Text, nullable=True, default='pdf')  # Comma-separated file extensions to look for
+    skip_duplicates = Column(Boolean, nullable=True, default=True)  # Whether to skip duplicate URLs
+    notes = Column(Text, nullable=True)  # Additional notes for the job
+    
+    # Relationships
+    scraped_sites = relationship("ScrapedSite", back_populates="scrape_job", cascade="all, delete-orphan")
+    
+    def create_tables():
     """Create all tables in the database"""
     Base.metadata.create_all(bind=engine)
 

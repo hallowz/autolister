@@ -118,14 +118,29 @@ class ErrorResponse(BaseModel):
 class ScrapeJobCreate(BaseModel):
     """Schema for creating a scrape job"""
     name: str
-    source_type: str  # 'search', 'forum', 'manual_site', 'gdrive'
+    source_type: str  # 'search', 'forum', 'manual_site', 'gdrive', 'multi_site'
     query: str
-    max_results: int = 10
+    max_results: int = 100  # Increased default to 100
     scheduled_time: Optional[str] = None  # ISO format datetime
     schedule_frequency: Optional[str] = None  # 'daily', 'weekly', 'monthly'
     equipment_type: Optional[str] = None
     manufacturer: Optional[str] = None
     autostart_enabled: bool = False  # Auto-start next job in queue
+    
+    # Advanced scraping settings
+    sites: Optional[str] = None  # JSON array of site URLs to scrape
+    search_terms: Optional[str] = None  # Comma-separated search terms
+    exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
+    min_pages: Optional[int] = None  # Minimum PDF page count
+    max_pages: Optional[int] = None  # Maximum PDF page count
+    min_file_size_mb: Optional[float] = None  # Minimum file size in MB
+    max_file_size_mb: Optional[float] = None  # Maximum file size in MB
+    follow_links: Optional[bool] = None  # Whether to follow links on pages
+    max_depth: Optional[int] = None  # Maximum link depth to follow
+    extract_directories: Optional[bool] = None  # Whether to extract PDFs from directories
+    file_extensions: Optional[str] = None  # Comma-separated file extensions to look for
+    skip_duplicates: Optional[bool] = None  # Whether to skip duplicate URLs
+    notes: Optional[str] = None  # Additional notes for the job
 
 
 class ScrapeJobUpdate(BaseModel):
@@ -139,6 +154,21 @@ class ScrapeJobUpdate(BaseModel):
     equipment_type: Optional[str] = None
     manufacturer: Optional[str] = None
     autostart_enabled: Optional[bool] = None
+    
+    # Advanced scraping settings
+    sites: Optional[str] = None  # JSON array of site URLs to scrape
+    search_terms: Optional[str] = None  # Comma-separated search terms
+    exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
+    min_pages: Optional[int] = None  # Minimum PDF page count
+    max_pages: Optional[int] = None  # Maximum PDF page count
+    min_file_size_mb: Optional[float] = None  # Minimum file size in MB
+    max_file_size_mb: Optional[float] = None  # Maximum file size in MB
+    follow_links: Optional[bool] = None  # Whether to follow links on pages
+    max_depth: Optional[int] = None  # Maximum link depth to follow
+    extract_directories: Optional[bool] = None  # Whether to extract PDFs from directories
+    file_extensions: Optional[str] = None  # Comma-separated file extensions to look for
+    skip_duplicates: Optional[bool] = None  # Whether to skip duplicate URLs
+    notes: Optional[str] = None  # Additional notes for the job
 
 
 class ScrapeJobResponse(BaseModel):
@@ -159,6 +189,21 @@ class ScrapeJobResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     autostart_enabled: bool
+    
+    # Advanced scraping settings
+    sites: Optional[str] = None  # JSON array of site URLs to scrape
+    search_terms: Optional[str] = None  # Comma-separated search terms
+    exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
+    min_pages: Optional[int] = None  # Minimum PDF page count
+    max_pages: Optional[int] = None  # Maximum PDF page count
+    min_file_size_mb: Optional[float] = None  # Minimum file size in MB
+    max_file_size_mb: Optional[float] = None  # Maximum file size in MB
+    follow_links: Optional[bool] = None  # Whether to follow links on pages
+    max_depth: Optional[int] = None  # Maximum link depth to follow
+    extract_directories: Optional[bool] = None  # Whether to extract PDFs from directories
+    file_extensions: Optional[str] = None  # Comma-separated file extensions to look for
+    skip_duplicates: Optional[bool] = None  # Whether to skip duplicate URLs
+    notes: Optional[str] = None  # Additional notes for the job
     
     class Config:
         from_attributes = True
