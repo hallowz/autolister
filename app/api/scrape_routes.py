@@ -723,12 +723,12 @@ For "Find service manuals", you would generate:
 {
   "name": "Service Manuals Collection",
   "source_type": "multi_site",
-  "query": "service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "query": "service manual filetype:pdf",
   "max_results": 100,
   "equipment_type": null,
   "manufacturer": null,
   "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide",
-  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
+  "exclude_terms": "",
   "min_pages": 5,
   "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory"
 }
@@ -738,12 +738,12 @@ For "I want to find vintage Canon camera service manuals from the 1970s", you wo
 {
   "name": "Vintage Canon Service Manuals 1970s",
   "source_type": "multi_site",
-  "query": "Canon service manual filetype:pdf 1970s -preview -operator -operation -user -owner -quick start -brochure",
+  "query": "Canon service manual filetype:pdf 1970s",
   "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Canon",
   "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Canon, vintage, 1970s",
-  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
+  "exclude_terms": "",
   "min_pages": 5,
   "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Canon, vintage, document, repository, archive, directory"
 }
@@ -753,12 +753,12 @@ For "Find Nikon DSLR service manuals", you would generate:
 {
   "name": "Nikon DSLR Service Manuals",
   "source_type": "multi_site",
-  "query": "Nikon DSLR service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "query": "Nikon DSLR service manual filetype:pdf",
   "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Nikon",
   "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Nikon, DSLR",
-  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
+  "exclude_terms": "",
   "min_pages": 5,
   "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Nikon, DSLR, document, repository, archive, directory"
 }
@@ -768,12 +768,12 @@ For "Find service manuals for industrial equipment", you would generate:
 {
   "name": "Industrial Equipment Service Manuals",
   "source_type": "multi_site",
-  "query": "industrial equipment service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "query": "industrial equipment service manual filetype:pdf",
   "max_results": 100,
   "equipment_type": "Industrial Equipment",
   "manufacturer": null,
   "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, industrial equipment, machinery",
-  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
+  "exclude_terms": "",
   "min_pages": 5,
   "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, industrial, equipment, machinery, document, repository, archive, directory"
 }
@@ -781,16 +781,14 @@ For "Find service manuals for industrial equipment", you would generate:
 IMPORTANT RULES:
 1. DEFAULT to source_type 'multi_site' for comprehensive discovery across many websites
 2. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
-3. ALWAYS exclude: preview, operator, operation, user manuals, owner's manuals, quick start guides, brochures, catalogs, sample pages (use - operator in query)
-4. Set min_pages to 5 or higher to avoid short preview documents
-5. Set max_results to 100 for comprehensive discovery (unless user specifies otherwise)
-6. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
-7. Keep the name concise but descriptive
-8. Extract equipment_type and manufacturer from the description if available
-9. Provide comprehensive search_terms that include relevant synonyms and variations
-10. Provide comprehensive exclude_terms to filter out unwanted content
-11. Provide detailed traversal_pattern for finding PDFs on web pages
-12. Multi-site scraping typically finds 50-100+ manuals from many different websites
+3. Set min_pages to 5 or higher to avoid short preview documents
+4. Set max_results to 100 for comprehensive discovery (unless user specifies otherwise)
+5. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
+6. Keep the name concise but descriptive
+7. Extract equipment_type and manufacturer from the description if available
+8. Provide comprehensive search_terms that include relevant synonyms and variations
+9. Provide detailed traversal_pattern for finding PDFs on web pages
+10. Multi-site scraping typically finds 50-100+ manuals from many different websites
 
 Return ONLY valid JSON, no other text."""
         
@@ -815,12 +813,12 @@ Return ONLY valid JSON, no other text."""
         # Validate and set defaults
         config.setdefault('name', 'Service Manuals Collection')
         config.setdefault('source_type', 'multi_site')
-        config.setdefault('query', 'service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure')
+        config.setdefault('query', 'service manual filetype:pdf')
         config.setdefault('max_results', 100)
         config.setdefault('equipment_type', None)
         config.setdefault('manufacturer', None)
         config.setdefault('search_terms', 'service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide')
-        config.setdefault('exclude_terms', 'preview, operator, operation, user manual, owner\'s manual, quick start guide, brochure, catalog, sample pages')
+        config.setdefault('exclude_terms', '')
         config.setdefault('min_pages', 5)
         config.setdefault('traversal_pattern', 'Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory')
         
