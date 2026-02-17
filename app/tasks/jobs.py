@@ -159,7 +159,10 @@ def run_multi_site_scraping_job(
             'extract_directories': extract_directories,
             'file_extensions': ','.join(file_extensions),
             'skip_duplicates': skip_duplicates,
+            'save_immediately': True,  # Save PDFs to DB immediately upon discovery
         }
+        
+        log(f"Starting multi-site scraping job (PDFs will be saved to database immediately)")
         
         log(f"Starting multi-site scraping job")
         log(f"Sites to scrape: {len(sites) if sites else 0}")
@@ -222,42 +225,25 @@ def run_multi_site_scraping_job(
         db.commit()
         log(f"Updated {len(domains_to_track)} scraped sites")
         
-        # Now save the manuals
+        # Note: PDFs are already saved to database immediately by the scraper
+        # So we just need to count them for the final summary
+        total_discovered = 0
+        total_skipped = 0
+        
         for result in results[:max_results] if max_results else results:
-            # Check if URL already exists
+            # Check if URL exists (it should, since it was saved immediately)
             existing = db.query(Manual).filter(
                 Manual.source_url == result.url
             ).first()
             
             if existing:
+                total_discovered += 1
+            else:
+                # This shouldn't happen if save_immediately is enabled, but handle it
                 total_skipped += 1
-                continue
-            
-            # Create manual record
-            manual = Manual(
-                source_url=result.url,
-                source_type=result.source_type,
-                title=result.title,
-                equipment_type=result.equipment_type,
-                manufacturer=result.manufacturer,
-                model=result.model,
-                year=result.year,
-                status='pending'
-            )
-            db.add(manual)
-            total_discovered += 1
-            new_count += 1
-            
-            # Commit every 10 manuals to release database locks
-            if new_count % 10 == 0:
-                db.commit()
-                log(f"Committed batch of {new_count} manuals so far")
         
-        # Final commit for any remaining manuals
-        db.commit()
-        log(f"Saved {new_count} new manuals from multi-site scraping")
-        log(f"Skipped {total_skipped} duplicate URLs")
         log(f"Multi-site scraping job completed. Discovered {total_discovered} new manuals total.")
+        log(f"Note: PDFs were saved to database immediately upon discovery for real-time UI display")
         
         # Log completion
         processing_log = ProcessingLog(

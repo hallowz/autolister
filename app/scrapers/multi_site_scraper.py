@@ -12,6 +12,9 @@ import random
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .base import BaseScraper, PDFResult
+from app.database import SessionLocal, Manual, ScrapedSite
+from datetime import datetime
+from urllib.parse import urlparse as url_parse
 
 
 class MultiSiteScraper(BaseScraper):
@@ -46,10 +49,14 @@ class MultiSiteScraper(BaseScraper):
         self.extract_directories = self.config.get('extract_directories', True)
         self.file_extensions = self._parse_list(self.config.get('file_extensions', 'pdf'))
         self.skip_duplicates = self.config.get('skip_duplicates', True)
+        self.save_immediately = self.config.get('save_immediately', True)  # Save to DB immediately upon discovery
         
         # Default exclude terms for service manual scraping
         if not self.exclude_terms:
             self.exclude_terms = ['preview', 'operator', 'operation', 'user manual', 'quick start']
+        
+        # Track saved URLs to avoid duplicates within the same scrape session
+        self.saved_urls = set()
     
     def _parse_list(self, value: Optional[str]) -> List[str]:
         """Parse comma-separated string into list"""
@@ -111,6 +118,96 @@ class MultiSiteScraper(BaseScraper):
         soup = BeautifulSoup(html, 'html.parser')
         pdf_links = soup.find_all('a', href=re.compile(r'\.pdf$', re.I))
         return len(pdf_links) >= 3  # Consider it a PDF directory if 3+ PDFs
+    
+    def _save_pdf_to_database(self, result: PDFResult, log_callback: Optional[Callable] = None) -> bool:
+        """
+        Save a PDF result to the database immediately upon discovery
+        
+        Args:
+            result: PDFResult object containing PDF information
+            log_callback: Optional callback function for logging
+            
+        Returns:
+            True if saved successfully, False if already exists or error occurred
+        """
+        # Check if already saved in this session
+        if result.url in self.saved_urls:
+            if log_callback:
+                log_callback(f"Already saved this session: {result.url}")
+            return False
+        
+        db = SessionLocal()
+        try:
+            # Check if URL already exists in database
+            existing = db.query(Manual).filter(
+                Manual.source_url == result.url
+            ).first()
+            
+            if existing:
+                if log_callback:
+                    log_callback(f"Already in database: {result.url}")
+                return False
+            
+            # Create manual record
+            manual = Manual(
+                source_url=result.url,
+                source_type=result.source_type,
+                title=result.title,
+                equipment_type=result.equipment_type,
+                manufacturer=result.manufacturer,
+                model=result.model,
+                year=result.year,
+                status='pending',
+                processing_state='queued'
+            )
+            db.add(manual)
+            db.commit()
+            
+            # Track that this URL has been saved
+            self.saved_urls.add(result.url)
+            
+            # Update or create scraped site record
+            parsed = url_parse(result.url)
+            domain = parsed.netloc
+            scraped_site = db.query(ScrapedSite).filter(
+                ScrapedSite.url == domain
+            ).first()
+            
+            if scraped_site:
+                scraped_site.last_scraped_at = datetime.utcnow()
+                scraped_site.scrape_count += 1
+            else:
+                try:
+                    scraped_site = ScrapedSite(
+                        url=domain,
+                        domain=domain,
+                        status='active'
+                    )
+                    db.add(scraped_site)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    # Try to get existing one
+                    scraped_site = db.query(ScrapedSite).filter(
+                        ScrapedSite.url == domain
+                    ).first()
+                    if scraped_site:
+                        scraped_site.last_scraped_at = datetime.utcnow()
+                        scraped_site.scrape_count += 1
+                        db.commit()
+            
+            if log_callback:
+                log_callback(f"✓ Saved to database: {result.title or result.url}")
+            
+            return True
+            
+        except Exception as e:
+            db.rollback()
+            if log_callback:
+                log_callback(f"Error saving to database: {e}")
+            return False
+        finally:
+            db.close()
     
     def _extract_links(self, base_url: str, html: str, current_depth: int) -> List[str]:
         """
@@ -195,7 +292,10 @@ class MultiSiteScraper(BaseScraper):
                     results.append(result)
                     scraped_urls.add(normalized_url)
                     
-                    if log_callback:
+                    # Save to database immediately if enabled
+                    if self.save_immediately:
+                        self._save_pdf_to_database(result, log_callback)
+                    elif log_callback:
                         log_callback(f"Found PDF: {normalized_url}")
                     
                     return results
@@ -256,7 +356,10 @@ class MultiSiteScraper(BaseScraper):
                 results.append(result)
                 scraped_urls.add(pdf_url_normalized)
                 
-                if log_callback:
+                # Save to database immediately if enabled
+                if self.save_immediately:
+                    self._save_pdf_to_database(result, log_callback)
+                elif log_callback:
                     log_callback(f"Found PDF: {pdf_url_normalized}")
             
             # Check if this is a PDF directory (many PDFs on one page)
