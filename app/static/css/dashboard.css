@@ -49,6 +49,36 @@ body {
     margin: 0;
 }
 
+/* New Badge for Pending Manuals */
+.new-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background-color: #dc3545;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+    z-index: 10;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+.stats-card {
+    position: relative;
+}
+
 .stats-card .card-title {
     font-size: 1rem;
     opacity: 0.9;

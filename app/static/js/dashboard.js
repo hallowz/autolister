@@ -6,6 +6,13 @@ const API_BASE = '/api';
 // Global state
 let currentTab = 'pending';
 let refreshInterval = null;
+let pendingManualsCount = 0; // Track count to detect new manuals
+let lastPendingManualsHash = ''; // Track hash to detect changes
+
+// Hash function to detect data changes
+function hashManuals(manuals) {
+    return JSON.stringify(manuals.map(m => m.id).sort());
+}
 
 // Initialize dashboard
 document.addEventListener('DOMContentLoaded', function() {
@@ -24,6 +31,15 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
         tab.addEventListener('shown.bs.tab', function(event) {
             currentTab = event.target.getAttribute('data-bs-target').replace('#', '');
+            
+            // Hide new badge when user switches to pending tab
+            if (currentTab === 'pending') {
+                const pendingBadge = document.getElementById('pending-badge');
+                if (pendingBadge) {
+                    pendingBadge.classList.add('d-none');
+                }
+            }
+            
             // Refresh all data when tab changes
             refreshAllData();
         });
@@ -36,14 +52,14 @@ function startAutoRefresh() {
         loadStats();
         loadCurrentScrape(); // Always refresh current scrape status
         if (currentTab === 'pending') {
-            loadPendingManuals();
+            loadPendingManuals(); // Only updates UI if data changed
         } else if (currentTab === 'processing') {
             loadProcessingManuals();
             loadQueue(); // Also load queue for real-time updates
         } else if (currentTab === 'ready') {
             loadReadyManuals();
         }
-    }, 5000); // Refresh every 5 seconds for real-time updates
+    }, 5000); // Check for updates every 5 seconds, but only update UI if data changed
 }
 
 // Stop auto-refresh
@@ -74,29 +90,56 @@ async function loadStats() {
 // Load pending manuals
 async function loadPendingManuals() {
     const container = document.getElementById('pending-list');
+    const pendingBadge = document.getElementById('pending-badge');
     
     try {
         const response = await fetch(`${API_BASE}/pending`);
         const manuals = await response.json();
         
-        if (manuals.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i class="bi bi-inbox"></i>
-                    <h5>No pending manuals</h5>
-                    <p>All caught up! No manuals waiting for approval.</p>
-                </div>
-            `;
-            return;
+        // Calculate hash of current manuals
+        const currentHash = hashManuals(manuals);
+        
+        // Only update if data has changed
+        if (currentHash !== lastPendingManualsHash) {
+            // Check for new manuals and show notification
+            if (manuals.length > pendingManualsCount && pendingManualsCount > 0) {
+                const newCount = manuals.length - pendingManualsCount;
+                showToast(`${newCount} new manual${newCount > 1 ? 's' : ''} waiting for approval!`, 'success');
+                // Show new badge
+                if (pendingBadge) {
+                    pendingBadge.classList.remove('d-none');
+                }
+            } else if (manuals.length < pendingManualsCount && pendingManualsCount > 0) {
+                const removedCount = pendingManualsCount - manuals.length;
+                showToast(`${removedCount} manual${removedCount > 1 ? 's' : ''} removed from pending`, 'info');
+                // Hide new badge if no more pending manuals
+                if (manuals.length === 0 && pendingBadge) {
+                    pendingBadge.classList.add('d-none');
+                }
+            }
+            
+            pendingManualsCount = manuals.length;
+            lastPendingManualsHash = currentHash;
+            
+            if (manuals.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="bi bi-inbox"></i>
+                        <h5>No pending manuals</h5>
+                        <p>All caught up! No manuals waiting for approval.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div class="row">';
+            manuals.forEach(manual => {
+                html += createManualCard(manual, true);
+            });
+            html += '</div>';
+            
+            container.innerHTML = html;
         }
-        
-        let html = '<div class="row">';
-        manuals.forEach(manual => {
-            html += createManualCard(manual, true);
-        });
-        html += '</div>';
-        
-        container.innerHTML = html;
     } catch (error) {
         container.innerHTML = `
             <div class="alert alert-danger">
