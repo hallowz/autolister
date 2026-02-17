@@ -125,6 +125,7 @@ class ScrapeJobCreate(BaseModel):
     schedule_frequency: Optional[str] = None  # 'daily', 'weekly', 'monthly'
     equipment_type: Optional[str] = None
     manufacturer: Optional[str] = None
+    autostart_enabled: bool = False  # Auto-start next job in queue
 
 
 class ScrapeJobUpdate(BaseModel):
@@ -137,6 +138,7 @@ class ScrapeJobUpdate(BaseModel):
     schedule_frequency: Optional[str] = None
     equipment_type: Optional[str] = None
     manufacturer: Optional[str] = None
+    autostart_enabled: Optional[bool] = None
 
 
 class ScrapeJobResponse(BaseModel):
@@ -156,6 +158,7 @@ class ScrapeJobResponse(BaseModel):
     error_message: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    autostart_enabled: bool
     
     class Config:
         from_attributes = True

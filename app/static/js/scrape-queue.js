@@ -5,12 +5,16 @@
 // Global state
 let scrapeJobs = [];
 let currentEditingJobId = null;
+let autostartEnabled = false;
+let currentScrapeInterval = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     refreshQueue();
-    // Auto-refresh every 30 seconds
-    setInterval(refreshQueue, 30000);
+    refreshCurrentScrape();
+    refreshAutostartStatus();
+    // Auto-refresh current scrape every 5 seconds
+    currentScrapeInterval = setInterval(refreshCurrentScrape, 5000);
 });
 
 /**
@@ -26,9 +30,123 @@ async function refreshQueue() {
         
         updateStats(data.stats);
         renderQueue();
+        refreshAutostartStatus();
     } catch (error) {
         console.error('Error refreshing queue:', error);
         showError('Failed to refresh queue. Please try again.');
+    }
+}
+
+/**
+ * Refresh the current scrape status
+ */
+async function refreshCurrentScrape() {
+    try {
+        const response = await fetch('/api/scrape-jobs/current-scrape');
+        if (!response.ok) throw new Error('Failed to fetch current scrape');
+        
+        const data = await response.json();
+        renderCurrentScrape(data);
+    } catch (error) {
+        console.error('Error refreshing current scrape:', error);
+    }
+}
+
+/**
+ * Render the current scrape status
+ */
+function renderCurrentScrape(data) {
+    const container = document.getElementById('current-scrape-container');
+    
+    if (!data.running || !data.job) {
+        container.innerHTML = `
+            <div class="text-center text-muted py-4">
+                <i class="bi bi-pause-circle fs-1"></i>
+                <p class="mt-2">No scrape job currently running</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const job = data.job;
+    container.innerHTML = `
+        <div class="current-scrape">
+            <div class="row">
+                <div class="col-md-8">
+                    <h5 class="mb-2">${escapeHtml(job.name)}</h5>
+                    <div class="scrape-details">
+                        <span class="badge bg-primary">${getSourceTypeLabel(job.source_type)}</span>
+                        <span class="text-muted ms-2"><i class="bi bi-search"></i> ${escapeHtml(job.query)}</span>
+                        <span class="text-muted ms-2"><i class="bi bi-list-ol"></i> Max: ${job.max_results}</span>
+                    </div>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="progress-indicator">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 style="width: ${job.progress || 0}%"
+                                 id="current-scrape-progress"></div>
+                        </div>
+                        <small class="text-muted">${job.progress || 0}% Complete</small>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-2">
+                <small class="text-muted">
+                    <i class="bi bi-clock"></i> Started: ${formatDate(job.created_at)}
+                    ${job.updated_at !== job.created_at ? ` | Updated: ${formatDate(job.updated_at)}` : ''}
+                </small>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Toggle autostart for queued jobs
+ */
+async function toggleAutostart() {
+    try {
+        const response = await fetch('/api/scrape-jobs/toggle-autostart', {
+            method: 'POST'
+        });
+        if (!response.ok) throw new Error('Failed to toggle autostart');
+        
+        const data = await response.json();
+        autostartEnabled = data.autostart_enabled;
+        updateAutostartButton();
+        showSuccess(data.message);
+    } catch (error) {
+        console.error('Error toggling autostart:', error);
+        showError('Failed to toggle autostart. Please try again.');
+    }
+}
+
+/**
+ * Refresh autostart status from first queued job
+ */
+function refreshAutostartStatus() {
+    const firstQueuedJob = scrapeJobs.find(j => j.status === 'queued');
+    if (firstQueuedJob) {
+        autostartEnabled = firstQueuedJob.autostart_enabled || false;
+        updateAutostartButton();
+    }
+}
+
+/**
+ * Update autostart button appearance
+ */
+function updateAutostartButton() {
+    const btn = document.getElementById('autostart-toggle-btn');
+    const status = document.getElementById('autostart-status');
+    
+    if (autostartEnabled) {
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-success');
+        status.textContent = 'On';
+    } else {
+        btn.classList.remove('btn-success');
+        btn.classList.add('btn-outline-secondary');
+        status.textContent = 'Off';
     }
 }
 
@@ -102,6 +220,7 @@ function renderJobCard(job) {
                             <h5 class="job-card-title">${escapeHtml(job.name)}</h5>
                             <span class="status-badge ${statusClass}">${statusLabel}</span>
                             ${job.queue_position ? `<span class="badge bg-secondary">Position: ${job.queue_position}</span>` : ''}
+                            ${job.status === 'queued' && job.autostart_enabled ? `<span class="badge bg-success"><i class="bi bi-play-circle"></i> Autostart</span>` : ''}
                         </div>
                         <div class="job-card-meta">
                             <span><i class="bi bi-globe"></i> ${getSourceTypeLabel(job.source_type)}</span>
@@ -290,7 +409,8 @@ async function createScrapeJob() {
             scheduled_time: document.getElementById('aiGeneratedScheduleTime').value || null,
             schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
             equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
-            manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null
+            manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null,
+            autostart_enabled: document.getElementById('autostartEnabled').checked || false
         };
     } else {
         // Use manual form
@@ -302,7 +422,8 @@ async function createScrapeJob() {
             scheduled_time: document.getElementById('scheduleTime').value || null,
             schedule_frequency: document.getElementById('scheduleFrequency').value || null,
             equipment_type: document.getElementById('equipmentType').value.trim() || null,
-            manufacturer: document.getElementById('manufacturer').value.trim() || null
+            manufacturer: document.getElementById('manufacturer').value.trim() || null,
+            autostart_enabled: document.getElementById('autostartEnabled').checked || false
         };
     }
     

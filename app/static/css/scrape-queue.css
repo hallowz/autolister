@@ -1,5 +1,48 @@
 /* Scrape Queue Page Styles */
 
+/* Current Scrape Status Card */
+#current-scrape-card {
+    border-left: 4px solid #0d6efd;
+}
+
+.current-scrape {
+    animation: pulse-content 2s infinite;
+}
+
+@keyframes pulse-content {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.8;
+    }
+}
+
+.current-scrape h5 {
+    margin-bottom: 0.5rem;
+    color: #0d6efd;
+}
+
+.scrape-details {
+    margin-top: 0.5rem;
+}
+
+.scrape-details .badge {
+    margin-right: 0.5rem;
+}
+
+.progress-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.progress-indicator .progress {
+    width: 100%;
+    height: 24px;
+    margin-bottom: 0.25rem;
+}
+
 /* Job Card Styles */
 .job-card {
     border-left: 4px solid;

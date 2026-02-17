@@ -78,6 +78,28 @@
             </div>
         </div>
 
+        <!-- Current Scrape Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card" id="current-scrape-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-activity"></i> Current Scrape Status</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshCurrentScrape()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="current-scrape-container">
+                            <div class="text-center text-muted py-4">
+                                <i class="bi bi-pause-circle fs-1"></i>
+                                <p class="mt-2">No scrape job currently running</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Queue List -->
         <div class="row">
             <div class="col-12">
@@ -85,6 +107,9 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0"><i class="bi bi-list-ul"></i> Job Queue</h5>
                         <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleAutostart()" id="autostart-toggle-btn">
+                                <i class="bi bi-play-circle"></i> Autostart: <span id="autostart-status">Off</span>
+                            </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="refreshQueue()">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh
                             </button>
@@ -173,6 +198,15 @@
                                 <div class="mb-3">
                                     <label class="form-label">Manufacturer (Optional)</label>
                                     <input type="text" class="form-control" id="manufacturer" placeholder="e.g., Canon, Nikon, etc.">
+                                </div>
+                                <div class="mb-3">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="autostartEnabled">
+                                        <label class="form-check-label" for="autostartEnabled">
+                                            <i class="bi bi-play-circle"></i> Enable Autostart
+                                        </label>
+                                        <div class="form-text">Automatically start the next job in queue when this job completes</div>
+                                    </div>
                                 </div>
                             </form>
                         </div>

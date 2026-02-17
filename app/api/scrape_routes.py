@@ -94,7 +94,8 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
         schedule_frequency=job.schedule_frequency,
         equipment_type=job.equipment_type,
         manufacturer=job.manufacturer,
-        queue_position=queue_pos
+        queue_position=queue_pos,
+        autostart_enabled=job.autostart_enabled
     )
     
     db.add(db_job)
@@ -209,6 +210,14 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             detail=f"Cannot run job with status '{job.status}'"
         )
     
+    # Check if there's already a running job
+    running_job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+    if running_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Another scrape job is already running. Only one job can run at a time."
+        )
+    
     # Update job status
     job.status = 'running'
     job.queue_position = None
@@ -217,10 +226,200 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     job.updated_at = datetime.utcnow()
     db.commit()
     
-    # TODO: Trigger the actual scraping job
-    # This would call the scraping logic from app.tasks.jobs
+    # Trigger the actual scraping job
+    try:
+        from app.tasks.jobs import run_scraping_job
+        
+        # Run the scraping job in a background thread
+        import threading
+        def run_job_with_callback():
+            def log_callback(message):
+                # Update job progress/log
+                try:
+                    db = SessionLocal()
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    if job:
+                        # Extract progress from message if available
+                        import re
+                        progress_match = re.search(r'(\d+)%', message)
+                        if progress_match:
+                            job.progress = int(progress_match.group(1))
+                        job.updated_at = datetime.utcnow()
+                        db.commit()
+                    db.close()
+                except Exception as e:
+                    print(f"Error updating job progress: {e}")
+            
+            try:
+                run_scraping_job(
+                    query=job.query,
+                    max_results=job.max_results,
+                    log_callback=log_callback
+                )
+                # Mark job as completed
+                db = SessionLocal()
+                job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                if job:
+                    job.status = 'completed'
+                    job.progress = 100
+                    job.updated_at = datetime.utcnow()
+                    db.commit()
+                    
+                    # Check if autostart is enabled and start next job
+                    if job.autostart_enabled:
+                        start_next_queued_job(db)
+                    db.close()
+            except Exception as e:
+                # Mark job as failed
+                db = SessionLocal()
+                job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                if job:
+                    job.status = 'failed'
+                    job.error_message = str(e)
+                    job.updated_at = datetime.utcnow()
+                    db.commit()
+                    db.close()
+        
+        thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        thread.start()
+        
+    except Exception as e:
+        # Revert status if job failed to start
+        job.status = 'failed'
+        job.error_message = f"Failed to start scraping job: {str(e)}"
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start scraping job: {str(e)}"
+        )
     
     return {"message": "Scrape job started successfully"}
+
+
+def start_next_queued_job(db: Session):
+    """Start the next queued job if autostart is enabled"""
+    try:
+        # Get the next queued job (position 1)
+        next_job = db.query(ScrapeJob).filter(
+            ScrapeJob.status == 'queued',
+            ScrapeJob.queue_position == 1
+        ).first()
+        
+        if next_job and next_job.autostart_enabled:
+            # Update job status
+            next_job.status = 'running'
+            next_job.queue_position = None
+            next_job.progress = 0
+            next_job.error_message = None
+            next_job.updated_at = datetime.utcnow()
+            db.commit()
+            
+            # Reposition remaining queue
+            reposition_queue(db, 0)
+            
+            # Trigger the actual scraping job
+            from app.tasks.jobs import run_scraping_job
+            import threading
+            
+            def run_job_with_callback():
+                def log_callback(message):
+                    try:
+                        db = SessionLocal()
+                        job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
+                        if job:
+                            import re
+                            progress_match = re.search(r'(\d+)%', message)
+                            if progress_match:
+                                job.progress = int(progress_match.group(1))
+                            job.updated_at = datetime.utcnow()
+                            db.commit()
+                        db.close()
+                    except Exception as e:
+                        print(f"Error updating job progress: {e}")
+                
+                try:
+                    run_scraping_job(
+                        query=next_job.query,
+                        max_results=next_job.max_results,
+                        log_callback=log_callback
+                    )
+                    db = SessionLocal()
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
+                    if job:
+                        job.status = 'completed'
+                        job.progress = 100
+                        job.updated_at = datetime.utcnow()
+                        db.commit()
+                        
+                        # Check if autostart is enabled and start next job
+                        if job.autostart_enabled:
+                            start_next_queued_job(db)
+                        db.close()
+                except Exception as e:
+                    db = SessionLocal()
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
+                    if job:
+                        job.status = 'failed'
+                        job.error_message = str(e)
+                        job.updated_at = datetime.utcnow()
+                        db.commit()
+                        db.close()
+            
+            thread = threading.Thread(target=run_job_with_callback, daemon=True)
+            thread.start()
+    except Exception as e:
+        print(f"Error starting next queued job: {e}")
+
+
+@router.post("/toggle-autostart")
+def toggle_autostart(db: Session = Depends(get_db)):
+    """Toggle autostart for all queued jobs"""
+    # Get current autostart state from first queued job
+    first_job = db.query(ScrapeJob).filter(
+        ScrapeJob.status == 'queued'
+    ).order_by(ScrapeJob.queue_position).first()
+    
+    if not first_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No queued jobs to toggle autostart"
+        )
+    
+    # Toggle the state
+    new_state = not first_job.autostart_enabled
+    
+    # Update all queued jobs
+    db.query(ScrapeJob).filter(
+        ScrapeJob.status == 'queued'
+    ).update({'autostart_enabled': new_state})
+    
+    db.commit()
+    
+    return {"autostart_enabled": new_state, "message": f"Autostart {'enabled' if new_state else 'disabled'} for all queued jobs"}
+
+
+@router.get("/current-scrape")
+def get_current_scrape(db: Session = Depends(get_db)):
+    """Get the currently running scrape job"""
+    job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+    
+    if not job:
+        return {"running": False, "job": None}
+    
+    return {
+        "running": True,
+        "job": {
+            "id": job.id,
+            "name": job.name,
+            "source_type": job.source_type,
+            "query": job.query,
+            "max_results": job.max_results,
+            "progress": job.progress,
+            "status": job.status,
+            "created_at": job.created_at,
+            "updated_at": job.updated_at
+        }
+    }
 
 
 @router.post("/{job_id}/stop")
@@ -260,15 +459,43 @@ def generate_scrape_config(request: GenerateConfigRequest):
         # Initialize Groq client
         client = Groq(api_key=settings.groq_api_key)
         
-        # Create prompt for Groq
-        system_prompt = """You are an expert at configuring web scraping jobs. 
-Given a user's description, generate a scrape job configuration with the following fields:
+        # Create prompt for Groq with PDF-focused example
+        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF manuals and documentation.
+
+Your task is to generate a scrape job configuration based on the user's description. The configuration MUST include these fields:
 - name: A short, descriptive name for the job
 - source_type: One of: 'search', 'forum', 'manual_site', 'gdrive'
-- query: The search query to use (include relevant search operators like filetype:pdf)
+- query: The search query to use - MUST include 'filetype:pdf' operator for PDF files
 - max_results: Number of results to fetch (typically 10-50)
 - equipment_type: Optional - the type of equipment (e.g., Camera, Radio, etc.)
 - manufacturer: Optional - the manufacturer name (e.g., Canon, Nikon, etc.)
+
+EXAMPLE: For "I want to find vintage Canon camera manuals from the 1970s", you would generate:
+{
+  "name": "Vintage Canon Camera Manuals 1970s",
+  "source_type": "search",
+  "query": "vintage Canon camera manual filetype:pdf 1970s",
+  "max_results": 20,
+  "equipment_type": "Camera",
+  "manufacturer": "Canon"
+}
+
+EXAMPLE: For "Find Nikon DSLR user guides", you would generate:
+{
+  "name": "Nikon DSLR User Guides",
+  "source_type": "search",
+  "query": "Nikon DSLR user guide filetype:pdf manual",
+  "max_results": 15,
+  "equipment_type": "Camera",
+  "manufacturer": "Nikon"
+}
+
+IMPORTANT RULES:
+1. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
+2. Use relevant search terms like 'manual', 'user guide', 'owner manual', 'documentation'
+3. Keep the name concise but descriptive
+4. Set max_results between 10-50 for optimal performance
+5. Extract equipment_type and manufacturer from the description if available
 
 Return ONLY valid JSON, no other text."""
         

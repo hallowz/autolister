@@ -143,6 +143,7 @@ class ScrapeJob(Base):
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    autostart_enabled = Column(Boolean, nullable=False, default=False)  # Whether to auto-start next job in queue
 
 def create_tables():
     """Create all tables in the database"""
