@@ -381,6 +381,77 @@
                                         <label class="form-label">Manufacturer</label>
                                         <input type="text" class="form-control" id="aiGeneratedManufacturer">
                                     </div>
+                                    <!-- Advanced Settings -->
+                                    <hr>
+                                    <h6>Advanced Settings</h6>
+                                    <div id="aiMultiSiteFields" style="display: block;">
+                                        <div class="mb-3">
+                                            <label class="form-label">Additional Sites to Scrape (one per line, optional)</label>
+                                            <textarea class="form-control" id="aiGeneratedSites" rows="4" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
+                                            <div class="form-text">Enter additional URLs to scrape. The scraper will crawl each site concurrently along with sites found from DuckDuckGo.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">File Extensions (comma-separated)</label>
+                                            <input type="text" class="form-control" id="aiGeneratedFileExtensions" value="pdf" placeholder="e.g., pdf, doc, docx">
+                                            <div class="form-text">File extensions to look for during scraping.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Max Link Depth</label>
+                                            <input type="number" class="form-control" id="aiGeneratedMaxDepth" value="2" min="1" max="10">
+                                            <div class="form-text">How deep to follow links from each page (1-10).</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="aiGeneratedFollowLinks" checked>
+                                                <label class="form-check-label" for="aiGeneratedFollowLinks">
+                                                    Follow Links on Pages
+                                                </label>
+                                            </div>
+                                            <div class="form-text">Follow links to find more PDFs on the same site.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="aiGeneratedExtractDirectories" checked>
+                                                <label class="form-check-label" for="aiGeneratedExtractDirectories">
+                                                    Extract from PDF Directories
+                                                </label>
+                                            </div>
+                                            <div class="form-text">Detect and extract from directories containing multiple PDFs.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="aiGeneratedSkipDuplicates" checked>
+                                                <label class="form-check-label" for="aiGeneratedSkipDuplicates">
+                                                    Skip Duplicate URLs
+                                                </label>
+                                            </div>
+                                            <div class="form-text">Skip URLs that have been scraped before.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Min File Size (MB)</label>
+                                            <input type="number" class="form-control" id="aiGeneratedMinFileSizeMb" min="0" step="0.1" placeholder="e.g., 0.5">
+                                            <div class="form-text">Minimum file size in MB (optional).</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Max File Size (MB)</label>
+                                            <input type="number" class="form-control" id="aiGeneratedMaxFileSizeMb" min="0" step="0.1" placeholder="e.g., 50">
+                                            <div class="form-text">Maximum file size in MB (optional).</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Max PDF Pages</label>
+                                            <input type="number" class="form-control" id="aiGeneratedMaxPages" min="1" max="500" placeholder="e.g., 500">
+                                            <div class="form-text">Maximum number of PDF pages (optional).</div>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="aiGeneratedAutostartEnabled">
+                                            <label class="form-check-label" for="aiGeneratedAutostartEnabled">
+                                                <i class="bi bi-play-circle"></i> Enable Autostart
+                                            </label>
+                                            <div class="form-text">Automatically start the next job in queue when this job completes</div>
+                                        </div>
+                                    </div>
                                     <div class="mb-3">
                                         <label class="form-label">Schedule (Optional)</label>
                                         <div class="row">

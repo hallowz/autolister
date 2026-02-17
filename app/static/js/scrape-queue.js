@@ -443,9 +443,18 @@ async function generateScrapeConfig() {
         document.getElementById('aiGeneratedSearchTerms').value = config.search_terms || '';
         document.getElementById('aiGeneratedExcludeTerms').value = config.exclude_terms || '';
         document.getElementById('aiGeneratedMinPages').value = config.min_pages || 5;
+        document.getElementById('aiGeneratedMaxPages').value = config.max_pages || '';
         document.getElementById('aiGeneratedTraversalPattern').value = config.traversal_pattern || '';
         document.getElementById('aiGeneratedEquipmentType').value = config.equipment_type || '';
         document.getElementById('aiGeneratedManufacturer').value = config.manufacturer || '';
+        document.getElementById('aiGeneratedMinFileSizeMb').value = config.min_file_size_mb || '';
+        document.getElementById('aiGeneratedMaxFileSizeMb').value = config.max_file_size_mb || '';
+        document.getElementById('aiGeneratedFileExtensions').value = config.file_extensions || 'pdf';
+        document.getElementById('aiGeneratedMaxDepth').value = config.max_depth || 2;
+        document.getElementById('aiGeneratedFollowLinks').checked = config.follow_links !== false;
+        document.getElementById('aiGeneratedExtractDirectories').checked = config.extract_directories !== false;
+        document.getElementById('aiGeneratedSkipDuplicates').checked = config.skip_duplicates !== false;
+        document.getElementById('aiGeneratedAutostartEnabled').checked = config.autostart_enabled || false;
         
         // Show the result section with generated config
         // Note: The form fields are already in the HTML, we just need to show the result div
@@ -483,23 +492,30 @@ async function generateScrapeConfig() {
              schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
              equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
              manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null,
-             autostart_enabled: document.getElementById('autostartEnabled').checked || false,
+             autostart_enabled: document.getElementById('aiGeneratedAutostartEnabled').checked || false,
              // Advanced settings
              search_terms: document.getElementById('aiGeneratedSearchTerms').value.trim() || null,
              exclude_terms: document.getElementById('aiGeneratedExcludeTerms').value.trim() || null,
-             min_pages: parseInt(document.getElementById('aiGeneratedMinPages').value) || null
+             min_pages: parseInt(document.getElementById('aiGeneratedMinPages').value) || null,
+             max_pages: parseInt(document.getElementById('aiGeneratedMaxPages').value) || null,
+             min_file_size_mb: parseFloat(document.getElementById('aiGeneratedMinFileSizeMb').value) || null,
+             max_file_size_mb: parseFloat(document.getElementById('aiGeneratedMaxFileSizeMb').value) || null,
+             follow_links: document.getElementById('aiGeneratedFollowLinks').checked,
+             max_depth: parseInt(document.getElementById('aiGeneratedMaxDepth').value) || 2,
+             extract_directories: document.getElementById('aiGeneratedExtractDirectories').checked,
+             file_extensions: document.getElementById('aiGeneratedFileExtensions').value.trim() || 'pdf',
+             skip_duplicates: document.getElementById('aiGeneratedSkipDuplicates').checked,
+             traversal_pattern: document.getElementById('aiGeneratedTraversalPattern').value.trim() || null
          };
          
          // Add multi-site specific settings if source type is multi_site
          if (aiSourceType === 'multi_site') {
-             jobData.max_pages = null;
-             jobData.min_file_size_mb = null;
-             jobData.max_file_size_mb = null;
-             jobData.follow_links = true;
-             jobData.max_depth = 2;
-             jobData.extract_directories = true;
-             jobData.file_extensions = 'pdf';
-             jobData.skip_duplicates = true;
+             const sitesValue = document.getElementById('aiGeneratedSites').value.trim();
+             let allSites = [];
+             if (sitesValue) {
+                 allSites = sitesValue.split('\n').filter(s => s.trim());
+             }
+             jobData.sites = allSites.length > 0 ? JSON.stringify(allSites) : null;
          }
      } else {
          // Use manual form
