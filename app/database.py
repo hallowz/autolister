@@ -159,9 +159,6 @@ class ScrapeJob(Base):
     file_extensions = Column(Text, nullable=True, default='pdf')  # Comma-separated file extensions to look for
     skip_duplicates = Column(Boolean, nullable=True, default=True)  # Whether to skip duplicate URLs
     notes = Column(Text, nullable=True)  # Additional notes for the job
-    
-    # Relationships
-    scraped_sites = relationship("ScrapedSite", back_populates="scrape_job", cascade="all, delete-orphan")
 
 
 def create_tables():
