@@ -322,7 +322,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     # If no sites provided, use DuckDuckGo to find sites
                     if not job_sites:
                         from app.scrapers.duckduckgo import DuckDuckGoScraper
-                        ddg_scraper = DuckDuckGoScraper(settings)
+                        ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
                         log_callback("Searching DuckDuckGo for sites...")
                         ddg_results = ddg_scraper.search(job_query, max_results=50)
                         
@@ -479,7 +479,7 @@ def start_next_queued_job(db: Session):
                         # If no sites provided, use DuckDuckGo to find sites
                         if not job_sites:
                             from app.scrapers.duckduckgo import DuckDuckGoScraper
-                            ddg_scraper = DuckDuckGoScraper(settings)
+                            ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
                             log_callback("Searching DuckDuckGo for sites...")
                             ddg_results = ddg_scraper.search(next_job.query, max_results=50)
                             
