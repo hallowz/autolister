@@ -21,7 +21,8 @@ def run_search_job(
     source_type: str = 'search',
     max_results: int = 100,
     equipment_type: str = None,
-    manufacturer: str = None
+    manufacturer: str = None,
+    job_id: int = None
 ):
     """
     Run a search job to discover PDF manuals
@@ -32,6 +33,7 @@ def run_search_job(
         max_results: Maximum number of results to return
         equipment_type: Equipment type filter
         manufacturer: Manufacturer filter
+        job_id: ID of the scrape job creating these manuals
     """
     from app.scrapers.search_engine import SearchEngineScraper
     from app.scrapers.forums import ForumScraper
@@ -69,6 +71,7 @@ def run_search_job(
             
             # Create manual record
             manual = Manual(
+                job_id=job_id,
                 source_url=result.url,
                 source_type=source_type,
                 title=result.title,
@@ -104,7 +107,8 @@ def run_multi_site_scraping_job(
     file_extensions: List[str] = None,
     skip_duplicates: bool = True,
     max_results: int = None,
-    log_callback: Callable = None
+    log_callback: Callable = None,
+    job_id: int = None
 ):
     """
     Run a multi-site scraping job to discover PDF manuals
@@ -124,6 +128,7 @@ def run_multi_site_scraping_job(
         skip_duplicates: Whether to skip duplicate URLs
         max_results: Maximum results per site
         log_callback: Optional callback function for logging
+        job_id: ID of the scrape job creating these manuals
     """
     db = SessionLocal()
 
@@ -160,6 +165,7 @@ def run_multi_site_scraping_job(
             'file_extensions': ','.join(file_extensions),
             'skip_duplicates': skip_duplicates,
             'save_immediately': True,  # Save PDFs to DB immediately upon discovery
+            'job_id': job_id,  # Pass job_id to the scraper
         }
         
         log(f"Starting multi-site scraping job (PDFs will be saved to database immediately)")

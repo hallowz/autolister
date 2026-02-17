@@ -379,7 +379,8 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         file_extensions=file_extensions,
                         skip_duplicates=job_skip_duplicates,
                         max_results=job_max_results,
-                        log_callback=log_callback
+                        log_callback=log_callback,
+                        job_id=job_id
                     )
                 else:
                     run_search_job(
@@ -387,7 +388,8 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         source_type=job_source_type,
                         max_results=job_max_results,
                         equipment_type=job_equipment_type,
-                        manufacturer=job_manufacturer
+                        manufacturer=job_manufacturer,
+                        job_id=job_id
                     )
                 # Mark job as completed
                 db = SessionLocal()

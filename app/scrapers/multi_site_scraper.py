@@ -50,6 +50,7 @@ class MultiSiteScraper(BaseScraper):
         self.file_extensions = self._parse_list(self.config.get('file_extensions', 'pdf'))
         self.skip_duplicates = self.config.get('skip_duplicates', True)
         self.save_immediately = self.config.get('save_immediately', True)  # Save to DB immediately upon discovery
+        self.job_id = self.config.get('job_id', None)  # Job ID for tracking which job created these manuals
         
         # Default exclude terms for service manual scraping
         if not self.exclude_terms:
@@ -150,6 +151,7 @@ class MultiSiteScraper(BaseScraper):
             
             # Create manual record
             manual = Manual(
+                job_id=self.job_id,
                 source_url=result.url,
                 source_type=result.source_type,
                 title=result.title,
