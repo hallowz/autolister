@@ -254,6 +254,10 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     try:
         from app.tasks.jobs import run_scraping_job
         
+        # Capture job data before passing to thread
+        job_query = job.query
+        job_max_results = job.max_results
+        
         # Run the scraping job in a background thread
         import threading
         def run_job_with_callback():
@@ -276,8 +280,8 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             
             try:
                 run_scraping_job(
-                    query=job.query,
-                    max_results=job.max_results,
+                    query=job_query,
+                    max_results=job_max_results,
                     log_callback=log_callback
                 )
                 # Mark job as completed
