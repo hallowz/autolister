@@ -296,6 +296,9 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
         # Run the scraping job in a background thread
         import threading
         def run_job_with_callback():
+            # Create a local copy of sites to avoid modifying the outer variable
+            job_sites = sites.copy() if sites else None
+            
             def log_callback(message):
                 # Update job progress/log
                 try:
@@ -317,7 +320,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                 # Choose the appropriate scraper based on source_type
                 if job_source_type == 'multi_site':
                     # If no sites provided, use DuckDuckGo to find sites
-                    if not sites:
+                    if not job_sites:
                         from app.scrapers.duckduckgo import DuckDuckGoScraper
                         ddg_scraper = DuckDuckGoScraper(settings)
                         log_callback("Searching DuckDuckGo for sites...")
@@ -325,7 +328,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         
                         # Extract unique domains from DuckDuckGo results
                         unique_domains = set()
-                        sites = []
+                        job_sites = []
                         for result in ddg_results:
                             from urllib.parse import urlparse
                             parsed = urlparse(result.url)
@@ -334,16 +337,16 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                                 unique_domains.add(domain)
                                 # Use the base URL of the site
                                 base_url = f"{parsed.scheme}://{domain}"
-                                sites.append(base_url)
+                                job_sites.append(base_url)
                                 log_callback(f"Found site: {base_url}")
                         
-                        if not sites:
+                        if not job_sites:
                             log_callback("No sites found from DuckDuckGo search")
                             raise Exception("No sites found from DuckDuckGo search")
                     
-                    log_callback(f"Starting multi-site scraping for {len(sites)} sites")
+                    log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
                     run_multi_site_scraping_job(
-                        sites=sites,
+                        sites=job_sites,
                         search_terms=search_terms,
                         exclude_terms=exclude_terms,
                         min_pages=job.min_pages,
