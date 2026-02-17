@@ -172,19 +172,24 @@
                                 <div class="mb-3">
                                     <label class="form-label">Source Type</label>
                                     <select class="form-select" id="sourceType" onchange="toggleMultiSiteFields()">
-                                        <option value="search" selected>Search Engine</option>
+                                        <option value="multi_site" selected>Multi-Site Scraper (DuckDuckGo + Traversal)</option>
+                                        <option value="search">Search Engine</option>
                                         <option value="forum">Forums</option>
                                         <option value="manual_site">Manual Sites</option>
                                         <option value="gdrive">Google Drive</option>
-                                        <option value="multi_site">Multi-Site Scraper</option>
                                     </select>
                                 </div>
                                 <!-- Multi-Site Fields -->
-                                <div id="multiSiteFields" style="display: none;">
+                                <div id="multiSiteFields" style="display: block;">
                                     <div class="mb-3">
-                                        <label class="form-label">Sites to Scrape (one per line)</label>
-                                        <textarea class="form-control" id="sites" rows="6" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
-                                        <div class="form-text">Enter one URL per line. The scraper will crawl each site concurrently.</div>
+                                        <label class="form-label">DuckDuckGo Search Query (to find sites)</label>
+                                        <input type="text" class="form-control" id="ddgSearchQuery" value="service manual filetype:pdf -preview -operator -operation -user" placeholder="e.g., vintage camera manual filetype:pdf">
+                                        <div class="form-text">DuckDuckGo will find surface sites, then we'll traverse through those sites to find PDFs in open directories.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Additional Sites to Scrape (one per line, optional)</label>
+                                        <textarea class="form-control" id="sites" rows="4" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
+                                        <div class="form-text">Enter additional URLs to scrape. The scraper will crawl each site concurrently along with sites found from DuckDuckGo.</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">File Extensions (comma-separated)</label>
@@ -337,11 +342,11 @@
                                     <div class="mb-3">
                                         <label class="form-label">Source Type</label>
                                         <select class="form-select" id="aiGeneratedSourceType">
+                                            <option value="multi_site" selected>Multi-Site Scraper (DuckDuckGo + Traversal)</option>
                                             <option value="search">Search Engine</option>
                                             <option value="forum">Forums</option>
                                             <option value="manual_site">Manual Sites</option>
                                             <option value="gdrive">Google Drive</option>
-                                            <option value="multi_site">Multi-Site Scraper</option>
                                         </select>
                                     </div>
                                     <div class="mb-3">

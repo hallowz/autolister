@@ -315,7 +315,33 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             
             try:
                 # Choose the appropriate scraper based on source_type
-                if job_source_type == 'multi_site' and sites:
+                if job_source_type == 'multi_site':
+                    # If no sites provided, use DuckDuckGo to find sites
+                    if not sites:
+                        from app.scrapers.duckduckgo import DuckDuckGoScraper
+                        ddg_scraper = DuckDuckGoScraper(settings)
+                        log_callback("Searching DuckDuckGo for sites...")
+                        ddg_results = ddg_scraper.search(job_query, max_results=50)
+                        
+                        # Extract unique domains from DuckDuckGo results
+                        unique_domains = set()
+                        sites = []
+                        for result in ddg_results:
+                            from urllib.parse import urlparse
+                            parsed = urlparse(result.url)
+                            domain = parsed.netloc
+                            if domain and domain not in unique_domains:
+                                unique_domains.add(domain)
+                                # Use the base URL of the site
+                                base_url = f"{parsed.scheme}://{domain}"
+                                sites.append(base_url)
+                                log_callback(f"Found site: {base_url}")
+                        
+                        if not sites:
+                            log_callback("No sites found from DuckDuckGo search")
+                            raise Exception("No sites found from DuckDuckGo search")
+                    
+                    log_callback(f"Starting multi-site scraping for {len(sites)} sites")
                     run_multi_site_scraping_job(
                         sites=sites,
                         search_terms=search_terms,

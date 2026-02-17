@@ -437,9 +437,9 @@ async function generateScrapeConfig() {
         
         // Populate AI-generated fields
         document.getElementById('aiGeneratedJobName').value = jobName || config.name || '';
-        document.getElementById('aiGeneratedSourceType').value = config.source_type || 'search';
+        document.getElementById('aiGeneratedSourceType').value = config.source_type || 'multi_site';
         document.getElementById('aiGeneratedQuery').value = config.query || '';
-        document.getElementById('aiGeneratedMaxResults').value = config.max_results || 10;
+        document.getElementById('aiGeneratedMaxResults').value = config.max_results || 100;
         document.getElementById('aiGeneratedSearchTerms').value = config.search_terms || '';
         document.getElementById('aiGeneratedExcludeTerms').value = config.exclude_terms || '';
         document.getElementById('aiGeneratedMinPages').value = config.min_pages || 5;
@@ -499,12 +499,20 @@ async function generateScrapeConfig() {
          const sourceType = document.getElementById('sourceType').value;
          
          if (sourceType === 'multi_site') {
-             // Multi-site scraping
+             // Multi-site scraping with DuckDuckGo
+             const ddgQuery = document.getElementById('ddgSearchQuery').value.trim();
              const sitesValue = document.getElementById('sites').value.trim();
+             
+             // Combine DuckDuckGo query with additional sites
+             let allSites = [];
+             if (sitesValue) {
+                 allSites = sitesValue.split('\n').filter(s => s.trim());
+             }
+             
              jobData = {
                  name: document.getElementById('jobName').value.trim(),
                  source_type: sourceType,
-                 query: 'multi-site scraping',
+                 query: ddgQuery || 'multi-site scraping',
                  max_results: parseInt(document.getElementById('maxResults').value) || 100,
                  scheduled_time: document.getElementById('scheduleTime').value || null,
                  schedule_frequency: document.getElementById('scheduleFrequency').value || null,
@@ -512,7 +520,7 @@ async function generateScrapeConfig() {
                  manufacturer: document.getElementById('manufacturer').value.trim() || null,
                  autostart_enabled: document.getElementById('autostartEnabled').checked || false,
                  // Advanced settings
-                 sites: sitesValue ? JSON.stringify(sitesValue.split('\n').filter(s => s.trim())) : null,
+                 sites: allSites.length > 0 ? JSON.stringify(allSites) : null,
                  search_terms: document.getElementById('searchTerms').value.trim() || null,
                  exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
                  min_pages: parseInt(document.getElementById('minPages').value) || 5,
@@ -541,7 +549,14 @@ async function generateScrapeConfig() {
                  search_terms: document.getElementById('searchTerms').value.trim() || null,
                  exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
                  min_pages: parseInt(document.getElementById('minPages').value) || 5,
-                 max_pages: parseInt(document.getElementById('maxPages').value) || null
+                 max_pages: parseInt(document.getElementById('maxPages').value) || null,
+                 min_file_size_mb: parseFloat(document.getElementById('minFileSizeMb').value) || null,
+                 max_file_size_mb: parseFloat(document.getElementById('maxFileSizeMb').value) || null,
+                 follow_links: document.getElementById('followLinks').checked,
+                 max_depth: parseInt(document.getElementById('maxDepth').value) || 2,
+                 extract_directories: document.getElementById('extractDirectories').checked,
+                 file_extensions: document.getElementById('fileExtensions').value.trim() || 'pdf',
+                 skip_duplicates: document.getElementById('skipDuplicates').checked
              };
          }
      }
@@ -551,16 +566,24 @@ async function generateScrapeConfig() {
          return;
      }
      
-     // For multi-site, query is optional (sites is required)
+     // For multi-site, query is optional (DuckDuckGo will find sites if no sites provided)
      if (jobData.source_type !== 'multi_site' && !jobData.query) {
          showError('Please enter a search query.');
          return;
      }
      
-     // For multi-site, sites is required
-     if (jobData.source_type === 'multi_site' && !jobData.sites) {
-         showError('Please enter at least one site to scrape.');
-         return;
+     // For multi-site, sites is optional (DuckDuckGo will find sites)
+     // but if provided, validate it's not empty after parsing
+     if (jobData.source_type === 'multi_site' && jobData.sites) {
+         try {
+             const parsedSites = JSON.parse(jobData.sites);
+             if (!Array.isArray(parsedSites) || parsedSites.length === 0) {
+                 jobData.sites = null; // Clear if empty array
+             }
+         } catch (e) {
+             showError('Invalid sites format.');
+             return;
+         }
      }
     
     try {
