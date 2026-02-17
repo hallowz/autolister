@@ -11,6 +11,8 @@ let lastPendingManualsHash = ''; // Track hash to detect changes
 let currentJobSort = 'created_at'; // Sort field for jobs
 let currentManualSort = 'created_at'; // Sort field for manuals within jobs
 let pendingJobsData = null; // Store current pending jobs data
+let expandedJobFolders = new Set(); // Track which job folders are expanded
+let pendingScrollPosition = 0; // Track scroll position
 
 // Hash function to detect data changes
 function hashManuals(manuals) {
@@ -95,6 +97,18 @@ async function loadPendingManuals() {
     const container = document.getElementById('pending-list');
     const pendingBadge = document.getElementById('pending-badge');
     
+    // Save current scroll position
+    if (container) {
+        pendingScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+    }
+    
+    // Save currently expanded folders
+    expandedJobFolders.clear();
+    document.querySelectorAll('.job-folder-body.expanded').forEach(body => {
+        const jobId = body.id.replace('job-body-', '');
+        expandedJobFolders.add(jobId);
+    });
+    
     try {
         const response = await fetch(`${API_BASE}/pending?group_by_job=true&sort_by=${currentManualSort}`);
         const data = await response.json();
@@ -147,6 +161,19 @@ async function loadPendingManuals() {
             
             // Render job folders
             container.innerHTML = renderJobFolders(data.jobs);
+            
+            // Restore expanded folders
+            expandedJobFolders.forEach(jobId => {
+                const body = document.getElementById(`job-body-${jobId}`);
+                const toggle = document.getElementById(`job-toggle-${jobId}`);
+                if (body && toggle) {
+                    body.classList.add('expanded');
+                    toggle.classList.add('rotated');
+                }
+            });
+            
+            // Restore scroll position
+            window.scrollTo(0, pendingScrollPosition);
         }
     } catch (error) {
         container.innerHTML = `

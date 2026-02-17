@@ -335,12 +335,19 @@ def get_pending_manuals(
         for manual in manuals:
             job_id = manual.job_id
             if job_id not in jobs_dict:
-                # Get job details
-                job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                # Get job details only if job_id is not None
+                job_name = 'No Job'
+                job_query = ''
+                
+                if job_id is not None:
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    job_name = job.name if job else 'Unknown Job'
+                    job_query = job.query if job else ''
+                
                 jobs_dict[job_id] = {
                     'job_id': job_id,
-                    'job_name': job.name if job else 'Unknown Job',
-                    'job_query': job.query if job else '',
+                    'job_name': job_name,
+                    'job_query': job_query,
                     'manuals': []
                 }
             jobs_dict[job_id]['manuals'].append(manual)
