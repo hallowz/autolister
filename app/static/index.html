@@ -170,9 +170,30 @@
             <div class="tab-pane fade show active" id="pending" role="tabpanel">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h4>Pending Manuals for Approval</h4>
-                    <button class="btn btn-primary" onclick="refreshPending()">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+                    <div class="d-flex gap-2">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-sort-down"></i> Sort Jobs
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="sortJobs('name')">By Name</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortJobs('created_at')">By Date</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortJobs('count')">By Manual Count</a></li>
+                            </ul>
+                        </div>
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-list-ul"></i> Sort Manuals
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="sortManuals('name')">By Name</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="sortManuals('created_at')">By Date</a></li>
+                            </ul>
+                        </div>
+                        <button class="btn btn-primary" onclick="refreshPending()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
                 </div>
                 <div id="pending-list">
                     <div class="text-center py-5">

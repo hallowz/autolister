@@ -8,6 +8,9 @@ let currentTab = 'pending';
 let refreshInterval = null;
 let pendingManualsCount = 0; // Track count to detect new manuals
 let lastPendingManualsHash = ''; // Track hash to detect changes
+let currentJobSort = 'created_at'; // Sort field for jobs
+let currentManualSort = 'created_at'; // Sort field for manuals within jobs
+let pendingJobsData = null; // Store current pending jobs data
 
 // Hash function to detect data changes
 function hashManuals(manuals) {
@@ -87,41 +90,51 @@ async function loadStats() {
     }
 }
 
-// Load pending manuals
+// Load pending manuals (grouped by job)
 async function loadPendingManuals() {
     const container = document.getElementById('pending-list');
     const pendingBadge = document.getElementById('pending-badge');
     
     try {
-        const response = await fetch(`${API_BASE}/pending`);
-        const manuals = await response.json();
+        const response = await fetch(`${API_BASE}/pending?group_by_job=true&sort_by=${currentManualSort}`);
+        const data = await response.json();
+        
+        // Store data for sorting
+        pendingJobsData = data;
+        
+        // Calculate total count
+        const totalManuals = data.grouped ?
+            data.jobs.reduce((sum, job) => sum + job.manuals.length, 0) :
+            data.manuals.length;
         
         // Calculate hash of current manuals
-        const currentHash = hashManuals(manuals);
+        const currentHash = data.grouped ?
+            JSON.stringify(data.jobs.map(j => j.manuals.map(m => m.id)).flat().sort()) :
+            hashManuals(data.manuals);
         
         // Only update if data has changed
         if (currentHash !== lastPendingManualsHash) {
             // Check for new manuals and show notification
-            if (manuals.length > pendingManualsCount && pendingManualsCount > 0) {
-                const newCount = manuals.length - pendingManualsCount;
+            if (totalManuals > pendingManualsCount && pendingManualsCount > 0) {
+                const newCount = totalManuals - pendingManualsCount;
                 showToast(`${newCount} new manual${newCount > 1 ? 's' : ''} waiting for approval!`, 'success');
                 // Show new badge
                 if (pendingBadge) {
                     pendingBadge.classList.remove('d-none');
                 }
-            } else if (manuals.length < pendingManualsCount && pendingManualsCount > 0) {
-                const removedCount = pendingManualsCount - manuals.length;
+            } else if (totalManuals < pendingManualsCount && pendingManualsCount > 0) {
+                const removedCount = pendingManualsCount - totalManuals;
                 showToast(`${removedCount} manual${removedCount > 1 ? 's' : ''} removed from pending`, 'info');
                 // Hide new badge if no more pending manuals
-                if (manuals.length === 0 && pendingBadge) {
+                if (totalManuals === 0 && pendingBadge) {
                     pendingBadge.classList.add('d-none');
                 }
             }
             
-            pendingManualsCount = manuals.length;
+            pendingManualsCount = totalManuals;
             lastPendingManualsHash = currentHash;
             
-            if (manuals.length === 0) {
+            if (totalManuals === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <i class="bi bi-inbox"></i>
@@ -132,13 +145,8 @@ async function loadPendingManuals() {
                 return;
             }
             
-            let html = '<div class="row">';
-            manuals.forEach(manual => {
-                html += createManualCard(manual, true);
-            });
-            html += '</div>';
-            
-            container.innerHTML = html;
+            // Render job folders
+            container.innerHTML = renderJobFolders(data.jobs);
         }
     } catch (error) {
         container.innerHTML = `
@@ -148,6 +156,172 @@ async function loadPendingManuals() {
             </div>
         `;
     }
+}
+
+// Render job folders
+function renderJobFolders(jobs) {
+    // Sort jobs based on current sort field
+    const sortedJobs = [...jobs].sort((a, b) => {
+        switch (currentJobSort) {
+            case 'name':
+                return a.job_name.localeCompare(b.job_name);
+            case 'count':
+                return b.manuals.length - a.manuals.length;
+            case 'created_at':
+            default:
+                // Sort by most recent manual in job
+                const aLatest = a.manuals.length > 0 ?
+                    new Date(a.manuals[a.manuals.length - 1].created_at) : new Date(0);
+                const bLatest = b.manuals.length > 0 ?
+                    new Date(b.manuals[b.manuals.length - 1].created_at) : new Date(0);
+                return bLatest - aLatest;
+        }
+    });
+    
+    return sortedJobs.map(job => createJobFolder(job)).join('');
+}
+
+// Create job folder HTML
+function createJobFolder(job) {
+    const jobId = job.job_id || 'unknown';
+    const jobName = job.job_name || 'Unknown Job';
+    const jobQuery = job.job_query || '';
+    const manualCount = job.manuals.length;
+    
+    return `
+        <div class="job-folder" id="job-folder-${jobId}">
+            <div class="job-folder-header" onclick="toggleJobFolder(${jobId})">
+                <div class="job-folder-title">
+                    <i class="bi bi-folder folder-icon"></i>
+                    <span>${escapeHtml(jobName)}</span>
+                    <span class="job-id">#${jobId}</span>
+                    ${jobQuery ? `<span class="job-query">(${escapeHtml(jobQuery)})</span>` : ''}
+                </div>
+                <div class="job-folder-actions">
+                    <span class="job-folder-count">${manualCount} manual${manualCount !== 1 ? 's' : ''}</span>
+                    <button class="job-folder-delete-btn" onclick="event.stopPropagation(); deleteJob(${jobId})">
+                        <i class="bi bi-trash"></i> Delete Job
+                    </button>
+                    <i class="bi bi-chevron-right job-folder-toggle" id="job-toggle-${jobId}"></i>
+                </div>
+            </div>
+            <div class="job-folder-body" id="job-body-${jobId}">
+                <div class="job-folder-manuals">
+                    <div class="job-folder-manuals-list">
+                        ${job.manuals.map(manual => createJobManualItem(manual)).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Create manual item within job folder
+function createJobManualItem(manual) {
+    return `
+        <div class="job-folder-manual-item" id="manual-item-${manual.id}">
+            <div class="job-folder-manual-info">
+                <div class="job-folder-manual-title">${escapeHtml(manual.title || 'Untitled Manual')}</div>
+                <div class="job-folder-manual-details">
+                    ${manual.manufacturer ? `
+                        <div class="job-folder-manual-detail">
+                            <i class="bi bi-building"></i>
+                            <span>${escapeHtml(manual.manufacturer)}</span>
+                        </div>
+                    ` : ''}
+                    ${manual.model ? `
+                        <div class="job-folder-manual-detail">
+                            <i class="bi bi-tag"></i>
+                            <span>${escapeHtml(manual.model)}</span>
+                        </div>
+                    ` : ''}
+                    <div class="job-folder-manual-detail">
+                        <i class="bi bi-link-45deg"></i>
+                        <a href="${manual.source_url}" target="_blank">View Source</a>
+                    </div>
+                    <div class="job-folder-manual-detail">
+                        <i class="bi bi-clock"></i>
+                        <span>${new Date(manual.created_at).toLocaleDateString()}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="job-folder-manual-actions">
+                <button class="btn btn-approve" onclick="approveManual(${manual.id})">
+                    <i class="bi bi-check-circle"></i> Approve
+                </button>
+                <button class="btn btn-reject" onclick="rejectManual(${manual.id})">
+                    <i class="bi bi-x-circle"></i> Reject
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Toggle job folder expansion
+function toggleJobFolder(jobId) {
+    const body = document.getElementById(`job-body-${jobId}`);
+    const toggle = document.getElementById(`job-toggle-${jobId}`);
+    
+    body.classList.toggle('expanded');
+    toggle.classList.toggle('rotated');
+}
+
+// Sort jobs
+function sortJobs(sortField) {
+    currentJobSort = sortField;
+    if (pendingJobsData && pendingJobsData.jobs) {
+        const container = document.getElementById('pending-list');
+        container.innerHTML = renderJobFolders(pendingJobsData.jobs);
+    }
+}
+
+// Sort manuals within jobs
+function sortManuals(sortField) {
+    currentManualSort = sortField;
+    loadPendingManuals();
+}
+
+// Delete job (all pending manuals for a job)
+async function deleteJob(jobId) {
+    if (!confirm(`Are you sure you want to delete all pending manuals for job #${jobId}? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/pending/job/${jobId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to delete job');
+        }
+        
+        const result = await response.json();
+        showToast(result.message, 'success');
+        
+        // Remove the job folder from DOM
+        const jobFolder = document.getElementById(`job-folder-${jobId}`);
+        if (jobFolder) {
+            jobFolder.style.transition = 'opacity 0.3s, transform 0.3s';
+            jobFolder.style.opacity = '0';
+            jobFolder.style.transform = 'translateX(-100%)';
+            setTimeout(() => {
+                jobFolder.remove();
+                // Update count
+                pendingManualsCount -= result.count;
+                if (pendingManualsCount === 0) {
+                    loadPendingManuals();
+                }
+            }, 300);
+        }
+    } catch (error) {
+        showToast(`Error deleting job: ${error.message}`, 'error');
+    }
+}
+
+// Refresh pending manuals
+function refreshPending() {
+    loadPendingManuals();
 }
 
 // Load all manuals

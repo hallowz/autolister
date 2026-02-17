@@ -49,6 +49,7 @@ class Manual(Base):
     __tablename__ = "manuals"
     
     id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("scrape_jobs.id"), nullable=True, index=True)  # Associated scrape job
     source_url = Column(String, nullable=False, index=True)
     source_type = Column(String, nullable=False)  # 'search', 'forum', 'manual_site', 'gdrive'
     title = Column(String, nullable=True)
@@ -72,6 +73,7 @@ class Manual(Base):
     resources_zip_path = Column(String, nullable=True)  # Path to pre-generated resources zip file
     
     # Relationships
+    job = relationship("ScrapeJob", backref="manuals")
     etsy_listing = relationship("EtsyListing", back_populates="manual", uselist=False)
     processing_logs = relationship("ProcessingLog", back_populates="manual")
 

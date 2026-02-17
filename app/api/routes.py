@@ -310,14 +310,83 @@ def delete_manual(manual_id: int, db: Session = Depends(get_db)):
     return {"message": "Manual deleted successfully", "manual_id": manual_id}
 
 
-@router.get("/pending", response_model=List[ManualResponse])
-def get_pending_manuals(db: Session = Depends(get_db)):
-    """Get all pending manuals for approval"""
-    manuals = db.query(Manual).filter(
-        Manual.status == 'pending'
-    ).order_by(Manual.created_at.desc()).all()
+@router.get("/pending")
+def get_pending_manuals(
+    group_by_job: bool = False,
+    sort_by: str = None,
+    db: Session = Depends(get_db)
+):
+    """Get all pending manuals for approval
     
-    return manuals
+    Args:
+        group_by_job: If True, group manuals by job
+        sort_by: Sort field for manuals ('name', 'size', 'filedate', 'created_at')
+    """
+    from app.database import ScrapeJob
+    
+    if group_by_job:
+        # Get pending manuals grouped by job
+        manuals = db.query(Manual).filter(
+            Manual.status == 'pending'
+        ).all()
+        
+        # Group by job
+        jobs_dict = {}
+        for manual in manuals:
+            job_id = manual.job_id
+            if job_id not in jobs_dict:
+                # Get job details
+                job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                jobs_dict[job_id] = {
+                    'job_id': job_id,
+                    'job_name': job.name if job else 'Unknown Job',
+                    'job_query': job.query if job else '',
+                    'manuals': []
+                }
+            jobs_dict[job_id]['manuals'].append(manual)
+        
+        # Sort manuals within each job
+        for job_data in jobs_dict.values():
+            if sort_by == 'name':
+                job_data['manuals'].sort(key=lambda m: m.title or '')
+            elif sort_by == 'created_at':
+                job_data['manuals'].sort(key=lambda m: m.created_at or '', reverse=True)
+        
+        return {
+            'grouped': True,
+            'jobs': list(jobs_dict.values())
+        }
+    else:
+        # Original behavior - return flat list
+        manuals = db.query(Manual).filter(
+            Manual.status == 'pending'
+        ).order_by(Manual.created_at.desc()).all()
+        
+        return {
+            'grouped': False,
+            'manuals': manuals
+        }
+
+
+@router.delete("/pending/job/{job_id}")
+def delete_pending_job(job_id: int, db: Session = Depends(get_db)):
+    """Delete all pending manuals for a specific job"""
+    manuals = db.query(Manual).filter(
+        Manual.status == 'pending',
+        Manual.job_id == job_id
+    ).all()
+    
+    count = len(manuals)
+    for manual in manuals:
+        db.delete(manual)
+    
+    db.commit()
+    
+    return {
+        "message": f"Deleted {count} pending manuals from job {job_id}",
+        "job_id": job_id,
+        "count": count
+    }
 
 
 def process_manual_background(manual_id: int, pdf_path: str):
