@@ -14,11 +14,28 @@ settings = get_settings()
 # Ensure data directory exists
 Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
 
-# Create engine
+# Create engine with SQLite-specific settings to prevent locking
 engine = create_engine(
     f"sqlite:///{settings.database_path}",
-    connect_args={"check_same_thread": False}
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 30  # 30 second timeout for database locks
+    },
+    pool_pre_ping=True,  # Check connections before using
+    echo=False
 )
+
+# Enable WAL mode for better concurrency (allows readers and writers)
+from sqlalchemy import event
+
+@event.listens_for(engine, "connect")
+def set_sqlite_pragma(dbapi_conn, connection_record):
+    """Set SQLite pragmas for better performance and concurrency"""
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA journal_mode=WAL")  # Write-Ahead Logging for better concurrency
+    cursor.execute("PRAGMA synchronous=NORMAL")  # Balance between safety and speed
+    cursor.execute("PRAGMA busy_timeout=30000")  # 30 second busy timeout
+    cursor.close()
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

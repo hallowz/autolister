@@ -183,6 +183,42 @@ def run_multi_site_scraping_job(
         
         # Save results to database
         new_count = 0
+        
+        # First, collect all domains to track
+        domains_to_track = set()
+        for result in results[:max_results] if max_results else results:
+            parsed_url = urlparse(result.url)
+            domain = parsed_url.netloc
+            domains_to_track.add(domain)
+        
+        # Update or create scraped sites (separate transaction to avoid conflicts)
+        for domain in domains_to_track:
+            scraped_site = db.query(ScrapedSite).filter(
+                ScrapedSite.url == domain
+            ).first()
+            
+            if scraped_site:
+                scraped_site.last_scraped_at = datetime.utcnow()
+                scraped_site.scrape_count += 1
+            else:
+                try:
+                    scraped_site = ScrapedSite(
+                        url=domain,
+                        domain=domain,
+                        status='active'
+                    )
+                    db.add(scraped_site)
+                    db.flush()  # Flush to catch unique constraint errors early
+                except Exception as e:
+                    # If there's a duplicate constraint error, rollback and continue
+                    db.rollback()
+                    log(f"Warning: Could not track domain {domain}: {e}")
+                    # Try to get the existing one
+                    scraped_site = db.query(ScrapedSite).filter(
+                        ScrapedSite.url == domain
+                    ).first()
+        
+        # Now save the manuals
         for result in results[:max_results] if max_results else results:
             # Check if URL already exists
             existing = db.query(Manual).filter(
@@ -192,26 +228,6 @@ def run_multi_site_scraping_job(
             if existing:
                 total_skipped += 1
                 continue
-            
-            # Extract domain for tracking
-            parsed_url = urlparse(result.url)
-            domain = parsed_url.netloc
-            
-            # Track scraped site
-            scraped_site = db.query(ScrapedSite).filter(
-                ScrapedSite.url == domain
-            ).first()
-            
-            if scraped_site:
-                scraped_site.last_scraped_at = datetime.utcnow()
-                scraped_site.scrape_count += 1
-            else:
-                scraped_site = ScrapedSite(
-                    url=domain,
-                    domain=domain,
-                    status='active'
-                )
-                db.add(scraped_site)
             
             # Create manual record
             manual = Manual(
