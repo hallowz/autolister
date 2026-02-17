@@ -120,7 +120,7 @@ class ScrapeJobCreate(BaseModel):
     name: str
     source_type: str  # 'search', 'forum', 'manual_site', 'gdrive', 'multi_site'
     query: str
-    max_results: int = 100  # Increased default to 100
+    max_results: int = 100  # Default to 100 results for comprehensive scraping
     scheduled_time: Optional[str] = None  # ISO format datetime
     schedule_frequency: Optional[str] = None  # 'daily', 'weekly', 'monthly'
     equipment_type: Optional[str] = None

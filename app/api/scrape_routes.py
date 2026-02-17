@@ -344,7 +344,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         from app.scrapers.duckduckgo import DuckDuckGoScraper
                         ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
                         log_callback("Searching DuckDuckGo for sites...")
-                        ddg_results = ddg_scraper.search(job_query, max_results=50)
+                        ddg_results = ddg_scraper.search(job_query, max_results=100)
                         
                         # Extract unique domains from DuckDuckGo results
                         unique_domains = set()
@@ -501,7 +501,7 @@ def start_next_queued_job(db: Session):
                             from app.scrapers.duckduckgo import DuckDuckGoScraper
                             ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
                             log_callback("Searching DuckDuckGo for sites...")
-                            ddg_results = ddg_scraper.search(next_job.query, max_results=50)
+                            ddg_results = ddg_scraper.search(next_job.query, max_results=100)
                             
                             # Extract unique domains from DuckDuckGo results
                             unique_domains = set()
@@ -676,13 +676,13 @@ def generate_scrape_config(request: GenerateConfigRequest):
         client = Groq(api_key=settings.groq_api_key)
         
         # Create enhanced prompt for Groq with service manual focus
-        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF service manuals and technical documentation.
+        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF service manuals and technical documentation. Your goal is to generate comprehensive scrape configurations that discover as many service manuals as possible across multiple websites.
 
 Your task is to generate a scrape job configuration based on the user's description. The configuration MUST include these fields:
 - name: A short, descriptive name for the job
-- source_type: One of: 'search', 'forum', 'manual_site', 'gdrive'
+- source_type: One of: 'multi_site', 'search', 'forum', 'manual_site', 'gdrive' (DEFAULT to 'multi_site' for best results)
 - query: The search query to use - MUST include 'filetype:pdf' operator for PDF files
-- max_results: Number of results to fetch (typically 10-50)
+- max_results: Number of results to fetch (DEFAULT to 100 for comprehensive discovery)
 - equipment_type: Optional - the type of equipment (e.g., Camera, Radio, etc.)
 - manufacturer: Optional - the manufacturer name (e.g., Canon, Nikon, etc.)
 - search_terms: Optional - Comma-separated relevant search terms for finding the target documents
@@ -692,67 +692,105 @@ Your task is to generate a scrape job configuration based on the user's descript
 
 DEFAULT CONFIGURATION FOR SERVICE MANUALS:
 When no specific equipment is mentioned, default to searching for service manuals with these criteria:
-- Focus on: service manuals, repair manuals, workshop manuals, service station manuals
-- Exclude: operator manuals, operation manuals, user manuals, preview PDFs
-- Minimum pages: 5
-- Traversal: Look for download links, manual sections, service documentation areas
+- source_type: 'multi_site' (uses DuckDuckGo to find sites, then traverses through them)
+- Focus on: service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
+- Exclude: operator manuals, operation manuals, user manuals, owner's manuals, quick start guides, preview PDFs, sample pages, brochures, catalogs
+- Minimum pages: 5 (to avoid short preview documents)
+- Max results: 100 (to discover as many manuals as possible)
+- Traversal: Look for download links, manual sections, service documentation areas, document repositories, file directories
 
-EXAMPLE 1 (Service Manual Default):
+MULTI-SITE SCRAPING STRATEGY (DEFAULT):
+The multi_site source type is the most powerful option for discovering service manuals:
+1. First, it searches DuckDuckGo for relevant websites containing PDF manuals
+2. Then it traverses through each discovered website to find PDF files
+3. It follows links to directories containing multiple PDFs
+4. It scrapes document repositories and file archives
+5. This approach typically finds 50-100+ manuals from many different websites
+
+WHEN TO USE MULTI-SITE:
+- User wants comprehensive discovery across many sources
+- User wants to find as many manuals as possible
+- User doesn't specify particular websites
+- User wants to explore the web broadly for documentation
+
+WHEN TO USE SEARCH:
+- User wants quick results from search engines
+- User specifies a particular search query
+- User wants targeted results from specific sources
+
+EXAMPLE 1 (Service Manual Default - Multi-Site):
 For "Find service manuals", you would generate:
 {
   "name": "Service Manuals Collection",
-  "source_type": "search",
-  "query": "service manual filetype:pdf -preview -operator -operation -user",
-  "max_results": 20,
+  "source_type": "multi_site",
+  "query": "service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "max_results": 100,
   "equipment_type": null,
   "manufacturer": null,
-  "search_terms": "service manual, repair manual, workshop manual, service station manual",
-  "exclude_terms": "preview, operator, operation, user manual",
+  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide",
+  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
   "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop"
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory"
 }
 
-EXAMPLE 2 (Specific Equipment):
+EXAMPLE 2 (Specific Equipment - Multi-Site):
 For "I want to find vintage Canon camera service manuals from the 1970s", you would generate:
 {
   "name": "Vintage Canon Service Manuals 1970s",
-  "source_type": "search",
-  "query": "Canon service manual filetype:pdf 1970s -preview -operator -operation -user",
-  "max_results": 25,
+  "source_type": "multi_site",
+  "query": "Canon service manual filetype:pdf 1970s -preview -operator -operation -user -owner -quick start -brochure",
+  "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Canon",
-  "search_terms": "service manual, repair manual, workshop manual, service station manual",
-  "exclude_terms": "preview, operator, operation, user manual",
+  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Canon, vintage, 1970s",
+  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
   "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, Canon"
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Canon, vintage, document, repository, archive, directory"
 }
 
-EXAMPLE 3 (Nikon DSLR):
+EXAMPLE 3 (Nikon DSLR - Multi-Site):
 For "Find Nikon DSLR service manuals", you would generate:
 {
   "name": "Nikon DSLR Service Manuals",
-  "source_type": "search",
-  "query": "Nikon DSLR service manual filetype:pdf -preview -operator -operation -user",
-  "max_results": 20,
+  "source_type": "multi_site",
+  "query": "Nikon DSLR service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "max_results": 100,
   "equipment_type": "Camera",
   "manufacturer": "Nikon",
-  "search_terms": "service manual, repair manual, workshop manual, service station manual",
-  "exclude_terms": "preview, operator, operation, user manual",
+  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Nikon, DSLR",
+  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
   "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, Nikon"
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Nikon, DSLR, document, repository, archive, directory"
+}
+
+EXAMPLE 4 (General Equipment - Multi-Site):
+For "Find service manuals for industrial equipment", you would generate:
+{
+  "name": "Industrial Equipment Service Manuals",
+  "source_type": "multi_site",
+  "query": "industrial equipment service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure",
+  "max_results": 100,
+  "equipment_type": "Industrial Equipment",
+  "manufacturer": null,
+  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, industrial equipment, machinery",
+  "exclude_terms": "preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages",
+  "min_pages": 5,
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, industrial, equipment, machinery, document, repository, archive, directory"
 }
 
 IMPORTANT RULES:
-1. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
-2. ALWAYS exclude: preview, operator, operation, user manuals (use - operator in query)
-3. Set min_pages to 5 or higher to avoid short preview documents
-4. Focus on service manuals, repair manuals, workshop manuals, service station manuals
-5. Keep the name concise but descriptive
-6. Set max_results between 10-50 for optimal performance
-7. Extract equipment_type and manufacturer from the description if available
-8. Provide search_terms that include relevant synonyms
-9. Provide exclude_terms to filter out unwanted content
-10. Provide traversal_pattern for finding PDFs on web pages
+1. DEFAULT to source_type 'multi_site' for comprehensive discovery across many websites
+2. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
+3. ALWAYS exclude: preview, operator, operation, user manuals, owner's manuals, quick start guides, brochures, catalogs, sample pages (use - operator in query)
+4. Set min_pages to 5 or higher to avoid short preview documents
+5. Set max_results to 100 for comprehensive discovery (unless user specifies otherwise)
+6. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
+7. Keep the name concise but descriptive
+8. Extract equipment_type and manufacturer from the description if available
+9. Provide comprehensive search_terms that include relevant synonyms and variations
+10. Provide comprehensive exclude_terms to filter out unwanted content
+11. Provide detailed traversal_pattern for finding PDFs on web pages
+12. Multi-site scraping typically finds 50-100+ manuals from many different websites
 
 Return ONLY valid JSON, no other text."""
         
@@ -776,15 +814,15 @@ Return ONLY valid JSON, no other text."""
         
         # Validate and set defaults
         config.setdefault('name', 'Service Manuals Collection')
-        config.setdefault('source_type', 'search')
-        config.setdefault('query', 'service manual filetype:pdf -preview -operator -operation -user')
-        config.setdefault('max_results', 20)
+        config.setdefault('source_type', 'multi_site')
+        config.setdefault('query', 'service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure')
+        config.setdefault('max_results', 100)
         config.setdefault('equipment_type', None)
         config.setdefault('manufacturer', None)
-        config.setdefault('search_terms', 'service manual, repair manual, workshop manual, service station manual')
-        config.setdefault('exclude_terms', 'preview, operator, operation, user manual')
+        config.setdefault('search_terms', 'service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide')
+        config.setdefault('exclude_terms', 'preview, operator, operation, user manual, owner\'s manual, quick start guide, brochure, catalog, sample pages')
         config.setdefault('min_pages', 5)
-        config.setdefault('traversal_pattern', 'Follow links containing: download, manual, service, repair, workshop')
+        config.setdefault('traversal_pattern', 'Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory')
         
         return GenerateConfigResponse(**config)
         

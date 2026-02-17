@@ -183,7 +183,7 @@
                                 <div id="multiSiteFields" style="display: block;">
                                     <div class="mb-3">
                                         <label class="form-label">DuckDuckGo Search Query (to find sites)</label>
-                                        <input type="text" class="form-control" id="ddgSearchQuery" value="service manual filetype:pdf -preview -operator -operation -user" placeholder="e.g., vintage camera manual filetype:pdf">
+                                        <input type="text" class="form-control" id="ddgSearchQuery" value="service manual filetype:pdf -preview -operator -operation -user -owner -quick start -brochure" placeholder="e.g., vintage camera manual filetype:pdf">
                                         <div class="form-text">DuckDuckGo will find surface sites, then we'll traverse through those sites to find PDFs in open directories.</div>
                                     </div>
                                     <div class="mb-3">
@@ -249,16 +249,16 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Max Results</label>
-                                    <input type="number" class="form-control" id="maxResults" value="20" min="1" max="100">
+                                    <input type="number" class="form-control" id="maxResults" value="100" min="1" max="200">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Search Terms (comma-separated)</label>
-                                    <input type="text" class="form-control" id="searchTerms" value="service manual, repair manual, workshop manual, service station manual" placeholder="e.g., service manual, repair manual, workshop manual">
+                                    <input type="text" class="form-control" id="searchTerms" value="service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide" placeholder="e.g., service manual, repair manual, workshop manual">
                                     <div class="form-text">These terms help identify relevant documents during scraping.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Exclude Terms (comma-separated)</label>
-                                    <input type="text" class="form-control" id="excludeTerms" value="preview, operator, operation, user manual" placeholder="e.g., preview, operator, user manual">
+                                    <input type="text" class="form-control" id="excludeTerms" value="preview, operator, operation, user manual, owner's manual, quick start guide, brochure, catalog, sample pages" placeholder="e.g., preview, operator, user manual">
                                     <div class="form-text">Documents containing these terms will be filtered out.</div>
                                 </div>
                                 <div class="mb-3">
@@ -268,7 +268,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Traversal Pattern</label>
-                                    <textarea class="form-control" id="traversalPattern" rows="2" placeholder="e.g., Follow links containing: download, manual, service">Follow links containing: download, manual, service, repair, workshop</textarea>
+                                    <textarea class="form-control" id="traversalPattern" rows="2" placeholder="e.g., Follow links containing: download, manual, service">Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory</textarea>
                                     <div class="form-text">Pattern for finding PDF links on web pages during traversal.</div>
                                 </div>
                                 <div class="mb-3">
@@ -316,7 +316,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Describe what you want to scrape</label>
-                                    <textarea class="form-control" id="aiPrompt" rows="5" placeholder="e.g., I want to find vintage camera service manuals from the 1970s, specifically for Canon and Nikon cameras. Look for PDF files on manual sites and forums. Get about 20 results. Focus on service manuals, repair manuals, workshop manuals, and service station manuals. Exclude operator, operation, and user manuals. Only include PDFs longer than 5 pages.">Find service manuals for equipment. The AI will generate a search query that focuses on service manuals, repair manuals, workshop manuals, and service station manuals. It will exclude preview PDFs, operator manuals, operation manuals, and user manuals. Only PDFs with more than 5 pages will be included.</textarea>
+                                    <textarea class="form-control" id="aiPrompt" rows="5" placeholder="e.g., I want to find vintage camera service manuals from the 1970s, specifically for Canon and Nikon cameras. Look for PDF files on manual sites and forums. Get about 100 results. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, and troubleshooting guides. Exclude operator, operation, user manuals, owner's manuals, quick start guides, brochures, catalogs, and sample pages. Only include PDFs longer than 5 pages.">Find comprehensive service manuals for equipment. The AI will generate a multi-site scraping configuration that searches across approximately 100 websites to discover as many service manuals as possible. It will focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, and troubleshooting guides. It will exclude preview PDFs, operator manuals, operation manuals, user manuals, owner's manuals, quick start guides, brochures, catalogs, and sample pages. Only PDFs with more than 5 pages will be included. The scraper will traverse through multiple sites to find document repositories, file directories, and manual archives.</textarea>
                                     <div class="form-text">Edit this description to customize what the AI generates for your search.</div>
                                 </div>
                                 <button type="button" class="btn btn-primary w-100" id="generateConfigBtn" onclick="generateScrapeConfig()">
@@ -355,7 +355,7 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Max Results</label>
-                                        <input type="number" class="form-control" id="aiGeneratedMaxResults" min="1" max="100">
+                                        <input type="number" class="form-control" id="aiGeneratedMaxResults" min="1" max="200">
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Search Terms (comma-separated)</label>
