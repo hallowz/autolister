@@ -10,49 +10,6 @@
     --light-color: #f8f9fa;
 }
 
-/* Current Scrape Status Card */
-#current-scrape-card {
-    border-left: 4px solid #0d6efd;
-}
-
-.current-scrape {
-    animation: pulse-content 2s infinite;
-}
-
-@keyframes pulse-content {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.8;
-    }
-}
-
-.current-scrape h5 {
-    margin-bottom: 0.5rem;
-    color: #0d6efd;
-}
-
-.scrape-details {
-    margin-top: 0.5rem;
-}
-
-.scrape-details .badge {
-    margin-right: 0.5rem;
-}
-
-.progress-indicator {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-}
-
-.progress-indicator .progress {
-    width: 100%;
-    height: 24px;
-    margin-bottom: 0.25rem;
-}
-
 body {
     background-color: #f5f5f5;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -711,6 +668,78 @@ body {
 .status-badge.queued {
     background-color: var(--warning-color);
     color: #000;
+}
+
+/* Current Scrape Status Card */
+#current-scrape-card {
+    border-left: 4px solid #0d6efd;
+}
+
+.current-scrape {
+    animation: pulse-content 2s infinite;
+}
+
+@keyframes pulse-content {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.current-scrape h5 {
+    margin-bottom: 0.5rem;
+}
+
+.scrape-details {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Scraping Logs Styles */
+.scrape-logs {
+    max-height: 300px;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.log-entry {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-time {
+    color: #6c757d;
+    margin-right: 0.5rem;
+}
+
+.log-message {
+    color: #0d6efd;
+}
+
+.log-message.error {
+    color: #dc3545;
+}
+
+.log-message.warning {
+    color: #fd7e14;
+}
+
+.log-message.success {
+    color: #198754;
 }
 
 .status-badge.downloading {
