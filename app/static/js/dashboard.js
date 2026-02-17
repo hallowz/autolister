@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set up auto-refresh
     startAutoRefresh();
-}
     
     // Set up tab change handlers
     document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
