@@ -531,7 +531,7 @@ async function generateScrapeConfig() {
                  search_terms: document.getElementById('searchTerms').value.trim() || null,
                  exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
                  min_pages: parseInt(document.getElementById('minPages').value) || 5,
-                 max_pages: parseInt(document.getElementById('maxPages').value) || null,
+                 max_pages: null,
                  min_file_size_mb: parseFloat(document.getElementById('minFileSizeMb').value) || null,
                  max_file_size_mb: parseFloat(document.getElementById('maxFileSizeMb').value) || null,
                  follow_links: document.getElementById('followLinks').checked,
