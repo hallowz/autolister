@@ -272,6 +272,17 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
         job_query = job.query
         job_max_results = job.max_results
         job_source_type = job.source_type
+        job_min_pages = job.min_pages
+        job_max_pages = job.max_pages
+        job_min_file_size_mb = job.min_file_size_mb
+        job_max_file_size_mb = job.max_file_size_mb
+        job_follow_links = job.follow_links
+        job_max_depth = job.max_depth
+        job_extract_directories = job.extract_directories
+        job_skip_duplicates = job.skip_duplicates
+        job_equipment_type = job.equipment_type
+        job_manufacturer = job.manufacturer
+        job_autostart_enabled = job.autostart_enabled
         
         # Parse advanced settings
         sites = None
@@ -349,15 +360,15 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         sites=job_sites,
                         search_terms=search_terms,
                         exclude_terms=exclude_terms,
-                        min_pages=job.min_pages,
-                        max_pages=job.max_pages,
-                        min_file_size_mb=job.min_file_size_mb,
-                        max_file_size_mb=job.max_file_size_mb,
-                        follow_links=job.follow_links,
-                        max_depth=job.max_depth,
-                        extract_directories=job.extract_directories,
+                        min_pages=job_min_pages,
+                        max_pages=job_max_pages,
+                        min_file_size_mb=job_min_file_size_mb,
+                        max_file_size_mb=job_max_file_size_mb,
+                        follow_links=job_follow_links,
+                        max_depth=job_max_depth,
+                        extract_directories=job_extract_directories,
                         file_extensions=file_extensions,
-                        skip_duplicates=job.skip_duplicates,
+                        skip_duplicates=job_skip_duplicates,
                         max_results=job_max_results,
                         log_callback=log_callback
                     )
@@ -366,8 +377,8 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         query=job_query,
                         source_type=job_source_type,
                         max_results=job_max_results,
-                        equipment_type=job.equipment_type,
-                        manufacturer=job.manufacturer
+                        equipment_type=job_equipment_type,
+                        manufacturer=job_manufacturer
                     )
                 # Mark job as completed
                 db = SessionLocal()
@@ -379,7 +390,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     db.commit()
                     
                     # Check if autostart is enabled and start next job
-                    if job.autostart_enabled:
+                    if job_autostart_enabled:
                         start_next_queued_job(db)
                     db.close()
             except Exception as e:
