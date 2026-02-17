@@ -6,7 +6,7 @@ from datetime import datetime
 from urllib.parse import urlparse
 from celery import shared_task
 
-from app.database import SessionLocal, Manual, ScrapedSite, ProcessingLog
+from app.database import SessionLocal, Manual, ScrapedSite, ProcessingLog, ScrapeJob
 from app.config import get_settings
 from app.scrapers.multi_site_scraper import MultiSiteScraper
 from app.processors.pdf_handler import PDFDownloader
@@ -258,6 +258,7 @@ def run_multi_site_scraping_job(
         db.close()
 
 
+@shared_task(name="app.tasks.jobs.process_approved_manuals")
 def process_approved_manuals():
     """
     Process all approved manuals (download and process PDFs)

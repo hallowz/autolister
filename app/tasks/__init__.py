@@ -29,14 +29,18 @@ celery_app.conf.update(
 )
 
 from .jobs import (
-    run_scraping_job,
+    run_search_job,
+    run_multi_site_scraping_job,
     process_approved_manuals,
-    create_etsy_listings
+    list_manual_on_etsy,
+    check_queue
 )
 
 __all__ = [
     'celery_app',
-    'run_scraping_job',
+    'run_search_job',
+    'run_multi_site_scraping_job',
     'process_approved_manuals',
-    'create_etsy_listings',
+    'list_manual_on_etsy',
+    'check_queue',
 ]
