@@ -456,11 +456,18 @@ def generate_scrape_config(request: GenerateConfigRequest):
     try:
         from groq import Groq
         
+        # Check if API key is configured
+        if not settings.groq_api_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Groq API key is not configured. Please set GROQ_API_KEY in your environment."
+            )
+        
         # Initialize Groq client
         client = Groq(api_key=settings.groq_api_key)
         
-        # Create prompt for Groq with PDF-focused example
-        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF manuals and documentation.
+        # Create enhanced prompt for Groq with service manual focus
+        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF service manuals and technical documentation.
 
 Your task is to generate a scrape job configuration based on the user's description. The configuration MUST include these fields:
 - name: A short, descriptive name for the job
@@ -469,33 +476,74 @@ Your task is to generate a scrape job configuration based on the user's descript
 - max_results: Number of results to fetch (typically 10-50)
 - equipment_type: Optional - the type of equipment (e.g., Camera, Radio, etc.)
 - manufacturer: Optional - the manufacturer name (e.g., Canon, Nikon, etc.)
+- search_terms: Optional - Comma-separated relevant search terms for finding the target documents
+- exclude_terms: Optional - Terms to exclude from search (e.g., "preview, operator, operation, user manual")
+- min_pages: Optional - Minimum PDF page count (default: 5)
+- traversal_pattern: Optional - Pattern for traversing links (e.g., "Follow links labeled 'download', 'manual', 'service'")
 
-EXAMPLE: For "I want to find vintage Canon camera manuals from the 1970s", you would generate:
+DEFAULT CONFIGURATION FOR SERVICE MANUALS:
+When no specific equipment is mentioned, default to searching for service manuals with these criteria:
+- Focus on: service manuals, repair manuals, workshop manuals, service station manuals
+- Exclude: operator manuals, operation manuals, user manuals, preview PDFs
+- Minimum pages: 5
+- Traversal: Look for download links, manual sections, service documentation areas
+
+EXAMPLE 1 (Service Manual Default):
+For "Find service manuals", you would generate:
 {
-  "name": "Vintage Canon Camera Manuals 1970s",
+  "name": "Service Manuals Collection",
   "source_type": "search",
-  "query": "vintage Canon camera manual filetype:pdf 1970s",
+  "query": "service manual filetype:pdf -preview -operator -operation -user",
   "max_results": 20,
-  "equipment_type": "Camera",
-  "manufacturer": "Canon"
+  "equipment_type": null,
+  "manufacturer": null,
+  "search_terms": "service manual, repair manual, workshop manual, service station manual",
+  "exclude_terms": "preview, operator, operation, user manual",
+  "min_pages": 5,
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop"
 }
 
-EXAMPLE: For "Find Nikon DSLR user guides", you would generate:
+EXAMPLE 2 (Specific Equipment):
+For "I want to find vintage Canon camera service manuals from the 1970s", you would generate:
 {
-  "name": "Nikon DSLR User Guides",
+  "name": "Vintage Canon Service Manuals 1970s",
   "source_type": "search",
-  "query": "Nikon DSLR user guide filetype:pdf manual",
-  "max_results": 15,
+  "query": "Canon service manual filetype:pdf 1970s -preview -operator -operation -user",
+  "max_results": 25,
   "equipment_type": "Camera",
-  "manufacturer": "Nikon"
+  "manufacturer": "Canon",
+  "search_terms": "service manual, repair manual, workshop manual, service station manual",
+  "exclude_terms": "preview, operator, operation, user manual",
+  "min_pages": 5,
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, Canon"
+}
+
+EXAMPLE 3 (Nikon DSLR):
+For "Find Nikon DSLR service manuals", you would generate:
+{
+  "name": "Nikon DSLR Service Manuals",
+  "source_type": "search",
+  "query": "Nikon DSLR service manual filetype:pdf -preview -operator -operation -user",
+  "max_results": 20,
+  "equipment_type": "Camera",
+  "manufacturer": "Nikon",
+  "search_terms": "service manual, repair manual, workshop manual, service station manual",
+  "exclude_terms": "preview, operator, operation, user manual",
+  "min_pages": 5,
+  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, Nikon"
 }
 
 IMPORTANT RULES:
 1. ALWAYS include 'filetype:pdf' in the query to target PDF files specifically
-2. Use relevant search terms like 'manual', 'user guide', 'owner manual', 'documentation'
-3. Keep the name concise but descriptive
-4. Set max_results between 10-50 for optimal performance
-5. Extract equipment_type and manufacturer from the description if available
+2. ALWAYS exclude: preview, operator, operation, user manuals (use - operator in query)
+3. Set min_pages to 5 or higher to avoid short preview documents
+4. Focus on service manuals, repair manuals, workshop manuals, service station manuals
+5. Keep the name concise but descriptive
+6. Set max_results between 10-50 for optimal performance
+7. Extract equipment_type and manufacturer from the description if available
+8. Provide search_terms that include relevant synonyms
+9. Provide exclude_terms to filter out unwanted content
+10. Provide traversal_pattern for finding PDFs on web pages
 
 Return ONLY valid JSON, no other text."""
         
@@ -509,7 +557,7 @@ Return ONLY valid JSON, no other text."""
                 {"role": "user", "content": user_prompt}
             ],
             temperature=0.7,
-            max_tokens=500,
+            max_tokens=800,
             response_format={"type": "json_object"}
         )
         
@@ -518,16 +566,25 @@ Return ONLY valid JSON, no other text."""
         config = json.loads(config_json)
         
         # Validate and set defaults
-        config.setdefault('name', 'Generated Scrape Job')
+        config.setdefault('name', 'Service Manuals Collection')
         config.setdefault('source_type', 'search')
-        config.setdefault('query', request.prompt[:200])
-        config.setdefault('max_results', 10)
+        config.setdefault('query', 'service manual filetype:pdf -preview -operator -operation -user')
+        config.setdefault('max_results', 20)
         config.setdefault('equipment_type', None)
         config.setdefault('manufacturer', None)
+        config.setdefault('search_terms', 'service manual, repair manual, workshop manual, service station manual')
+        config.setdefault('exclude_terms', 'preview, operator, operation, user manual')
+        config.setdefault('min_pages', 5)
+        config.setdefault('traversal_pattern', 'Follow links containing: download, manual, service, repair, workshop')
         
         return GenerateConfigResponse(**config)
         
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        error_detail = f"Failed to generate configuration: {str(e)}\n{traceback.format_exc()}"
+        print(f"Error in generate_scrape_config: {error_detail}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate configuration: {str(e)}"

@@ -360,7 +360,10 @@ async function generateScrapeConfig() {
             body: JSON.stringify({ prompt })
         });
         
-        if (!response.ok) throw new Error('Failed to generate configuration');
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+            throw new Error(errorData.detail || 'Failed to generate configuration');
+        }
         
         const config = await response.json();
         
@@ -369,6 +372,10 @@ async function generateScrapeConfig() {
         document.getElementById('aiGeneratedSourceType').value = config.source_type || 'search';
         document.getElementById('aiGeneratedQuery').value = config.query || '';
         document.getElementById('aiGeneratedMaxResults').value = config.max_results || 10;
+        document.getElementById('aiGeneratedSearchTerms').value = config.search_terms || '';
+        document.getElementById('aiGeneratedExcludeTerms').value = config.exclude_terms || '';
+        document.getElementById('aiGeneratedMinPages').value = config.min_pages || 5;
+        document.getElementById('aiGeneratedTraversalPattern').value = config.traversal_pattern || '';
         document.getElementById('aiGeneratedEquipmentType').value = config.equipment_type || '';
         document.getElementById('aiGeneratedManufacturer').value = config.manufacturer || '';
         
@@ -383,7 +390,7 @@ async function generateScrapeConfig() {
         
     } catch (error) {
         console.error('Error generating config:', error);
-        showError('Failed to generate configuration. Please try again.');
+        showError(`Failed to generate configuration: ${error.message}`);
     } finally {
         loadingDiv.style.display = 'none';
         generateBtn.disabled = false;

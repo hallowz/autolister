@@ -155,12 +155,12 @@
                             <form id="manualJobForm">
                                 <div class="mb-3">
                                     <label class="form-label">Job Name</label>
-                                    <input type="text" class="form-control" id="jobName" placeholder="e.g., Vintage Camera Manuals">
+                                    <input type="text" class="form-control" id="jobName" value="Service Manuals Collection" placeholder="e.g., Vintage Camera Manuals">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Source Type</label>
                                     <select class="form-select" id="sourceType">
-                                        <option value="search">Search Engine</option>
+                                        <option value="search" selected>Search Engine</option>
                                         <option value="forum">Forums</option>
                                         <option value="manual_site">Manual Sites</option>
                                         <option value="gdrive">Google Drive</option>
@@ -168,11 +168,32 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Search Query</label>
-                                    <input type="text" class="form-control" id="searchQuery" placeholder="e.g., vintage camera manual filetype:pdf">
+                                    <input type="text" class="form-control" id="searchQuery" value="service manual filetype:pdf -preview -operator -operation -user" placeholder="e.g., vintage camera manual filetype:pdf">
+                                    <div class="form-text">Edit this query to customize your search. The default excludes preview, operator, operation, and user manuals.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Max Results</label>
-                                    <input type="number" class="form-control" id="maxResults" value="10" min="1" max="100">
+                                    <input type="number" class="form-control" id="maxResults" value="20" min="1" max="100">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Search Terms (comma-separated)</label>
+                                    <input type="text" class="form-control" id="searchTerms" value="service manual, repair manual, workshop manual, service station manual" placeholder="e.g., service manual, repair manual, workshop manual">
+                                    <div class="form-text">These terms help identify relevant documents during scraping.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Exclude Terms (comma-separated)</label>
+                                    <input type="text" class="form-control" id="excludeTerms" value="preview, operator, operation, user manual" placeholder="e.g., preview, operator, user manual">
+                                    <div class="form-text">Documents containing these terms will be filtered out.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Minimum PDF Pages</label>
+                                    <input type="number" class="form-control" id="minPages" value="5" min="1" max="500">
+                                    <div class="form-text">Only PDFs with at least this many pages will be included (helps exclude previews).</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Traversal Pattern</label>
+                                    <textarea class="form-control" id="traversalPattern" rows="2" placeholder="e.g., Follow links containing: download, manual, service">Follow links containing: download, manual, service, repair, workshop</textarea>
+                                    <div class="form-text">Pattern for finding PDF links on web pages during traversal.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Schedule (Optional)</label>
@@ -215,11 +236,12 @@
                             <form id="aiJobForm">
                                 <div class="mb-3">
                                     <label class="form-label">Job Name</label>
-                                    <input type="text" class="form-control" id="aiJobName" placeholder="e.g., Vintage Camera Manuals">
+                                    <input type="text" class="form-control" id="aiJobName" value="Service Manuals Collection" placeholder="e.g., Vintage Camera Manuals">
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Describe what you want to scrape</label>
-                                    <textarea class="form-control" id="aiPrompt" rows="5" placeholder="e.g., I want to find vintage camera manuals from the 1970s, specifically for Canon and Nikon cameras. Look for PDF files on manual sites and forums. Get about 20 results."></textarea>
+                                    <textarea class="form-control" id="aiPrompt" rows="5" placeholder="e.g., I want to find vintage camera service manuals from the 1970s, specifically for Canon and Nikon cameras. Look for PDF files on manual sites and forums. Get about 20 results. Focus on service manuals, repair manuals, workshop manuals, and service station manuals. Exclude operator, operation, and user manuals. Only include PDFs longer than 5 pages.">Find service manuals for equipment. The AI will generate a search query that focuses on service manuals, repair manuals, workshop manuals, and service station manuals. It will exclude preview PDFs, operator manuals, operation manuals, and user manuals. Only PDFs with more than 5 pages will be included.</textarea>
+                                    <div class="form-text">Edit this description to customize what the AI generates for your search.</div>
                                 </div>
                                 <button type="button" class="btn btn-primary w-100" id="generateConfigBtn" onclick="generateScrapeConfig()">
                                     <i class="bi bi-magic"></i> Generate Configuration
@@ -257,6 +279,22 @@
                                     <div class="mb-3">
                                         <label class="form-label">Max Results</label>
                                         <input type="number" class="form-control" id="aiGeneratedMaxResults" min="1" max="100">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Search Terms (comma-separated)</label>
+                                        <input type="text" class="form-control" id="aiGeneratedSearchTerms">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Exclude Terms (comma-separated)</label>
+                                        <input type="text" class="form-control" id="aiGeneratedExcludeTerms">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Minimum PDF Pages</label>
+                                        <input type="number" class="form-control" id="aiGeneratedMinPages" min="1" max="500">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Traversal Pattern</label>
+                                        <textarea class="form-control" id="aiGeneratedTraversalPattern" rows="2"></textarea>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Equipment Type</label>

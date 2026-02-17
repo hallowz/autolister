@@ -192,3 +192,8 @@ class GenerateConfigResponse(BaseModel):
     max_results: int
     equipment_type: Optional[str] = None
     manufacturer: Optional[str] = None
+    # Additional fields for advanced scraping
+    search_terms: Optional[str] = None  # Comma-separated search terms
+    exclude_terms: Optional[str] = None  # Terms to exclude from search
+    min_pages: Optional[int] = None  # Minimum PDF page count
+    traversal_pattern: Optional[str] = None  # Pattern for traversing links
