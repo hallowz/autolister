@@ -361,7 +361,8 @@ function getSourceTypeLabel(type) {
         'search': 'Search Engine',
         'forum': 'Forums',
         'manual_site': 'Manual Sites',
-        'gdrive': 'Google Drive'
+        'gdrive': 'Google Drive',
+        'multi_site': 'Multi-Site Scraper'
     };
     return labels[type] || type;
 }
@@ -462,49 +463,105 @@ async function generateScrapeConfig() {
 /**
  * Create a new scrape job
  */
-async function createScrapeJob() {
-    // Check which tab is active
-    const aiTab = document.querySelector('#ai-tab').classList.contains('active');
-    
-    let jobData;
-    
-    if (aiTab) {
-        // Use AI-generated form
-        jobData = {
-            name: document.getElementById('aiGeneratedJobName').value.trim(),
-            source_type: document.getElementById('aiGeneratedSourceType').value,
-            query: document.getElementById('aiGeneratedQuery').value.trim(),
-            max_results: parseInt(document.getElementById('aiGeneratedMaxResults').value) || 10,
-            scheduled_time: document.getElementById('aiGeneratedScheduleTime').value || null,
-            schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
-            equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
-            manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null,
-            autostart_enabled: document.getElementById('autostartEnabled').checked || false
-        };
-    } else {
-        // Use manual form
-        jobData = {
-            name: document.getElementById('jobName').value.trim(),
-            source_type: document.getElementById('sourceType').value,
-            query: document.getElementById('searchQuery').value.trim(),
-            max_results: parseInt(document.getElementById('maxResults').value) || 10,
-            scheduled_time: document.getElementById('scheduleTime').value || null,
-            schedule_frequency: document.getElementById('scheduleFrequency').value || null,
-            equipment_type: document.getElementById('equipmentType').value.trim() || null,
-            manufacturer: document.getElementById('manufacturer').value.trim() || null,
-            autostart_enabled: document.getElementById('autostartEnabled').checked || false
-        };
-    }
-    
-    if (!jobData.name) {
-        showError('Please enter a job name.');
-        return;
-    }
-    
-    if (!jobData.query) {
-        showError('Please enter a search query.');
-        return;
-    }
+ async function createScrapeJob() {
+     // Check which tab is active
+     const aiTab = document.querySelector('#ai-tab').classList.contains('active');
+     
+     let jobData;
+     
+     if (aiTab) {
+         // Use AI-generated form
+         jobData = {
+             name: document.getElementById('aiGeneratedJobName').value.trim(),
+             source_type: document.getElementById('aiGeneratedSourceType').value,
+             query: document.getElementById('aiGeneratedQuery').value.trim(),
+             max_results: parseInt(document.getElementById('aiGeneratedMaxResults').value) || 10,
+             scheduled_time: document.getElementById('aiGeneratedScheduleTime').value || null,
+             schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
+             equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
+             manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null,
+             autostart_enabled: document.getElementById('autostartEnabled').checked || false,
+             // Advanced settings
+             search_terms: document.getElementById('aiGeneratedSearchTerms').value.trim() || null,
+             exclude_terms: document.getElementById('aiGeneratedExcludeTerms').value.trim() || null,
+             min_pages: parseInt(document.getElementById('aiGeneratedMinPages').value) || null,
+             max_pages: parseInt(document.getElementById('aiGeneratedMaxPages').value) || null,
+             min_file_size_mb: parseFloat(document.getElementById('aiGeneratedMinFileSizeMb').value) || null,
+             max_file_size_mb: parseFloat(document.getElementById('aiGeneratedMaxFileSizeMb').value) || null,
+             follow_links: document.getElementById('aiGeneratedFollowLinks')?.checked ?? true,
+             max_depth: parseInt(document.getElementById('aiGeneratedMaxDepth').value) || 2,
+             extract_directories: document.getElementById('aiGeneratedExtractDirectories')?.checked ?? true,
+             file_extensions: document.getElementById('aiGeneratedFileExtensions').value.trim() || 'pdf',
+             skip_duplicates: document.getElementById('aiGeneratedSkipDuplicates')?.checked ?? true
+         };
+     } else {
+         // Use manual form
+         const sourceType = document.getElementById('sourceType').value;
+         
+         if (sourceType === 'multi_site') {
+             // Multi-site scraping
+             const sitesValue = document.getElementById('sites').value.trim();
+             jobData = {
+                 name: document.getElementById('jobName').value.trim(),
+                 source_type: sourceType,
+                 query: 'multi-site scraping',
+                 max_results: parseInt(document.getElementById('maxResults').value) || 100,
+                 scheduled_time: document.getElementById('scheduleTime').value || null,
+                 schedule_frequency: document.getElementById('scheduleFrequency').value || null,
+                 equipment_type: document.getElementById('equipmentType').value.trim() || null,
+                 manufacturer: document.getElementById('manufacturer').value.trim() || null,
+                 autostart_enabled: document.getElementById('autostartEnabled').checked || false,
+                 // Advanced settings
+                 sites: sitesValue ? JSON.stringify(sitesValue.split('\n').filter(s => s.trim())) : null,
+                 search_terms: document.getElementById('searchTerms').value.trim() || null,
+                 exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
+                 min_pages: parseInt(document.getElementById('minPages').value) || 5,
+                 max_pages: parseInt(document.getElementById('maxPages').value) || null,
+                 min_file_size_mb: parseFloat(document.getElementById('minFileSizeMb').value) || null,
+                 max_file_size_mb: parseFloat(document.getElementById('maxFileSizeMb').value) || null,
+                 follow_links: document.getElementById('followLinks').checked,
+                 max_depth: parseInt(document.getElementById('maxDepth').value) || 2,
+                 extract_directories: document.getElementById('extractDirectories').checked,
+                 file_extensions: document.getElementById('fileExtensions').value.trim() || 'pdf',
+                 skip_duplicates: document.getElementById('skipDuplicates').checked
+             };
+         } else {
+             // Regular search scraping
+             jobData = {
+                 name: document.getElementById('jobName').value.trim(),
+                 source_type: sourceType,
+                 query: document.getElementById('searchQuery').value.trim(),
+                 max_results: parseInt(document.getElementById('maxResults').value) || 10,
+                 scheduled_time: document.getElementById('scheduleTime').value || null,
+                 schedule_frequency: document.getElementById('scheduleFrequency').value || null,
+                 equipment_type: document.getElementById('equipmentType').value.trim() || null,
+                 manufacturer: document.getElementById('manufacturer').value.trim() || null,
+                 autostart_enabled: document.getElementById('autostartEnabled').checked || false,
+                 // Advanced settings
+                 search_terms: document.getElementById('searchTerms').value.trim() || null,
+                 exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
+                 min_pages: parseInt(document.getElementById('minPages').value) || 5,
+                 max_pages: parseInt(document.getElementById('maxPages').value) || null
+             };
+         }
+     }
+     
+     if (!jobData.name) {
+         showError('Please enter a job name.');
+         return;
+     }
+     
+     // For multi-site, query is optional (sites is required)
+     if (jobData.source_type !== 'multi_site' && !jobData.query) {
+         showError('Please enter a search query.');
+         return;
+     }
+     
+     // For multi-site, sites is required
+     if (jobData.source_type === 'multi_site' && !jobData.sites) {
+         showError('Please enter at least one site to scrape.');
+         return;
+     }
     
     try {
         const response = await fetch('/api/scrape-jobs', {
@@ -736,4 +793,21 @@ function showToast(toastElement) {
     toastElement.addEventListener('hidden.bs.toast', () => {
         toastElement.remove();
     });
+}
+
+/**
+ * Toggle multi-site fields visibility based on source type
+ */
+function toggleMultiSiteFields() {
+    const sourceType = document.getElementById('sourceType').value;
+    const multiSiteFields = document.getElementById('multiSiteFields');
+    const searchQueryFields = document.getElementById('searchQueryFields');
+    
+    if (sourceType === 'multi_site') {
+        multiSiteFields.style.display = 'block';
+        searchQueryFields.style.display = 'none';
+    } else {
+        multiSiteFields.style.display = 'none';
+        searchQueryFields.style.display = 'block';
+    }
 }

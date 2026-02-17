@@ -162,11 +162,12 @@ class ScrapeJob(Base):
     
     # Relationships
     scraped_sites = relationship("ScrapedSite", back_populates="scrape_job", cascade="all, delete-orphan")
-    
-    def create_tables():
-    """Create all tables in the database"""
-    Base.metadata.create_all(bind=engine)
 
+
+def create_tables():
+    """Create all tables in database"""
+    Base.metadata.create_all(bind=engine)
+    
 
 def get_db() -> Session:
     """Get database session"""

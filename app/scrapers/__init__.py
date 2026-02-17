@@ -7,6 +7,7 @@ from .duckduckgo import DuckDuckGoScraper
 from .forums import ForumScraper
 from .manual_sites import ManualSiteScraper
 from .gdrive import GoogleDriveExtractor
+from .multi_site_scraper import MultiSiteScraper
 
 __all__ = [
     'BaseScraper',
@@ -16,4 +17,5 @@ __all__ = [
     'ForumScraper',
     'ManualSiteScraper',
     'GoogleDriveExtractor',
+    'MultiSiteScraper',
 ]

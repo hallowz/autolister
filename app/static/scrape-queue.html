@@ -171,17 +171,76 @@
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Source Type</label>
-                                    <select class="form-select" id="sourceType">
+                                    <select class="form-select" id="sourceType" onchange="toggleMultiSiteFields()">
                                         <option value="search" selected>Search Engine</option>
                                         <option value="forum">Forums</option>
                                         <option value="manual_site">Manual Sites</option>
                                         <option value="gdrive">Google Drive</option>
+                                        <option value="multi_site">Multi-Site Scraper</option>
                                     </select>
                                 </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Search Query</label>
-                                    <input type="text" class="form-control" id="searchQuery" value="service manual filetype:pdf -preview -operator -operation -user" placeholder="e.g., vintage camera manual filetype:pdf">
-                                    <div class="form-text">Edit this query to customize your search. The default excludes preview, operator, operation, and user manuals.</div>
+                                <!-- Multi-Site Fields -->
+                                <div id="multiSiteFields" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Sites to Scrape (one per line)</label>
+                                        <textarea class="form-control" id="sites" rows="6" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
+                                        <div class="form-text">Enter one URL per line. The scraper will crawl each site concurrently.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">File Extensions (comma-separated)</label>
+                                        <input type="text" class="form-control" id="fileExtensions" value="pdf" placeholder="e.g., pdf, doc, docx">
+                                        <div class="form-text">File extensions to look for during scraping.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Max Link Depth</label>
+                                        <input type="number" class="form-control" id="maxDepth" value="2" min="1" max="10">
+                                        <div class="form-text">How deep to follow links from each page (1-10).</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="followLinks" checked>
+                                            <label class="form-check-label" for="followLinks">
+                                                Follow Links on Pages
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Follow links to find more PDFs on the same site.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="extractDirectories" checked>
+                                            <label class="form-check-label" for="extractDirectories">
+                                                Extract from PDF Directories
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Detect and extract from directories containing multiple PDFs.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="skipDuplicates" checked>
+                                            <label class="form-check-label" for="skipDuplicates">
+                                                Skip Duplicate URLs
+                                            </label>
+                                        </div>
+                                        <div class="form-text">Skip URLs that have been scraped before.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Min File Size (MB)</label>
+                                        <input type="number" class="form-control" id="minFileSizeMb" min="0" step="0.1" placeholder="e.g., 0.5">
+                                        <div class="form-text">Minimum file size in MB (optional).</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Max File Size (MB)</label>
+                                        <input type="number" class="form-control" id="maxFileSizeMb" min="0" step="0.1" placeholder="e.g., 50">
+                                        <div class="form-text">Maximum file size in MB (optional).</div>
+                                    </div>
+                                </div>
+                                <!-- Regular Search Fields -->
+                                <div id="searchQueryFields">
+                                    <div class="mb-3">
+                                        <label class="form-label">Search Query</label>
+                                        <input type="text" class="form-control" id="searchQuery" value="service manual filetype:pdf -preview -operator -operation -user" placeholder="e.g., vintage camera manual filetype:pdf">
+                                        <div class="form-text">Edit this query to customize your search. The default excludes preview, operator, operation, and user manuals.</div>
+                                    </div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Max Results</label>
@@ -282,6 +341,7 @@
                                             <option value="forum">Forums</option>
                                             <option value="manual_site">Manual Sites</option>
                                             <option value="gdrive">Google Drive</option>
+                                            <option value="multi_site">Multi-Site Scraper</option>
                                         </select>
                                     </div>
                                     <div class="mb-3">
@@ -370,6 +430,7 @@
                                 <option value="forum">Forums</option>
                                 <option value="manual_site">Manual Sites</option>
                                 <option value="gdrive">Google Drive</option>
+                                <option value="multi_site">Multi-Site Scraper</option>
                             </select>
                         </div>
                         <div class="mb-3">

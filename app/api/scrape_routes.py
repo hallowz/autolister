@@ -95,7 +95,21 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
         equipment_type=job.equipment_type,
         manufacturer=job.manufacturer,
         queue_position=queue_pos,
-        autostart_enabled=job.autostart_enabled
+        autostart_enabled=job.autostart_enabled,
+        # Advanced scraping settings
+        sites=job.sites,
+        search_terms=job.search_terms,
+        exclude_terms=job.exclude_terms,
+        min_pages=job.min_pages,
+        max_pages=job.max_pages,
+        min_file_size_mb=job.min_file_size_mb,
+        max_file_size_mb=job.max_file_size_mb,
+        follow_links=job.follow_links,
+        max_depth=job.max_depth,
+        extract_directories=job.extract_directories,
+        file_extensions=job.file_extensions,
+        skip_duplicates=job.skip_duplicates,
+        notes=job.notes
     )
     
     db.add(db_job)
@@ -252,11 +266,32 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     
     # Trigger the actual scraping job
     try:
-        from app.tasks.jobs import run_scraping_job
+        from app.tasks.jobs import run_scraping_job, run_multi_site_scraping_job
         
         # Capture job data before passing to thread
         job_query = job.query
         job_max_results = job.max_results
+        job_source_type = job.source_type
+        
+        # Parse advanced settings
+        sites = None
+        if job.sites:
+            try:
+                sites = json.loads(job.sites)
+            except json.JSONDecodeError:
+                sites = [s.strip() for s in job.sites.split('\n') if s.strip()]
+        
+        search_terms = None
+        if job.search_terms:
+            search_terms = [t.strip() for t in job.search_terms.split(',') if t.strip()]
+        
+        exclude_terms = None
+        if job.exclude_terms:
+            exclude_terms = [t.strip() for t in job.exclude_terms.split(',') if t.strip()]
+        
+        file_extensions = None
+        if job.file_extensions:
+            file_extensions = [e.strip() for e in job.file_extensions.split(',') if e.strip()]
         
         # Run the scraping job in a background thread
         import threading
@@ -279,11 +314,30 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     print(f"Error updating job progress: {e}")
             
             try:
-                run_scraping_job(
-                    query=job_query,
-                    max_results=job_max_results,
-                    log_callback=log_callback
-                )
+                # Choose the appropriate scraper based on source_type
+                if job_source_type == 'multi_site' and sites:
+                    run_multi_site_scraping_job(
+                        sites=sites,
+                        search_terms=search_terms,
+                        exclude_terms=exclude_terms,
+                        min_pages=job.min_pages,
+                        max_pages=job.max_pages,
+                        min_file_size_mb=job.min_file_size_mb,
+                        max_file_size_mb=job.max_file_size_mb,
+                        follow_links=job.follow_links,
+                        max_depth=job.max_depth,
+                        extract_directories=job.extract_directories,
+                        file_extensions=file_extensions,
+                        skip_duplicates=job.skip_duplicates,
+                        max_results=job_max_results,
+                        log_callback=log_callback
+                    )
+                else:
+                    run_scraping_job(
+                        query=job_query,
+                        max_results=job_max_results,
+                        log_callback=log_callback
+                    )
                 # Mark job as completed
                 db = SessionLocal()
                 job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
@@ -346,8 +400,28 @@ def start_next_queued_job(db: Session):
             reposition_queue(db, 0)
             
             # Trigger the actual scraping job
-            from app.tasks.jobs import run_scraping_job
+            from app.tasks.jobs import run_scraping_job, run_multi_site_scraping_job
             import threading
+            
+            # Parse advanced settings
+            sites = None
+            if next_job.sites:
+                try:
+                    sites = json.loads(next_job.sites)
+                except json.JSONDecodeError:
+                    sites = [s.strip() for s in next_job.sites.split('\n') if s.strip()]
+            
+            search_terms = None
+            if next_job.search_terms:
+                search_terms = [t.strip() for t in next_job.search_terms.split(',') if t.strip()]
+            
+            exclude_terms = None
+            if next_job.exclude_terms:
+                exclude_terms = [t.strip() for t in next_job.exclude_terms.split(',') if t.strip()]
+            
+            file_extensions = None
+            if next_job.file_extensions:
+                file_extensions = [e.strip() for e in next_job.file_extensions.split(',') if e.strip()]
             
             def run_job_with_callback():
                 def log_callback(message):
@@ -366,11 +440,30 @@ def start_next_queued_job(db: Session):
                         print(f"Error updating job progress: {e}")
                 
                 try:
-                    run_scraping_job(
-                        query=next_job.query,
-                        max_results=next_job.max_results,
-                        log_callback=log_callback
-                    )
+                    # Choose the appropriate scraper based on source_type
+                    if next_job.source_type == 'multi_site' and sites:
+                        run_multi_site_scraping_job(
+                            sites=sites,
+                            search_terms=search_terms,
+                            exclude_terms=exclude_terms,
+                            min_pages=next_job.min_pages,
+                            max_pages=next_job.max_pages,
+                            min_file_size_mb=next_job.min_file_size_mb,
+                            max_file_size_mb=next_job.max_file_size_mb,
+                            follow_links=next_job.follow_links,
+                            max_depth=next_job.max_depth,
+                            extract_directories=next_job.extract_directories,
+                            file_extensions=file_extensions,
+                            skip_duplicates=next_job.skip_duplicates,
+                            max_results=next_job.max_results,
+                            log_callback=log_callback
+                        )
+                    else:
+                        run_scraping_job(
+                            query=next_job.query,
+                            max_results=next_job.max_results,
+                            log_callback=log_callback
+                        )
                     db = SessionLocal()
                     job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
                     if job:

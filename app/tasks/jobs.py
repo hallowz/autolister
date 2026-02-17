@@ -1,9 +1,9 @@
 """
 Background job definitions for scraping and processing
 """
-from typing import List, Optional
-from app.database import SessionLocal, Manual, ProcessingLog
-from app.scrapers import DuckDuckGoScraper
+from typing import List, Optional, Dict, Callable
+from app.database import SessionLocal, Manual, ProcessingLog, ScrapedSite
+from app.scrapers import DuckDuckGoScraper, MultiSiteScraper
 from app.processors import PDFDownloader, PDFProcessor, SummaryGenerator
 from app.processors.listing_generator import ListingContentGenerator
 from app.processors.queue_manager import ProcessingQueueManager
@@ -12,7 +12,9 @@ from app.config import get_settings
 import os
 import zipfile
 import re
+import json
 from datetime import datetime
+from urllib.parse import urlparse
 
 settings = get_settings()
 
@@ -113,6 +115,174 @@ def run_scraping_job(query: str = None, max_results: int = None, log_callback=No
     
     finally:
         db.close()
+
+
+def run_multi_site_scraping_job(
+sites: List[str] = None,
+search_terms: List[str] = None,
+exclude_terms: List[str] = None,
+min_pages: int = 5,
+max_pages: int = None,
+min_file_size_mb: float = None,
+max_file_size_mb: float = None,
+follow_links: bool = True,
+max_depth: int = 2,
+extract_directories: bool = True,
+file_extensions: List[str] = None,
+skip_duplicates: bool = True,
+max_results: int = None,
+log_callback: Callable = None
+):
+"""
+Run a multi-site scraping job to discover PDF manuals
+
+Args:
+    sites: List of site URLs to scrape
+    search_terms: List of search terms to match
+    exclude_terms: List of terms to exclude
+    min_pages: Minimum PDF page count
+    max_pages: Maximum PDF page count
+    min_file_size_mb: Minimum file size in MB
+    max_file_size_mb: Maximum file size in MB
+    follow_links: Whether to follow links on pages
+    max_depth: Maximum link depth to follow
+    extract_directories: Whether to extract PDFs from directories
+    file_extensions: List of file extensions to look for
+    skip_duplicates: Whether to skip duplicate URLs
+    max_results: Maximum results per site
+    log_callback: Optional callback function for logging
+"""
+db = SessionLocal()
+
+# Helper function for logging
+def log(message):
+    print(message)  # Still print to stdout for backward compatibility
+    if log_callback:
+        log_callback(message)
+
+try:
+    # Default file extensions to PDF if not specified
+    if file_extensions is None:
+        file_extensions = ['pdf']
+    
+    # Default exclude terms for service manual scraping
+    if exclude_terms is None:
+        exclude_terms = ['preview', 'operator', 'operation', 'user manual', 'quick start']
+    
+    # Prepare scraper configuration
+    scraper_config = {
+        'user_agent': settings.user_agent,
+        'timeout': settings.request_timeout,
+        'max_results': max_results or settings.max_results_per_search,
+        'sites': sites,
+        'search_terms': ','.join(search_terms) if search_terms else '',
+        'exclude_terms': ','.join(exclude_terms) if exclude_terms else '',
+        'min_pages': min_pages,
+        'max_pages': max_pages,
+        'min_file_size_mb': min_file_size_mb,
+        'max_file_size_mb': max_file_size_mb,
+        'follow_links': follow_links,
+        'max_depth': max_depth,
+        'extract_directories': extract_directories,
+        'file_extensions': ','.join(file_extensions),
+        'skip_duplicates': skip_duplicates,
+    }
+    
+    log(f"Starting multi-site scraping job")
+    log(f"Sites to scrape: {len(sites) if sites else 0}")
+    if sites:
+        for site in sites[:5]:  # Show first 5 sites
+            log(f"  - {site}")
+        if len(sites) > 5:
+            log(f"  ... and {len(sites) - 5} more")
+    log(f"Search terms: {', '.join(search_terms) if search_terms else 'None'}")
+    log(f"Exclude terms: {', '.join(exclude_terms) if exclude_terms else 'None'}")
+    log(f"Max depth: {max_depth}, Follow links: {follow_links}")
+    
+    # Initialize multi-site scraper
+    multi_site_scraper = MultiSiteScraper(scraper_config)
+    
+    total_discovered = 0
+    total_skipped = 0
+    
+    # Run the scraper
+    results = multi_site_scraper.search(log_callback=log)
+    
+    # Save results to database
+    new_count = 0
+    for result in results[:max_results] if max_results else results:
+        # Check if URL already exists
+        existing = db.query(Manual).filter(
+            Manual.source_url == result.url
+        ).first()
+        
+        if existing:
+            total_skipped += 1
+            continue
+        
+        # Extract domain for tracking
+        parsed_url = urlparse(result.url)
+        domain = parsed_url.netloc
+        
+        # Track scraped site
+        scraped_site = db.query(ScrapedSite).filter(
+            ScrapedSite.url == domain
+        ).first()
+        
+        if scraped_site:
+            scraped_site.last_scraped_at = datetime.utcnow()
+            scraped_site.scrape_count += 1
+        else:
+            scraped_site = ScrapedSite(
+                url=domain,
+                domain=domain,
+                status='active'
+            )
+            db.add(scraped_site)
+        
+        # Create manual record
+        manual = Manual(
+            source_url=result.url,
+            source_type=result.source_type,
+            title=result.title,
+            equipment_type=result.equipment_type,
+            manufacturer=result.manufacturer,
+            model=result.model,
+            year=result.year,
+            status='pending'
+        )
+        db.add(manual)
+        total_discovered += 1
+        new_count += 1
+    
+    db.commit()
+    log(f"Saved {new_count} new manuals from multi-site scraping")
+    log(f"Skipped {total_skipped} duplicate URLs")
+    log(f"Multi-site scraping job completed. Discovered {total_discovered} new manuals total.")
+    
+    # Log completion
+    processing_log = ProcessingLog(
+        stage='scrape',
+        status='completed',
+        message=f'Discovered {total_discovered} new manuals from {len(sites) if sites else 0} sites'
+    )
+    db.add(processing_log)
+    db.commit()
+    
+except Exception as e:
+    log(f"Multi-site scraping job error: {e}")
+    
+    # Log error
+    processing_log = ProcessingLog(
+        stage='scrape',
+        status='failed',
+        message=str(e)
+    )
+    db.add(processing_log)
+    db.commit()
+
+finally:
+    db.close()
 
 
 def process_approved_manuals():
