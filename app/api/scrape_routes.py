@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
-from app.database import get_db, ScrapeJob
+from app.database import get_db, ScrapeJob, SessionLocal
 from app.api.schemas import (
     ScrapeJobCreate, ScrapeJobUpdate, ScrapeJobResponse,
     ScrapeJobListResponse, ScrapeJobStatsResponse,
@@ -103,6 +103,30 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
     db.refresh(db_job)
     
     return db_job
+
+
+@router.get("/current-scrape")
+def get_current_scrape(db: Session = Depends(get_db)):
+    """Get the currently running scrape job"""
+    job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+    
+    if not job:
+        return {"running": False, "job": None}
+    
+    return {
+        "running": True,
+        "job": {
+            "id": job.id,
+            "name": job.name,
+            "source_type": job.source_type,
+            "query": job.query,
+            "max_results": job.max_results,
+            "progress": job.progress,
+            "status": job.status,
+            "created_at": job.created_at,
+            "updated_at": job.updated_at
+        }
+    }
 
 
 @router.get("/{job_id}", response_model=ScrapeJobResponse)
@@ -396,30 +420,6 @@ def toggle_autostart(db: Session = Depends(get_db)):
     db.commit()
     
     return {"autostart_enabled": new_state, "message": f"Autostart {'enabled' if new_state else 'disabled'} for all queued jobs"}
-
-
-@router.get("/current-scrape")
-def get_current_scrape(db: Session = Depends(get_db)):
-    """Get the currently running scrape job"""
-    job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
-    
-    if not job:
-        return {"running": False, "job": None}
-    
-    return {
-        "running": True,
-        "job": {
-            "id": job.id,
-            "name": job.name,
-            "source_type": job.source_type,
-            "query": job.query,
-            "max_results": job.max_results,
-            "progress": job.progress,
-            "status": job.status,
-            "created_at": job.created_at,
-            "updated_at": job.updated_at
-        }
-    }
 
 
 @router.post("/{job_id}/stop")
