@@ -178,7 +178,7 @@ async function loadCurrentScrape() {
         
         if (!data.running || !data.job) {
             container.innerHTML = `
-                <div class="text-center py-4">
+                <div class="text-center text-muted py-4">
                     <i class="bi bi-pause-circle fs-1"></i>
                     <p class="mt-2">No scrape job currently running</p>
                 </div>
