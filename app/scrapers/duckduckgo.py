@@ -157,13 +157,13 @@ class DuckDuckGoScraper(BaseScraper):
                     except Exception as e:
                         print(f"Error parsing result: {e}")
                         continue
+                
+                print(f"DuckDuckGo search returned {len(results)} results for query: {search_query_with_pdf}")
             
-            print(f"DuckDuckGo search returned {len(results)} results for query: {search_query_with_pdf}")
-            
-        except requests.RequestException as e:
-            print(f"DuckDuckGo search request failed: {e}")
-        except Exception as e:
-            print(f"DuckDuckGo search error: {e}")
+            except requests.RequestException as e:
+                print(f"DuckDuckGo search request failed for query '{search_query_with_pdf}': {e}")
+            except Exception as e:
+                print(f"DuckDuckGo search error for query '{search_query_with_pdf}': {e}")
         
         # Add random delay to avoid rate limiting
         time.sleep(random.uniform(1, 3))
