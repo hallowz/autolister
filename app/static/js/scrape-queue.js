@@ -57,6 +57,7 @@ async function refreshCurrentScrape() {
  */
 function renderCurrentScrape(data) {
     const container = document.getElementById('current-scrape-container');
+    const logsSection = document.getElementById('scrape-logs-section');
     
     if (!data.running || !data.job) {
         container.innerHTML = `
@@ -65,6 +66,7 @@ function renderCurrentScrape(data) {
                 <p class="mt-2">No scrape job currently running</p>
             </div>
         `;
+        logsSection.style.display = 'none';
         return;
     }
     
@@ -99,6 +101,71 @@ function renderCurrentScrape(data) {
             </div>
         </div>
     `;
+    
+    // Show logs section when job is running
+    logsSection.style.display = 'block';
+    
+    // Load logs for the current job
+    loadScrapeLogs(job.id);
+}
+
+/**
+ * Load scrape logs for a job
+ */
+async function loadScrapeLogs(jobId) {
+    try {
+        const response = await fetch(`/api/scrape-jobs/${jobId}/logs`);
+        if (!response.ok) throw new Error('Failed to load logs');
+        
+        const data = await response.json();
+        displayScrapeLogs(data.logs);
+    } catch (error) {
+        console.error('Error loading scrape logs:', error);
+        // Don't show error toast, just log it
+    }
+}
+
+/**
+ * Display scrape logs
+ */
+function displayScrapeLogs(logs) {
+    const logsContainer = document.getElementById('scrape-logs');
+    
+    if (!logs || logs.length === 0) {
+        logsContainer.innerHTML = '<div class="text-muted">No logs yet. Start a scrape job to see output.</div>';
+        return;
+    }
+    
+    let html = '';
+    logs.forEach(log => {
+        const time = new Date(log.time).toLocaleTimeString();
+        const messageClass = log.level ? `log-message ${log.level}` : 'log-message';
+        html += `<div class="log-entry">
+            <span class="log-time">[${time}]</span>
+            <span class="${messageClass}">${escapeHtml(log.message)}</span>
+        </div>`;
+    });
+    
+    logsContainer.innerHTML = html;
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
+/**
+ * Toggle logs visibility
+ */
+function toggleLogs() {
+    const logsContainer = document.getElementById('scrape-logs');
+    const toggleIcon = document.getElementById('logs-toggle-icon');
+    
+    if (logsContainer.style.display === 'none') {
+        logsContainer.style.display = 'block';
+        toggleIcon.classList.remove('bi-chevron-down');
+        toggleIcon.classList.add('bi-chevron-up');
+    } else {
+        logsContainer.style.display = 'none';
+        toggleIcon.classList.remove('bi-chevron-up');
+        toggleIcon.classList.add('bi-chevron-down');
+    }
 }
 
 /**

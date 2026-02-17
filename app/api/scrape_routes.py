@@ -454,6 +454,59 @@ def stop_scrape_job(job_id: int, db: Session = Depends(get_db)):
     return {"message": "Scrape job stopped successfully"}
 
 
+@router.get("/{job_id}/logs")
+def get_scrape_job_logs(job_id: int, db: Session = Depends(get_db)):
+    """Get logs for a specific scrape job"""
+    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scrape job with ID {job_id} not found"
+        )
+    
+    # For now, return a simple log based on job status
+    # In a real implementation, this would fetch from a logs table
+    logs = []
+    
+    if job.status == 'running':
+        logs.append({
+            "time": datetime.utcnow().isoformat(),
+            "level": "info",
+            "message": f"Scraping job '{job.name}' is running..."
+        })
+        logs.append({
+            "time": datetime.utcnow().isoformat(),
+            "level": "info",
+            "message": f"Query: {job.query}"
+        })
+        logs.append({
+            "time": datetime.utcnow().isoformat(),
+            "level": "info",
+            "message": f"Max results: {job.max_results}"
+        })
+        if job.progress:
+            logs.append({
+                "time": datetime.utcnow().isoformat(),
+                "level": "success",
+                "message": f"Progress: {job.progress}%"
+            })
+    elif job.status == 'completed':
+        logs.append({
+            "time": job.updated_at.isoformat(),
+            "level": "success",
+            "message": f"Job completed successfully at {job.progress}%"
+        })
+    elif job.status == 'failed':
+        logs.append({
+            "time": job.updated_at.isoformat(),
+            "level": "error",
+            "message": f"Job failed: {job.error_message or 'Unknown error'}"
+        })
+    
+    return {"logs": logs}
+
+
 @router.post("/generate-config", response_model=GenerateConfigResponse)
 def generate_scrape_config(request: GenerateConfigRequest):
     """Generate scrape configuration using AI (Groq)"""

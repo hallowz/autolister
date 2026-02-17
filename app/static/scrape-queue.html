@@ -96,6 +96,18 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Scraping Logs Section -->
+                    <div class="card-footer" id="scrape-logs-section" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-terminal"></i> Scraping Logs</h6>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleLogs()">
+                                <i class="bi bi-chevron-down" id="logs-toggle-icon"></i>
+                            </button>
+                        </div>
+                        <div id="scrape-logs" class="scrape-logs">
+                            <div class="text-muted">No logs yet. Start a scrape job to see output.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
