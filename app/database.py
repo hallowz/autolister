@@ -124,6 +124,20 @@ class ScrapedSite(Base):
     notes = Column(Text, nullable=True)
 
 
+class ScrapeJobLog(Base):
+    """Log entries for scrape jobs"""
+    __tablename__ = "scrape_job_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(Integer, ForeignKey("scrape_jobs.id"), nullable=False, index=True)
+    time = Column(DateTime, default=datetime.utcnow, index=True)
+    level = Column(String, nullable=True)  # 'info', 'warning', 'error', 'success'
+    message = Column(Text, nullable=False)
+    
+    # Relationship
+    job = relationship("ScrapeJob", back_populates="logs")
+
+
 class ScrapeJob(Base):
     """Scrape job model for managing scrape job queue"""
     __tablename__ = "scrape_jobs"
@@ -159,6 +173,9 @@ class ScrapeJob(Base):
     file_extensions = Column(Text, nullable=True, default='pdf')  # Comma-separated file extensions to look for
     skip_duplicates = Column(Boolean, nullable=True, default=True)  # Whether to skip duplicate URLs
     notes = Column(Text, nullable=True)  # Additional notes for the job
+    
+    # Relationship to logs
+    logs = relationship("ScrapeJobLog", back_populates="job", cascade="all, delete-orphan")
 
 
 def create_tables():

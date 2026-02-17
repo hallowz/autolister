@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
-from app.database import get_db, ScrapeJob, SessionLocal
+from app.database import get_db, ScrapeJob, ScrapeJobLog, SessionLocal
 from app.api.schemas import (
     ScrapeJobCreate, ScrapeJobUpdate, ScrapeJobResponse,
     ScrapeJobListResponse, ScrapeJobStatsResponse,
@@ -311,21 +311,30 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             job_sites = sites.copy() if sites else None
             
             def log_callback(message):
-                # Update job progress/log
+                # Store log in database and update job progress
                 try:
                     db = SessionLocal()
-                    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
-                    if job:
-                        # Extract progress from message if available
-                        import re
-                        progress_match = re.search(r'(\d+)%', message)
-                        if progress_match:
+                    # Create log entry
+                    log_entry = ScrapeJobLog(
+                        job_id=job_id,
+                        time=datetime.utcnow(),
+                        level="info",
+                        message=message
+                    )
+                    db.add(log_entry)
+                    
+                    # Update job progress if message contains percentage
+                    import re
+                    progress_match = re.search(r'(\d+)%', message)
+                    if progress_match:
+                        job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                        if job:
                             job.progress = int(progress_match.group(1))
-                        job.updated_at = datetime.utcnow()
-                        db.commit()
+                            job.updated_at = datetime.utcnow()
+                    db.commit()
                     db.close()
                 except Exception as e:
-                    print(f"Error updating job progress: {e}")
+                    print(f"Error logging message: {e}")
             
             try:
                 # Choose the appropriate scraper based on source_type
@@ -631,44 +640,21 @@ def get_scrape_job_logs(job_id: int, db: Session = Depends(get_db)):
             detail=f"Scrape job with ID {job_id} not found"
         )
     
-    # For now, return a simple log based on job status
-    # In a real implementation, this would fetch from a logs table
-    logs = []
+    # Get logs from database
+    logs = db.query(ScrapeJobLog).filter(
+        ScrapeJobLog.job_id == job_id
+    ).order_by(ScrapeJobLog.time.desc()).limit(100).all()
     
-    if job.status == 'running':
-        logs.append({
-            "time": datetime.utcnow().isoformat(),
-            "level": "info",
-            "message": f"Scraping job '{job.name}' is running..."
+    # Convert to JSON-serializable format
+    log_list = []
+    for log in logs:
+        log_list.append({
+            "time": log.time.isoformat(),
+            "level": log.level,
+            "message": log.message
         })
-        logs.append({
-            "time": datetime.utcnow().isoformat(),
-            "level": "info",
-            "message": f"Query: {job.query}"
-        })
-        logs.append({
-            "time": datetime.utcnow().isoformat(),
-            "level": "info",
-            "message": f"Max results: {job.max_results}"
-        })
-        if job.progress:
-            logs.append({
-                "time": datetime.utcnow().isoformat(),
-                "level": "success",
-                "message": f"Progress: {job.progress}%"
-            })
-    elif job.status == 'completed':
-        logs.append({
-            "time": job.updated_at.isoformat(),
-            "level": "success",
-            "message": f"Job completed successfully at {job.progress}%"
-        })
-    elif job.status == 'failed':
-        logs.append({
-            "time": job.updated_at.isoformat(),
-            "level": "error",
-            "message": f"Job failed: {job.error_message or 'Unknown error'}"
-        })
+    
+    return {"logs": log_list}
     
     return {"logs": logs}
 

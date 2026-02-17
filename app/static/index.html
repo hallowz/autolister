@@ -94,7 +94,41 @@
                 </div>
             </div>
         </div>
-
+        
+        <!-- Current Scrape Status -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card" id="current-scrape-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="bi bi-activity"></i> Current Scrape Status</h5>
+                        <button class="btn btn-sm btn-outline-primary" onclick="refreshCurrentScrape()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div id="current-scrape-container">
+                            <div class="text-center py-4">
+                                <i class="bi bi-pause-circle fs-1"></i>
+                                <p class="mt-2">No scrape job currently running</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Scraping Logs Section -->
+                    <div class="card-footer" id="scrape-logs-section" style="display: none;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="mb-0"><i class="bi bi-terminal"></i> Scraping Logs</h6>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleLogs()">
+                                <i class="bi bi-chevron-down" id="logs-toggle-icon"></i>
+                            </button>
+                        </div>
+                        <div id="scrape-logs" class="scrape-logs">
+                            <div class="text-muted">No logs yet. Start a scrape job to see output.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
             <li class="nav-item" role="presentation">

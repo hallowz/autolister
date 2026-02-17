@@ -15,9 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
     loadReadyManuals();
     loadAllManuals();
     loadFileListings();
+    loadCurrentScrape();
     
     // Set up auto-refresh
     startAutoRefresh();
+}
     
     // Set up tab change handlers
     document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
@@ -158,6 +160,140 @@ async function loadProcessingManuals() {
                 </div>
             `;
             return;
+        }
+        
+        // Get source type label
+        function getSourceTypeLabel(type) {
+            const labels = {
+                'search': 'Search Engine',
+                'forum': 'Forums',
+                'manual_site': 'Manual Sites',
+                'gdrive': 'Google Drive',
+                'multi_site': 'Multi-Site Scraper'
+            };
+            return labels[type] || type;
+        }
+        
+        // Load current scrape status
+        async function loadCurrentScrape() {
+            try {
+                const response = await fetch(`${API_BASE}/scrape-jobs/current-scrape`);
+                const data = await response.json();
+                
+                const container = document.getElementById('current-scrape-container');
+                const logsSection = document.getElementById('scrape-logs-section');
+                const logsContainer = document.getElementById('scrape-logs');
+                
+                if (!data.running || !data.job) {
+                    container.innerHTML = `
+                        <div class="text-center py-4">
+                            <i class="bi bi-pause-circle fs-1"></i>
+                            <p class="mt-2">No scrape job currently running</p>
+                        </div>
+                    `;
+                    logsSection.style.display = 'none';
+                    return;
+                }
+                
+                const job = data.job;
+                container.innerHTML = `
+                    <div class="current-scrape">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <h5 class="mb-2">${escapeHtml(job.name)}</h5>
+                                <div class="scrape-details">
+                                    <span class="badge bg-primary">${getSourceTypeLabel(job.source_type)}</span>
+                                    <span class="text-muted ms-2"><i class="bi bi-search"></i> ${escapeHtml(job.query)}</span>
+                                    <span class="text-muted ms-2"><i class="bi bi-list-ol"></i> Max: ${job.max_results}</span>
+                                </div>
+                            </div>
+                            <div class="col-md-4 text-end">
+                                <div class="progress-indicator">
+                                    <div class="progress">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                             style="width: ${job.progress || 0}%"
+                                             id="current-scrape-progress"></div>
+                                    </div>
+                                    </div>
+                                    <small class="text-muted">${job.progress || 0}% Complete</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            <i class="bi bi-clock"></i> Started: ${formatDate(job.created_at)}
+                            ${job.updated_at !== job.created_at ? ` | Updated: ${formatDate(job.updated_at)}` : ''}
+                        </small>
+                    </div>
+                `;
+                
+                // Show logs section
+                logsSection.style.display = 'block';
+                
+                // Load logs for the current job
+                loadScrapeLogs(job.id);
+            } catch (error) {
+                console.error('Error loading current scrape:', error);
+            }
+        }
+        
+        // Load scrape logs for a job
+        async function loadScrapeLogs(jobId) {
+            try {
+                const response = await fetch(`${API_BASE}/scrape-jobs/${jobId}/logs`);
+                if (!response.ok) throw new Error('Failed to load logs');
+                
+                const data = await response.json();
+                displayScrapeLogs(data.logs);
+            } catch (error) {
+                console.error('Error loading scrape logs:', error);
+                // Don't show error toast, just log it
+            }
+        }
+        
+        // Display scrape logs
+        function displayScrapeLogs(logs) {
+            const logsContainer = document.getElementById('scrape-logs');
+            
+            if (!logs || logs.length === 0) {
+                logsContainer.innerHTML = '<div class="text-muted">No logs yet. Start a scrape job to see output.</div>';
+                return;
+            }
+            
+            let html = '';
+            logs.forEach(log => {
+                const time = new Date(log.time).toLocaleTimeString();
+                const messageClass = log.level ? `log-message ${log.level}` : 'log-message';
+                html += `<div class="log-entry">
+                    <span class="log-time">[${time}]</span>
+                    <span class="${messageClass}">${escapeHtml(log.message)}</span>
+                </div>`;
+            });
+            
+            logsContainer.innerHTML = html;
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+        
+        // Toggle logs visibility
+        function toggleLogs() {
+            const logsContainer = document.getElementById('scrape-logs');
+            const toggleIcon = document.getElementById('logs-toggle-icon');
+            
+            if (logsContainer.style.display === 'none') {
+                logsContainer.style.display = 'block';
+                toggleIcon.classList.remove('bi-chevron-down');
+                toggleIcon.classList.add('bi-chevron-up');
+            } else {
+                logsContainer.style.display = 'none';
+                toggleIcon.classList.remove('bi-chevron-up');
+                toggleIcon.classList.add('bi-chevron-down');
+            }
+        }
+        
+        // Refresh current scrape status
+        function refreshCurrentScrape() {
+            loadCurrentScrape();
         }
         
         let html = '<div class="row">';
