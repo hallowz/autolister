@@ -1000,3 +1000,485 @@ body {
 .manual-card.processing .card-header {
     border-left: 4px solid var(--primary-color);
 }
+
+/* ==================== COMPREHENSIVE MOBILE RESPONSIVENESS ==================== */
+
+/* Extra Small Devices (phones, 576px and down) */
+@media (max-width: 575.98px) {
+    /* Body & Container */
+    body {
+        font-size: 14px;
+    }
+    
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    /* Navbar */
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .navbar-toggler {
+        padding: 0.25rem 0.5rem;
+        font-size: 1rem;
+    }
+    
+    .navbar-collapse {
+        background-color: #212529;
+        padding: 1rem;
+        margin-top: 0.5rem;
+        border-radius: 8px;
+    }
+    
+    .navbar-nav {
+        gap: 0.5rem;
+    }
+    
+    .nav-link {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.95rem;
+    }
+    
+    /* Stats Cards */
+    .stats-card {
+        margin-bottom: 1rem;
+    }
+    
+    .stats-card .stat-number {
+        font-size: 2rem;
+    }
+    
+    .stats-card .card-title {
+        font-size: 0.85rem;
+    }
+    
+    /* Control Section */
+    #control-section .card-body {
+        padding: 1rem;
+    }
+    
+    #control-section .card-title {
+        font-size: 1rem;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    #control-section .btn {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        flex: 1;
+        min-width: 100px;
+    }
+    
+    #control-section .d-flex {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    
+    #control-section .ms-auto {
+        margin-left: 0 !important;
+        margin-top: 0.5rem;
+    }
+    
+    /* Tabs */
+    .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+    
+    .nav-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .nav-tabs .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-width: max-content;
+    }
+    
+    .nav-tabs .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.4rem;
+    }
+    
+    /* Manual Cards */
+    .manual-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .manual-card .card-header {
+        padding: 0.75rem;
+        font-size: 0.9rem;
+    }
+    
+    .manual-card .card-body {
+        padding: 0.75rem;
+    }
+    
+    /* Manual Details */
+    .manual-details {
+        font-size: 0.85rem;
+    }
+    
+    .manual-details dt {
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+    }
+    
+    .manual-details dd {
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Action Buttons */
+    .manual-card-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        width: 100%;
+    }
+    
+    .manual-card-actions .btn {
+        width: 100%;
+    }
+    
+    /* Status Badges */
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Scraping Logs */
+    .scraping-logs {
+        font-size: 0.75rem;
+        padding: 0.75rem;
+        max-height: 250px;
+    }
+    
+    .log-entry {
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+    }
+    
+    .empty-state h5 {
+        font-size: 1rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.85rem;
+    }
+    
+    /* Toast Notifications */
+    .toast {
+        min-width: auto;
+        width: calc(100% - 20px);
+        left: 10px;
+        right: 10px;
+        margin: 0;
+    }
+    
+    /* Modal */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+    }
+    
+    .modal-header,
+    .modal-footer {
+        padding: 0.75rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    /* Table Styles */
+    .table-responsive {
+        font-size: 0.8rem;
+    }
+    
+    .table td,
+    .table th {
+        padding: 0.5rem;
+    }
+    
+    /* Job Folder Styles */
+    .job-folder-header {
+        padding: 0.75rem 1rem;
+    }
+    
+    .job-folder-title {
+        font-size: 0.95rem;
+    }
+    
+    .job-folder-title .job-query {
+        display: block;
+        margin-left: 0;
+        margin-top: 0.25rem;
+    }
+    
+    .job-folder-manual-item {
+        flex-direction: column;
+        padding: 0.75rem;
+    }
+    
+    .job-folder-manual-actions {
+        width: 100%;
+        margin-top: 0.75rem;
+        flex-direction: column;
+    }
+    
+    .job-folder-manual-actions .btn {
+        width: 100%;
+    }
+    
+    /* Sort Controls */
+    .sort-controls {
+        flex-direction: column;
+        width: 100%;
+        gap: 0.5rem;
+    }
+    
+    .sort-controls .dropdown {
+        width: 100%;
+    }
+    
+    .sort-controls .dropdown-toggle {
+        width: 100%;
+    }
+    
+    /* New Badge */
+    .new-badge {
+        top: 5px;
+        right: 5px;
+        font-size: 0.7rem;
+        padding: 3px 6px;
+    }
+    
+    /* Source URL */
+    .source-url {
+        font-size: 0.75rem;
+        word-break: break-all;
+    }
+    
+    /* Section Headers */
+    .d-flex.justify-content-between.align-items-center.mb-3 h4 {
+        font-size: 1.1rem;
+    }
+    
+    /* Button Enhancements */
+    .btn {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.85rem;
+    }
+    
+    .btn i {
+        margin-right: 0.25rem;
+    }
+    
+    /* Badge Enhancements */
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Card Spacing */
+    .card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .row > [class*="col-"] {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+    
+    /* Loading Spinner */
+    .spinner-border {
+        width: 2rem;
+        height: 2rem;
+    }
+    
+    /* Current Scrape Card */
+    #current-scrape-card .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    #current-scrape-card .btn-sm {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    /* Progress Indicators */
+    .progress {
+        height: 20px;
+    }
+    
+    /* Form Elements */
+    .form-control,
+    .form-select {
+        font-size: 16px; /* Prevents iOS zoom on focus */
+    }
+    
+    /* Input Groups */
+    .input-group .btn {
+        padding: 0.4rem 0.6rem;
+    }
+}
+
+/* Small Devices (landscape phones, 576px and up) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    /* Stats Cards */
+    .stats-card .stat-number {
+        font-size: 2.2rem;
+    }
+    
+    /* Manual Cards */
+    .manual-card .card-header {
+        font-size: 0.95rem;
+    }
+    
+    /* Tabs */
+    .nav-tabs .nav-link {
+        padding: 0.6rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    /* Control Section */
+    #control-section .btn {
+        padding: 0.5rem 1rem;
+    }
+    
+    /* Scraping Logs */
+    .scraping-logs {
+        font-size: 0.85rem;
+    }
+}
+
+/* Medium Devices (tablets, 768px and up) */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    /* Stats Cards */
+    .stats-card .stat-number {
+        font-size: 2.5rem;
+    }
+    
+    /* Manual Cards */
+    .manual-card .card-header {
+        font-size: 1rem;
+    }
+    
+    /* Tabs */
+    .nav-tabs .nav-link {
+        padding: 0.75rem 1.25rem;
+    }
+}
+
+/* Touch-friendly improvements for all mobile devices */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase touch targets */
+    .btn,
+    .nav-link,
+    .dropdown-item {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Remove hover effects */
+    .manual-card:hover,
+    .stats-card:hover,
+    .job-card:hover {
+        transform: none;
+    }
+    
+    /* Improve button tap areas */
+    .btn {
+        padding: 0.6rem 1rem;
+    }
+    
+    /* Make dropdowns easier to tap */
+    .dropdown-menu {
+        min-width: 200px;
+    }
+    
+    .dropdown-item {
+        padding: 0.75rem 1rem;
+    }
+}
+
+/* Landscape orientation for mobile */
+@media (max-width: 767.98px) and (orientation: landscape) {
+    .container {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .stats-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .manual-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .nav-tabs {
+        margin-bottom: 0.5rem;
+    }
+    
+    .card {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Safe area support for notched devices (iPhone X+, etc.) */
+@supports (padding: max(0px)) {
+    @media (max-width: 575.98px) {
+        .container {
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+        }
+        
+        .navbar {
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+        }
+        
+        .toast {
+            left: max(10px, env(safe-area-inset-left));
+            right: max(10px, env(safe-area-inset-right));
+        }
+    }
+}
+
+/* Dark mode support for mobile (if system prefers dark mode) */
+@media (prefers-color-scheme: dark) and (max-width: 767.98px) {
+    /* These styles will only apply if the user has dark mode enabled */
+    /* Note: This is a foundation - can be expanded based on actual dark mode implementation */
+    .manual-card,
+    .card {
+        background-color: #2d2d2d;
+        color: #f8f9fa;
+    }
+    
+    .manual-card .card-header {
+        background-color: #3d3d3d;
+        color: #f8f9fa;
+    }
+}

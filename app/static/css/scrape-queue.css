@@ -452,3 +452,549 @@
 .log-message.info {
     color: #0d6efd;
 }
+
+/* ==================== COMPREHENSIVE MOBILE RESPONSIVENESS ==================== */
+
+/* Extra Small Devices (phones, 576px and down) */
+@media (max-width: 575.98px) {
+    /* Body & Container */
+    body {
+        font-size: 14px;
+    }
+    
+    .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    /* Navbar */
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+    
+    .navbar-toggler {
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Stats Cards */
+    .stats-card {
+        margin-bottom: 1rem;
+    }
+    
+    .stats-card .stat-number {
+        font-size: 2rem;
+    }
+    
+    .stats-card .card-title {
+        font-size: 0.85rem;
+    }
+    
+    /* Current Scrape Card */
+    #current-scrape-card {
+        margin-bottom: 1rem;
+    }
+    
+    #current-scrape-card .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.75rem;
+    }
+    
+    #current-scrape-card .card-header h5 {
+        font-size: 1rem;
+    }
+    
+    #current-scrape-card .btn-sm {
+        width: 100%;
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .current-scrape h5 {
+        font-size: 1rem;
+    }
+    
+    .scrape-details {
+        font-size: 0.85rem;
+    }
+    
+    .scrape-details .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.4rem;
+        margin-right: 0.25rem;
+    }
+    
+    /* Progress Indicator */
+    .progress-indicator {
+        width: 100%;
+        align-items: flex-start;
+        margin-top: 0.5rem;
+    }
+    
+    .progress-indicator .progress {
+        height: 20px;
+    }
+    
+    /* Job Cards */
+    .job-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .job-card .card-body {
+        padding: 0.75rem;
+    }
+    
+    .job-card-content {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .job-card-header {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .job-card-title {
+        font-size: 1rem;
+        flex: 1;
+        min-width: 100%;
+    }
+    
+    .job-card-meta {
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.8rem;
+        width: 100%;
+    }
+    
+    .job-card-meta span {
+        font-size: 0.8rem;
+    }
+    
+    /* Job Actions */
+    .job-actions {
+        flex-direction: column;
+        width: 100%;
+        margin-top: 0.5rem;
+        gap: 0.5rem;
+    }
+    
+    .job-actions .btn {
+        width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Status Badges */
+    .status-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Priority Indicator */
+    .priority-indicator {
+        font-size: 0.85rem;
+    }
+    
+    /* Schedule Info */
+    .schedule-info {
+        padding: 0.5rem;
+        font-size: 0.85rem;
+    }
+    
+    .schedule-info .icon {
+        margin-right: 0.25rem;
+    }
+    
+    /* Config Preview */
+    .config-preview {
+        padding: 0.75rem;
+        margin-top: 0.75rem;
+    }
+    
+    .config-preview h6 {
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .config-preview .config-item {
+        padding: 0.4rem 0;
+        font-size: 0.85rem;
+    }
+    
+    .config-preview .config-label {
+        font-size: 0.8rem;
+    }
+    
+    .config-preview .config-value {
+        font-size: 0.85rem;
+    }
+    
+    /* Empty State */
+    .empty-state {
+        padding: 2rem 1rem;
+    }
+    
+    .empty-state i {
+        font-size: 3rem;
+    }
+    
+    .empty-state p {
+        font-size: 0.85rem;
+    }
+    
+    /* AI Loading State */
+    .ai-loading {
+        padding: 1.5rem;
+    }
+    
+    .ai-loading .spinner-border {
+        width: 2.5rem;
+        height: 2.5rem;
+    }
+    
+    /* Tab Content */
+    .tab-content {
+        padding-top: 0.75rem;
+    }
+    
+    /* Form Elements */
+    .form-label {
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .form-control,
+    .form-select {
+        font-size: 16px; /* Prevents iOS zoom on focus */
+        padding: 0.5rem 0.75rem;
+    }
+    
+    /* Queue List */
+    .queue-list {
+        gap: 0.75rem;
+    }
+    
+    /* Queue Items */
+    .queue-item {
+        padding: 0.75rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    /* Scraping Logs */
+    .scrape-logs {
+        font-size: 0.75rem;
+        padding: 0.75rem;
+        max-height: 250px;
+    }
+    
+    .log-entry {
+        padding: 0.2rem 0;
+    }
+    
+    .log-time {
+        font-size: 0.7rem;
+        margin-right: 0.25rem;
+    }
+    
+    .log-message {
+        font-size: 0.75rem;
+    }
+    
+    /* Job Progress */
+    .job-progress {
+        height: 6px;
+        margin-top: 0.5rem;
+    }
+    
+    /* Frequency Badge */
+    .frequency-badge {
+        font-size: 0.7rem;
+        padding: 0.2rem 0.4rem;
+    }
+    
+    /* Buttons */
+    .btn {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.85rem;
+        min-height: 44px;
+    }
+    
+    .btn i {
+        margin-right: 0.25rem;
+    }
+    
+    /* Badges */
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+    }
+    
+    /* Cards */
+    .card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .card-header {
+        padding: 0.75rem;
+    }
+    
+    .card-body {
+        padding: 0.75rem;
+    }
+    
+    /* Row Spacing */
+    .row > [class*="col-"] {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+    
+    /* Modal */
+    .modal-dialog {
+        margin: 0.5rem;
+    }
+    
+    .modal-content {
+        border-radius: 8px;
+    }
+    
+    .modal-header,
+    .modal-footer {
+        padding: 0.75rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    /* Toast Notifications */
+    .toast {
+        min-width: auto;
+        width: calc(100% - 20px);
+        left: 10px;
+        right: 10px;
+        margin: 0;
+    }
+    
+    /* Loading Spinner */
+    .spinner-border {
+        width: 2rem;
+        height: 2rem;
+    }
+    
+    /* Table Styles */
+    .table-responsive {
+        font-size: 0.8rem;
+    }
+    
+    .table td,
+    .table th {
+        padding: 0.5rem;
+    }
+    
+    /* Dropdowns */
+    .dropdown-menu {
+        min-width: 180px;
+        font-size: 0.85rem;
+    }
+    
+    .dropdown-item {
+        padding: 0.5rem 0.75rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+    
+    /* Input Groups */
+    .input-group .btn {
+        padding: 0.4rem 0.6rem;
+    }
+    
+    /* Section Headers */
+    h4, h5, h6 {
+        font-size: 1rem;
+    }
+}
+
+/* Small Devices (landscape phones, 576px and up) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    /* Stats Cards */
+    .stats-card .stat-number {
+        font-size: 2.2rem;
+    }
+    
+    /* Job Cards */
+    .job-card-title {
+        font-size: 1.05rem;
+    }
+    
+    .job-card-meta {
+        font-size: 0.85rem;
+    }
+    
+    /* Scraping Logs */
+    .scrape-logs {
+        font-size: 0.8rem;
+    }
+    
+    /* Config Preview */
+    .config-preview {
+        padding: 0.875rem;
+    }
+}
+
+/* Medium Devices (tablets, 768px and up) */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    /* Stats Cards */
+    .stats-card .stat-number {
+        font-size: 2.5rem;
+    }
+    
+    /* Job Cards */
+    .job-card-title {
+        font-size: 1.1rem;
+    }
+    
+    /* Scraping Logs */
+    .scrape-logs {
+        font-size: 0.85rem;
+    }
+}
+
+/* Touch-friendly improvements for all mobile devices */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase touch targets */
+    .btn,
+    .dropdown-item,
+    .nav-link {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    /* Remove hover effects */
+    .job-card:hover,
+    .queue-item:hover,
+    .stats-card:hover {
+        transform: none;
+    }
+    
+    /* Improve button tap areas */
+    .btn {
+        padding: 0.6rem 1rem;
+    }
+    
+    /* Make dropdowns easier to tap */
+    .dropdown-menu {
+        min-width: 200px;
+    }
+    
+    .dropdown-item {
+        padding: 0.75rem 1rem;
+    }
+    
+    /* Make job cards easier to interact with */
+    .job-card {
+        cursor: pointer;
+    }
+    
+    .job-card:active {
+        background-color: #f0f0f0;
+    }
+}
+
+/* Landscape orientation for mobile */
+@media (max-width: 767.98px) and (orientation: landscape) {
+    .container {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+    }
+    
+    .stats-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .job-card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .card {
+        margin-bottom: 0.5rem;
+    }
+    
+    .scrape-logs {
+        max-height: 150px;
+    }
+}
+
+/* Safe area support for notched devices (iPhone X+, etc.) */
+@supports (padding: max(0px)) {
+    @media (max-width: 575.98px) {
+        .container {
+            padding-left: max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+        }
+        
+        .navbar {
+            padding-left: max(1rem, env(safe-area-inset-left));
+            padding-right: max(1rem, env(safe-area-inset-right));
+        }
+        
+        .toast {
+            left: max(10px, env(safe-area-inset-left));
+            right: max(10px, env(safe-area-inset-right));
+        }
+    }
+}
+
+/* Dark mode support for mobile (if system prefers dark mode) */
+@media (prefers-color-scheme: dark) and (max-width: 767.98px) {
+    .job-card,
+    .card,
+    .queue-item {
+        background-color: #2d2d2d;
+        color: #f8f9fa;
+    }
+    
+    .job-card .card-header,
+    .card-header {
+        background-color: #3d3d3d;
+        color: #f8f9fa;
+    }
+    
+    .config-preview {
+        background-color: #3d3d3d;
+        color: #f8f9fa;
+    }
+    
+    .schedule-info {
+        background-color: #3d3d3d;
+        color: #f8f9fa;
+    }
+    
+    .scrape-logs {
+        background-color: #1e1e1e;
+        color: #00ff00;
+    }
+    
+    .log-time {
+        color: #888;
+    }
+}
+
+/* Print styles for mobile */
+@media print and (max-width: 767.98px) {
+    .no-print {
+        display: none !important;
+    }
+    
+    .job-card,
+    .card {
+        page-break-inside: avoid;
+        margin-bottom: 0.5rem;
+    }
+}
