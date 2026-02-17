@@ -380,12 +380,7 @@ async function generateScrapeConfig() {
         document.getElementById('aiGeneratedManufacturer').value = config.manufacturer || '';
         
         // Show the result section with generated config
-        resultDiv.innerHTML = `
-            <div class="alert alert-success">
-                <h6><i class="bi bi-check-circle"></i> Configuration Generated!</h6>
-                <p class="mb-0">Review and adjust the settings below, then click "Create Job".</p>
-            </div>
-        `;
+        // Note: The form fields are already in the HTML, we just need to show the result div
         resultDiv.style.display = 'block';
         
     } catch (error) {
