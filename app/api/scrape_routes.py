@@ -266,7 +266,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     
     # Trigger the actual scraping job
     try:
-        from app.tasks.jobs import run_scraping_job, run_multi_site_scraping_job
+        from app.tasks.jobs import run_search_job, run_multi_site_scraping_job
         
         # Capture job data before passing to thread
         job_query = job.query
@@ -359,10 +359,12 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         log_callback=log_callback
                     )
                 else:
-                    run_scraping_job(
+                    run_search_job(
                         query=job_query,
+                        source_type=job_source_type,
                         max_results=job_max_results,
-                        log_callback=log_callback
+                        equipment_type=job.equipment_type,
+                        manufacturer=job.manufacturer
                     )
                 # Mark job as completed
                 db = SessionLocal()
@@ -426,7 +428,7 @@ def start_next_queued_job(db: Session):
             reposition_queue(db, 0)
             
             # Trigger the actual scraping job
-            from app.tasks.jobs import run_scraping_job, run_multi_site_scraping_job
+            from app.tasks.jobs import run_search_job, run_multi_site_scraping_job
             import threading
             
             # Parse advanced settings
@@ -467,7 +469,33 @@ def start_next_queued_job(db: Session):
                 
                 try:
                     # Choose the appropriate scraper based on source_type
-                    if next_job.source_type == 'multi_site' and sites:
+                    if next_job.source_type == 'multi_site':
+                        # If no sites provided, use DuckDuckGo to find sites
+                        if not sites:
+                            from app.scrapers.duckduckgo import DuckDuckGoScraper
+                            ddg_scraper = DuckDuckGoScraper(settings)
+                            log_callback("Searching DuckDuckGo for sites...")
+                            ddg_results = ddg_scraper.search(next_job.query, max_results=50)
+                            
+                            # Extract unique domains from DuckDuckGo results
+                            unique_domains = set()
+                            sites = []
+                            for result in ddg_results:
+                                from urllib.parse import urlparse
+                                parsed = urlparse(result.url)
+                                domain = parsed.netloc
+                                if domain and domain not in unique_domains:
+                                    unique_domains.add(domain)
+                                    # Use the base URL of the site
+                                    base_url = f"{parsed.scheme}://{domain}"
+                                    sites.append(base_url)
+                                    log_callback(f"Found site: {base_url}")
+                            
+                            if not sites:
+                                log_callback("No sites found from DuckDuckGo search")
+                                raise Exception("No sites found from DuckDuckGo search")
+                        
+                        log_callback(f"Starting multi-site scraping for {len(sites)} sites")
                         run_multi_site_scraping_job(
                             sites=sites,
                             search_terms=search_terms,
@@ -485,10 +513,12 @@ def start_next_queued_job(db: Session):
                             log_callback=log_callback
                         )
                     else:
-                        run_scraping_job(
+                        run_search_job(
                             query=next_job.query,
+                            source_type=next_job.source_type,
                             max_results=next_job.max_results,
-                            log_callback=log_callback
+                            equipment_type=next_job.equipment_type,
+                            manufacturer=next_job.manufacturer
                         )
                     db = SessionLocal()
                     job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
