@@ -180,6 +180,10 @@
                         <div class="tab-pane fade" id="ai" role="tabpanel">
                             <form id="aiJobForm">
                                 <div class="mb-3">
+                                    <label class="form-label">Job Name</label>
+                                    <input type="text" class="form-control" id="aiJobName" placeholder="e.g., Vintage Camera Manuals">
+                                </div>
+                                <div class="mb-3">
                                     <label class="form-label">Describe what you want to scrape</label>
                                     <textarea class="form-control" id="aiPrompt" rows="5" placeholder="e.g., I want to find vintage camera manuals from the 1970s, specifically for Canon and Nikon cameras. Look for PDF files on manual sites and forums. Get about 20 results."></textarea>
                                 </div>
@@ -196,6 +200,54 @@
                                     <div class="alert alert-success">
                                         <h6><i class="bi bi-check-circle"></i> Configuration Generated!</h6>
                                         <p class="mb-0">Review and adjust the settings below, then click "Create Job".</p>
+                                    </div>
+                                    <hr>
+                                    <h6>Generated Settings:</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label">Job Name</label>
+                                        <input type="text" class="form-control" id="aiGeneratedJobName">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Source Type</label>
+                                        <select class="form-select" id="aiGeneratedSourceType">
+                                            <option value="search">Search Engine</option>
+                                            <option value="forum">Forums</option>
+                                            <option value="manual_site">Manual Sites</option>
+                                            <option value="gdrive">Google Drive</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Search Query</label>
+                                        <input type="text" class="form-control" id="aiGeneratedQuery">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Max Results</label>
+                                        <input type="number" class="form-control" id="aiGeneratedMaxResults" min="1" max="100">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Equipment Type</label>
+                                        <input type="text" class="form-control" id="aiGeneratedEquipmentType">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Manufacturer</label>
+                                        <input type="text" class="form-control" id="aiGeneratedManufacturer">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Schedule (Optional)</label>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <input type="datetime-local" class="form-control" id="aiGeneratedScheduleTime">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <select class="form-select" id="aiGeneratedScheduleFrequency">
+                                                    <option value="">Run Once</option>
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="monthly">Monthly</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="form-text">Leave empty to run immediately (queued)</div>
                                     </div>
                                 </div>
                             </form>

@@ -217,6 +217,7 @@ function escapeHtml(text) {
  */
 async function generateScrapeConfig() {
     const prompt = document.getElementById('aiPrompt').value.trim();
+    const jobName = document.getElementById('aiJobName').value.trim();
     
     if (!prompt) {
         showError('Please enter a description of what you want to scrape.');
@@ -244,53 +245,19 @@ async function generateScrapeConfig() {
         
         const config = await response.json();
         
-        // Populate the manual form with generated config
-        document.getElementById('jobName').value = config.name || '';
-        document.getElementById('sourceType').value = config.source_type || 'search';
-        document.getElementById('searchQuery').value = config.query || '';
-        document.getElementById('maxResults').value = config.max_results || 10;
-        document.getElementById('equipmentType').value = config.equipment_type || '';
-        document.getElementById('manufacturer').value = config.manufacturer || '';
+        // Populate AI-generated fields
+        document.getElementById('aiGeneratedJobName').value = jobName || config.name || '';
+        document.getElementById('aiGeneratedSourceType').value = config.source_type || 'search';
+        document.getElementById('aiGeneratedQuery').value = config.query || '';
+        document.getElementById('aiGeneratedMaxResults').value = config.max_results || 10;
+        document.getElementById('aiGeneratedEquipmentType').value = config.equipment_type || '';
+        document.getElementById('aiGeneratedManufacturer').value = config.manufacturer || '';
         
-        // Switch to manual tab to show the generated config
-        const manualTab = new bootstrap.Tab(document.querySelector('#manual-tab'));
-        manualTab.show();
-        
+        // Show the result section with generated config
         resultDiv.innerHTML = `
             <div class="alert alert-success">
                 <h6><i class="bi bi-check-circle"></i> Configuration Generated!</h6>
                 <p class="mb-0">Review and adjust the settings below, then click "Create Job".</p>
-            </div>
-            <div class="config-preview">
-                <h6>Generated Configuration:</h6>
-                <div class="config-item">
-                    <span class="config-label">Name:</span>
-                    <span class="config-value">${escapeHtml(config.name || 'N/A')}</span>
-                </div>
-                <div class="config-item">
-                    <span class="config-label">Source:</span>
-                    <span class="config-value">${getSourceTypeLabel(config.source_type)}</span>
-                </div>
-                <div class="config-item">
-                    <span class="config-label">Query:</span>
-                    <span class="config-value">${escapeHtml(config.query || 'N/A')}</span>
-                </div>
-                <div class="config-item">
-                    <span class="config-label">Max Results:</span>
-                    <span class="config-value">${config.max_results || 10}</span>
-                </div>
-                ${config.equipment_type ? `
-                <div class="config-item">
-                    <span class="config-label">Equipment Type:</span>
-                    <span class="config-value">${escapeHtml(config.equipment_type)}</span>
-                </div>
-                ` : ''}
-                ${config.manufacturer ? `
-                <div class="config-item">
-                    <span class="config-label">Manufacturer:</span>
-                    <span class="config-value">${escapeHtml(config.manufacturer)}</span>
-                </div>
-                ` : ''}
             </div>
         `;
         resultDiv.style.display = 'block';
@@ -308,16 +275,36 @@ async function generateScrapeConfig() {
  * Create a new scrape job
  */
 async function createScrapeJob() {
-    const jobData = {
-        name: document.getElementById('jobName').value.trim(),
-        source_type: document.getElementById('sourceType').value,
-        query: document.getElementById('searchQuery').value.trim(),
-        max_results: parseInt(document.getElementById('maxResults').value) || 10,
-        scheduled_time: document.getElementById('scheduleTime').value || null,
-        schedule_frequency: document.getElementById('scheduleFrequency').value || null,
-        equipment_type: document.getElementById('equipmentType').value.trim() || null,
-        manufacturer: document.getElementById('manufacturer').value.trim() || null
-    };
+    // Check which tab is active
+    const aiTab = document.querySelector('#ai-tab').classList.contains('active');
+    
+    let jobData;
+    
+    if (aiTab) {
+        // Use AI-generated form
+        jobData = {
+            name: document.getElementById('aiGeneratedJobName').value.trim(),
+            source_type: document.getElementById('aiGeneratedSourceType').value,
+            query: document.getElementById('aiGeneratedQuery').value.trim(),
+            max_results: parseInt(document.getElementById('aiGeneratedMaxResults').value) || 10,
+            scheduled_time: document.getElementById('aiGeneratedScheduleTime').value || null,
+            schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
+            equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
+            manufacturer: document.getElementById('aiGeneratedManufacturer').value.trim() || null
+        };
+    } else {
+        // Use manual form
+        jobData = {
+            name: document.getElementById('jobName').value.trim(),
+            source_type: document.getElementById('sourceType').value,
+            query: document.getElementById('searchQuery').value.trim(),
+            max_results: parseInt(document.getElementById('maxResults').value) || 10,
+            scheduled_time: document.getElementById('scheduleTime').value || null,
+            schedule_frequency: document.getElementById('scheduleFrequency').value || null,
+            equipment_type: document.getElementById('equipmentType').value.trim() || null,
+            manufacturer: document.getElementById('manufacturer').value.trim() || null
+        };
+    }
     
     if (!jobData.name) {
         showError('Please enter a job name.');
@@ -344,7 +331,7 @@ async function createScrapeJob() {
         const modal = bootstrap.Modal.getInstance(document.getElementById('newJobModal'));
         modal.hide();
         
-        // Reset form
+        // Reset forms
         document.getElementById('manualJobForm').reset();
         document.getElementById('aiJobForm').reset();
         document.getElementById('aiResult').style.display = 'none';
