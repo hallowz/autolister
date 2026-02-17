@@ -471,11 +471,14 @@ async function generateScrapeConfig() {
      
      if (aiTab) {
          // Use AI-generated form
+         const aiSourceType = document.getElementById('aiGeneratedSourceType').value;
+         
+         // Build base job data
          jobData = {
              name: document.getElementById('aiGeneratedJobName').value.trim(),
-             source_type: document.getElementById('aiGeneratedSourceType').value,
+             source_type: aiSourceType,
              query: document.getElementById('aiGeneratedQuery').value.trim(),
-             max_results: parseInt(document.getElementById('aiGeneratedMaxResults').value) || 10,
+             max_results: parseInt(document.getElementById('aiGeneratedMaxResults').value) || 100,
              scheduled_time: document.getElementById('aiGeneratedScheduleTime').value || null,
              schedule_frequency: document.getElementById('aiGeneratedScheduleFrequency').value || null,
              equipment_type: document.getElementById('aiGeneratedEquipmentType').value.trim() || null,
@@ -484,16 +487,20 @@ async function generateScrapeConfig() {
              // Advanced settings
              search_terms: document.getElementById('aiGeneratedSearchTerms').value.trim() || null,
              exclude_terms: document.getElementById('aiGeneratedExcludeTerms').value.trim() || null,
-             min_pages: parseInt(document.getElementById('aiGeneratedMinPages').value) || null,
-             max_pages: parseInt(document.getElementById('aiGeneratedMaxPages').value) || null,
-             min_file_size_mb: parseFloat(document.getElementById('aiGeneratedMinFileSizeMb').value) || null,
-             max_file_size_mb: parseFloat(document.getElementById('aiGeneratedMaxFileSizeMb').value) || null,
-             follow_links: document.getElementById('aiGeneratedFollowLinks')?.checked ?? true,
-             max_depth: parseInt(document.getElementById('aiGeneratedMaxDepth').value) || 2,
-             extract_directories: document.getElementById('aiGeneratedExtractDirectories')?.checked ?? true,
-             file_extensions: document.getElementById('aiGeneratedFileExtensions').value.trim() || 'pdf',
-             skip_duplicates: document.getElementById('aiGeneratedSkipDuplicates')?.checked ?? true
+             min_pages: parseInt(document.getElementById('aiGeneratedMinPages').value) || null
          };
+         
+         // Add multi-site specific settings if source type is multi_site
+         if (aiSourceType === 'multi_site') {
+             jobData.max_pages = null;
+             jobData.min_file_size_mb = null;
+             jobData.max_file_size_mb = null;
+             jobData.follow_links = true;
+             jobData.max_depth = 2;
+             jobData.extract_directories = true;
+             jobData.file_extensions = 'pdf';
+             jobData.skip_duplicates = true;
+         }
      } else {
          // Use manual form
          const sourceType = document.getElementById('sourceType').value;
