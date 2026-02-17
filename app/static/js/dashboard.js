@@ -13,6 +13,7 @@ let currentManualSort = 'created_at'; // Sort field for manuals within jobs
 let pendingJobsData = null; // Store current pending jobs data
 let expandedJobFolders = new Set(); // Track which job folders are expanded
 let pendingScrollPosition = 0; // Track scroll position
+let folderScrollPositions = new Map(); // Track scroll position within each folder body
 
 // Hash function to detect data changes
 function hashManuals(manuals) {
@@ -102,11 +103,13 @@ async function loadPendingManuals() {
         pendingScrollPosition = window.pageYOffset || document.documentElement.scrollTop;
     }
     
-    // Save currently expanded folders
+    // Save currently expanded folders AND their scroll positions
     expandedJobFolders.clear();
+    folderScrollPositions.clear();
     document.querySelectorAll('.job-folder-body.expanded').forEach(body => {
         const jobId = body.id.replace('job-body-', '');
         expandedJobFolders.add(jobId);
+        folderScrollPositions.set(jobId, body.scrollTop);
     });
     
     try {
@@ -162,17 +165,21 @@ async function loadPendingManuals() {
             // Render job folders
             container.innerHTML = renderJobFolders(data.jobs);
             
-            // Restore expanded folders
+            // Restore expanded folders AND their scroll positions
             expandedJobFolders.forEach(jobId => {
                 const body = document.getElementById(`job-body-${jobId}`);
                 const toggle = document.getElementById(`job-toggle-${jobId}`);
                 if (body && toggle) {
                     body.classList.add('expanded');
                     toggle.classList.add('rotated');
+                    // Restore scroll position within this folder
+                    if (folderScrollPositions.has(jobId)) {
+                        body.scrollTop = folderScrollPositions.get(jobId);
+                    }
                 }
             });
             
-            // Restore scroll position
+            // Restore page scroll position
             window.scrollTo(0, pendingScrollPosition);
         }
     } catch (error) {
