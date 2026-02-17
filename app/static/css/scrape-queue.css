@@ -799,6 +799,107 @@
     .dropdown-menu {
         min-width: 180px;
         font-size: 0.85rem;
+        max-height: 250px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    /* Scroll Fixes for Mobile */
+    /* Prevent vertical scroll on horizontal scroll containers */
+    .nav-tabs {
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+    }
+    
+    .nav-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .nav-tabs .nav-link {
+        scroll-snap-align: start;
+        flex-shrink: 0;
+    }
+    
+    /* Improve scrolling behavior */
+    body {
+        overflow-x: hidden;
+        width: 100%;
+        position: relative;
+    }
+    
+    .container {
+        overflow-x: hidden;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    .tab-content {
+        overflow-x: hidden;
+    }
+    
+    .tab-pane {
+        overflow-x: hidden;
+    }
+    
+    /* Fix horizontal scrolling issues */
+    .d-flex {
+        overflow-x: hidden;
+    }
+    
+    .job-card-header {
+        overflow: hidden;
+    }
+    
+    .job-card-title {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+        hyphens: auto;
+    }
+    
+    /* Ensure buttons don't cause scroll issues */
+    .btn {
+        touch-action: manipulation;
+    }
+    
+    /* Improve scrollable areas */
+    .scrape-logs {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    /* Fix any overflow issues */
+    * {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Prevent zoom on form inputs */
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
+    }
+    
+    /* Improve job card scrolling */
+    .job-card {
+        overflow: hidden;
+    }
+    
+    .job-card-content {
+        overflow: hidden;
+    }
+    
+    /* Fix queue list scrolling */
+    .queue-list {
+        overflow-x: hidden;
+    }
+    
+    .queue-item {
+        overflow: hidden;
     }
     
     .dropdown-item {

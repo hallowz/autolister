@@ -1218,33 +1218,129 @@ body {
     }
     
     /* Job Folder Styles */
+    .job-folder {
+        margin-bottom: 1rem;
+    }
+    
     .job-folder-header {
         padding: 0.75rem 1rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+    
+    .job-folder-header:hover {
+        background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
     }
     
     .job-folder-title {
         font-size: 0.95rem;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .job-folder-title .folder-icon {
+        font-size: 1.1rem;
+    }
+    
+    .job-folder-title .job-id {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.4rem;
     }
     
     .job-folder-title .job-query {
         display: block;
         margin-left: 0;
         margin-top: 0.25rem;
+        width: 100%;
+        font-size: 0.85rem;
+        line-height: 1.3;
+        word-break: break-word;
+    }
+    
+    .job-folder-actions {
+        width: 100%;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+    
+    .job-folder-count {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+    }
+    
+    .job-folder-toggle {
+        font-size: 1rem;
+        flex-shrink: 0;
+    }
+    
+    .job-folder-delete-btn {
+        font-size: 0.75rem;
+        padding: 0.3rem 0.6rem;
+    }
+    
+    .job-folder-body {
+        max-height: none;
+    }
+    
+    .job-folder-body.expanded {
+        max-height: 2000px;
+    }
+    
+    .job-folder-manuals {
+        padding: 0.75rem;
+    }
+    
+    .job-folder-manuals-list {
+        gap: 0.5rem;
     }
     
     .job-folder-manual-item {
         flex-direction: column;
         padding: 0.75rem;
+        gap: 0.5rem;
+    }
+    
+    .job-folder-manual-info {
+        width: 100%;
+    }
+    
+    .job-folder-manual-title {
+        font-size: 0.9rem;
+        line-height: 1.4;
+        word-break: break-word;
+        margin-bottom: 0.5rem;
+    }
+    
+    .job-folder-manual-details {
+        flex-direction: column;
+        gap: 0.3rem;
+        font-size: 0.8rem;
+    }
+    
+    .job-folder-manual-detail {
+        flex-wrap: wrap;
+        line-height: 1.3;
+    }
+    
+    .job-folder-manual-detail i {
+        font-size: 0.85rem;
+        flex-shrink: 0;
     }
     
     .job-folder-manual-actions {
         width: 100%;
-        margin-top: 0.75rem;
+        margin-top: 0.5rem;
         flex-direction: column;
+        gap: 0.5rem;
     }
     
     .job-folder-manual-actions .btn {
         width: 100%;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-height: 44px;
     }
     
     /* Sort Controls */
@@ -1252,6 +1348,7 @@ body {
         flex-direction: column;
         width: 100%;
         gap: 0.5rem;
+        margin-bottom: 1rem;
     }
     
     .sort-controls .dropdown {
@@ -1260,6 +1357,204 @@ body {
     
     .sort-controls .dropdown-toggle {
         width: 100%;
+        justify-content: center;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-height: 44px;
+    }
+    
+    /* Pending Section Header */
+    .d-flex.justify-content-between.align-items-center.mb-3 {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    
+    .d-flex.justify-content-between.align-items-center.mb-3 h4 {
+        font-size: 1.1rem;
+        margin-bottom: 0;
+        width: 100%;
+    }
+    
+    .d-flex.justify-content-between.align-items-center.mb-3 .d-flex {
+        width: 100%;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .d-flex.justify-content-between.align-items-center.mb-3 .dropdown {
+        width: 100%;
+    }
+    
+    .d-flex.justify-content-between.align-items-center.mb-3 .dropdown-toggle {
+        width: 100%;
+        justify-content: center;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-height: 44px;
+    }
+    
+    .d-flex.justify-content-between.align-items-center.mb-3 .btn {
+        width: 100%;
+        justify-content: center;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+        min-height: 44px;
+    }
+    
+    /* Pending Tab Specific Improvements */
+    #pending .container {
+        padding-left: 10px;
+        padding-right: 10px;
+    }
+    
+    #pending .tab-pane {
+        padding: 0;
+    }
+    
+    #pending .dropdown-menu {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    
+    #pending .dropdown-item {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+        min-height: 44px;
+    }
+    
+    #pending .dropdown-item i {
+        margin-right: 0.5rem;
+    }
+    
+    /* Improve manual item spacing */
+    .job-folder-manuals-list {
+        gap: 0.75rem;
+    }
+    
+    /* Source URL truncation */
+    .job-folder-manual-detail a {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: inline-block;
+        vertical-align: middle;
+    }
+    
+    /* Scroll Fixes for Mobile */
+    /* Prevent vertical scroll on horizontal scroll containers */
+    .nav-tabs {
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x mandatory;
+    }
+    
+    .nav-tabs::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .nav-tabs .nav-link {
+        scroll-snap-align: start;
+        flex-shrink: 0;
+    }
+    
+    /* Improve job folder body scrolling */
+    .job-folder-body {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    .job-folder-body.expanded {
+        max-height: 2000px;
+        overflow-y: auto;
+    }
+    
+    /* Prevent scroll chaining */
+    .job-folder-manuals {
+        overscroll-behavior: contain;
+    }
+    
+    /* Improve touch scrolling for manual items */
+    .job-folder-manual-item {
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Fix horizontal scrolling issues */
+    .d-flex {
+        overflow-x: hidden;
+    }
+    
+    .job-folder-header {
+        overflow: hidden;
+    }
+    
+    .job-folder-title {
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+        hyphens: auto;
+    }
+    
+    /* Ensure proper scrolling on the main container */
+    .container {
+        overflow-x: hidden;
+        width: 100%;
+        max-width: 100%;
+    }
+    
+    /* Prevent body scroll issues */
+    body {
+        overflow-x: hidden;
+        width: 100%;
+        position: relative;
+    }
+    
+    /* Fix tab content scrolling */
+    .tab-content {
+        overflow-x: hidden;
+    }
+    
+    .tab-pane {
+        overflow-x: hidden;
+    }
+    
+    /* Improve dropdown menu scrolling */
+    .dropdown-menu {
+        max-height: 250px;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    /* Ensure buttons don't cause scroll issues */
+    .btn {
+        touch-action: manipulation;
+    }
+    
+    /* Improve scrollable areas */
+    .scrape-logs {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+    }
+    
+    /* Fix any overflow issues */
+    * {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
+    /* Ensure proper touch handling */
+    .job-folder-manual-actions {
+        touch-action: manipulation;
+    }
+    
+    /* Prevent zoom on form inputs */
+    input,
+    select,
+    textarea {
+        font-size: 16px !important;
     }
     
     /* New Badge */
