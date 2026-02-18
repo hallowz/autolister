@@ -499,33 +499,13 @@ def discover_niches(db: Session = Depends(get_db)):
     agent = AutoScrapingAgent(db)
     
     try:
+        # Agent already stores niches in database
         niches = agent.discover_niches()
-        
-        # Store discovered niches in database
-        for niche_data in niches:
-            existing = db.query(NicheDiscovery).filter(
-                NicheDiscovery.niche == niche_data.get('niche')
-            ).first()
-            
-            if not existing:
-                niche = NicheDiscovery(
-                    niche=niche_data.get('niche'),
-                    description=niche_data.get('description'),
-                    search_query=niche_data.get('search_query'),
-                    potential_price=niche_data.get('potential_price'),
-                    demand_level=niche_data.get('demand_level', 'medium'),
-                    competition_level=niche_data.get('competition_level', 'medium'),
-                    keywords=json.dumps(niche_data.get('keywords', [])),
-                    sites_to_search=json.dumps(niche_data.get('sites_to_search', [])),
-                    reason=niche_data.get('reason')
-                )
-                db.add(niche)
         
         # Update state
         state = db.query(AutoScrapingState).first()
         if state:
             state.total_niches_discovered = (state.total_niches_discovered or 0) + len(niches)
-        
         db.commit()
         
         return {
@@ -609,6 +589,13 @@ def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
     niche.scrape_job_id = job.id
     niche.status = 'job_created'
     db.commit()
+    
+    # Trigger the job to start via Celery
+    try:
+        from app.tasks.jobs import check_queue
+        check_queue.delay()
+    except Exception as e:
+        print(f"[create_job_for_niche] Warning: Could not trigger check_queue: {e}")
     
     return {
         'message': f'Created scrape job for {niche.niche}',

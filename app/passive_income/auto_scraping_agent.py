@@ -485,6 +485,14 @@ class AutoScrapingAgent:
                     f"Created scrape job for niche: {niche.niche}",
                     {'job_id': job.id, 'niche': niche.niche})
             
+            # Trigger the job to start via Celery
+            try:
+                from app.tasks.jobs import check_queue
+                check_queue.delay()
+                self.log('job_started', 'completed', f'Triggered check_queue for job {job.id}')
+            except Exception as start_error:
+                self.log('job_started', 'warning', f'Job created but could not auto-start: {start_error}')
+            
         except Exception as e:
             result['reason'] = f"Error creating job: {str(e)}"
             self.log('job_created', 'failed', f"Error creating job: {str(e)}")
@@ -534,19 +542,34 @@ class AutoScrapingAgent:
             )
             
             response_text = completion.choices[0].message.content
+            print(f"[DEBUG] AI niche discovery response: {response_text[:500]}...")
             niches = json.loads(response_text)
             
-            # Handle if it's wrapped in a key
-            if isinstance(niches, dict) and 'niches' in niches:
-                niches = niches['niches']
-            elif isinstance(niches, dict) and not isinstance(niches, list):
-                # Single niche object
-                niches = [niches]
+            # Handle if it's wrapped in a key (common when using json_object mode)
+            if isinstance(niches, dict):
+                # Try common wrapper keys
+                for key in ['niches', 'niche_suggestions', 'suggestions', 'results', 'items']:
+                    if key in niches and isinstance(niches[key], list):
+                        niches = niches[key]
+                        break
+                else:
+                    # Check if the dict itself looks like a single niche
+                    if 'niche' in niches or 'description' in niches:
+                        niches = [niches]
+                    else:
+                        # Unknown format, log and return empty
+                        print(f"[WARNING] Unexpected niche response format: {list(niches.keys())}")
+                        niches = []
+            
+            if not isinstance(niches, list):
+                niches = []
             
             # Store in database and cache
             for niche_data in niches:
                 if not isinstance(niche_data, dict):
                     continue
+                
+                print(f"[DEBUG] Storing niche: {niche_data.get('niche')}, desc: {niche_data.get('description', 'NO DESC')[:50] if niche_data.get('description') else 'NONE'}")
                     
                 existing = self.db.query(NicheDiscovery).filter(
                     NicheDiscovery.niche == niche_data.get('niche')
