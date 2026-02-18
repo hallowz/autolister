@@ -152,6 +152,21 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <!-- Info Message Box -->
+                    <div class="alert alert-info d-flex align-items-start mb-3" role="alert">
+                        <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                        <div>
+                            <strong>How Job Configuration Works</strong>
+                            <p class="mb-2 mt-1">There are two ways to create a scrape job:</p>
+                            <ul class="mb-0">
+                                <li><strong>Manual Config</strong> - Manually configure all scraping parameters including search queries, sites to crawl, file filters, and crawling behavior. Use this when you know exactly what you want to scrape.</li>
+                                <li><strong>AI Generate</strong> - Describe what you want to scrape in plain English and the AI will intelligently populate ALL configuration fields with optimal values for your specific use case. Great for quickly setting up targeted scraping jobs.</li>
+                            </ul>
+                            <hr class="my-2">
+                            <p class="mb-0 small"><strong>Key Settings:</strong> Search terms filter what documents to include. Exclude terms filter out unwanted files. Min pages helps skip short previews. Max depth controls how deep the scraper follows links. File extensions determine which file types to look for (default: PDF).</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
                     <ul class="nav nav-tabs mb-3" id="jobConfigTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="manual-tab" data-bs-toggle="tab" data-bs-target="#manual" type="button" role="tab">
