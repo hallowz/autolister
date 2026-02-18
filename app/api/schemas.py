@@ -129,6 +129,7 @@ class ScrapeJobCreate(BaseModel):
     
     # Advanced scraping settings
     sites: Optional[str] = None  # JSON array of site URLs to scrape
+    exclude_sites: Optional[str] = None  # JSON array of site URLs/domains to exclude
     search_terms: Optional[str] = None  # Comma-separated search terms
     exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
     min_pages: Optional[int] = None  # Minimum PDF page count
@@ -157,6 +158,7 @@ class ScrapeJobUpdate(BaseModel):
     
     # Advanced scraping settings
     sites: Optional[str] = None  # JSON array of site URLs to scrape
+    exclude_sites: Optional[str] = None  # JSON array of site URLs/domains to exclude
     search_terms: Optional[str] = None  # Comma-separated search terms
     exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
     min_pages: Optional[int] = None  # Minimum PDF page count
@@ -192,6 +194,7 @@ class ScrapeJobResponse(BaseModel):
     
     # Advanced scraping settings
     sites: Optional[str] = None  # JSON array of site URLs to scrape
+    exclude_sites: Optional[str] = None  # JSON array of site URLs/domains to exclude
     search_terms: Optional[str] = None  # Comma-separated search terms
     exclude_terms: Optional[str] = None  # Comma-separated terms to exclude
     min_pages: Optional[int] = None  # Minimum PDF page count
@@ -264,6 +267,7 @@ class GenerateConfigResponse(BaseModel):
     
     # Site targeting
     sites: Optional[str] = Field(default=None, description="Specific sites to scrape (JSON array or newline-separated)")
+    exclude_sites: Optional[str] = Field(default=None, description="Sites/domains to exclude from scraping (JSON array or newline-separated)")
     url_patterns: Optional[str] = Field(default=None, description="URL patterns to match (regex patterns)")
     
     # Advanced filtering

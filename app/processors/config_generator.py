@@ -43,6 +43,7 @@ Return ONLY valid JSON with these fields:
   "extract_directories": "boolean - always true to find PDF collections",
   "skip_duplicates": "boolean - always true",
   "sites": "string or null - specific sites if user mentioned any",
+  "exclude_sites": "string or null - sites/domains to block (spam, paywalls, broken sites)",
   "url_patterns": "string or null - URL patterns to match",
   "title_patterns": "string or null - patterns for file titles",
   "content_keywords": "string or null - expected keywords in PDF content",
@@ -121,7 +122,20 @@ Extract manufacturer and common variations:
 | Nikon | Nikon | Nikon Corp |
 | Toyota | Toyota | TOY |
 
-### 8. EQUIPMENT TYPE DETECTION
+### 8. EXCLUDE SITES
+Exclude problematic sites to improve results. Common sites to exclude:
+
+- **Paywall sites**: scribd.com, docstoc.com, coursehero.com
+- **Spam/low-quality sites**: sites with lots of ads, redirect farms
+- **Broken repositories**: old broken links, 404-prone sites
+- **Competitor sites**: if you know a site has poor quality files
+
+Example:
+```
+"exclude_sites": "scribd.com,coursehero.com,docstoc.com,broken-manuals.com"
+```
+
+### 9. EQUIPMENT TYPE DETECTION
 
 | Keywords | Equipment Type |
 |----------|---------------|
@@ -166,6 +180,7 @@ User prompt: "I need Honda ATV service manuals, specifically TRX420 Rancher and 
   "extract_directories": true,
   "skip_duplicates": true,
   "sites": null,
+  "exclude_sites": "scribd.com,coursehero.com,docstoc.com",
   "url_patterns": "*/service/*,*/manual/*,*/download/*,*/docs/*",
   "title_patterns": "service,repair,workshop,maintenance",
   "content_keywords": "torque,specifications,procedures,diagram,wiring",
@@ -199,6 +214,7 @@ User prompt: "Find vintage Canon camera service manuals from the 1970s and 1980s
   "extract_directories": true,
   "skip_duplicates": true,
   "sites": null,
+  "exclude_sites": "scribd.com,coursehero.com,docstoc.com",
   "url_patterns": "*/service/*,*/manual/*,*/vintage/*,*/classic/*",
   "title_patterns": "Canon,AE-1,service,repair,manual,vintage",
   "content_keywords": "shutter,aperture,lens,film advance,exposure,canon",
@@ -232,6 +248,7 @@ User prompt: "Small engine repair manuals for Briggs Stratton and Tecumseh"
   "extract_directories": true,
   "skip_duplicates": true,
   "sites": null,
+  "exclude_sites": "scribd.com,coursehero.com,docstoc.com",
   "url_patterns": "*/service/*,*/manual/*,*/engine/*,*/repair/*",
   "title_patterns": "service,repair,engine,Briggs,Tecumseh",
   "content_keywords": "torque,specs,carburetor,ignition,compression,valve",
@@ -265,6 +282,7 @@ User prompt: "Find all kinds of service manuals for outdoor power equipment"
   "extract_directories": true,
   "skip_duplicates": true,
   "sites": null,
+  "exclude_sites": "scribd.com,coursehero.com,docstoc.com",
   "url_patterns": "*/service/*,*/manual/*,*/support/*,*/docs/*",
   "title_patterns": "service,repair,maintenance,workshop",
   "content_keywords": "torque,specifications,assembly,disassembly,adjustment",
@@ -372,6 +390,7 @@ def apply_defaults(config: Dict) -> Dict:
         'extract_directories': True,
         'skip_duplicates': True,
         'sites': None,
+        'exclude_sites': 'scribd.com,coursehero.com,docstoc.com',
         'url_patterns': None,
         'title_patterns': None,
         'content_keywords': None,

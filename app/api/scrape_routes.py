@@ -98,6 +98,7 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
         autostart_enabled=job.autostart_enabled,
         # Advanced scraping settings
         sites=job.sites,
+        exclude_sites=job.exclude_sites,
         search_terms=job.search_terms,
         exclude_terms=job.exclude_terms,
         min_pages=job.min_pages,
@@ -292,6 +293,13 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             except json.JSONDecodeError:
                 sites = [s.strip() for s in job.sites.split('\n') if s.strip()]
         
+        exclude_sites = None
+        if job.exclude_sites:
+            try:
+                exclude_sites = json.loads(job.exclude_sites)
+            except json.JSONDecodeError:
+                exclude_sites = [s.strip() for s in job.exclude_sites.split('\n') if s.strip()]
+        
         search_terms = None
         if job.search_terms:
             search_terms = [t.strip() for t in job.search_terms.split(',') if t.strip()]
@@ -353,6 +361,10 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                             from urllib.parse import urlparse
                             parsed = urlparse(result.url)
                             domain = parsed.netloc
+                            # Skip excluded sites
+                            if exclude_sites and any(exc in domain for exc in exclude_sites):
+                                log_callback(f"Excluding site: {domain}")
+                                continue
                             if domain and domain not in unique_domains:
                                 unique_domains.add(domain)
                                 # Use the base URL of the site
@@ -363,6 +375,19 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         if not job_sites:
                             log_callback("No sites found from DuckDuckGo search")
                             raise Exception("No sites found from DuckDuckGo search")
+                    else:
+                        # Filter provided sites against exclude list
+                        if exclude_sites:
+                            filtered_sites = []
+                            for site in job_sites:
+                                from urllib.parse import urlparse
+                                parsed = urlparse(site)
+                                domain = parsed.netloc
+                                if not any(exc in domain for exc in exclude_sites):
+                                    filtered_sites.append(site)
+                                else:
+                                    log_callback(f"Excluding site from list: {domain}")
+                            job_sites = filtered_sites
                     
                     log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
                     run_multi_site_scraping_job(
@@ -380,7 +405,8 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         skip_duplicates=job_skip_duplicates,
                         max_results=job_max_results,
                         log_callback=log_callback,
-                        job_id=job_id
+                        job_id=job_id,
+                        exclude_sites=exclude_sites
                     )
                 else:
                     run_search_job(
@@ -710,6 +736,7 @@ def clone_scrape_job(job_id: int, db: Session = Depends(get_db)):
         autostart_enabled=job.autostart_enabled,
         # Advanced scraping settings - copy all
         sites=job.sites,
+        exclude_sites=job.exclude_sites,
         search_terms=job.search_terms,
         exclude_terms=job.exclude_terms,
         min_pages=job.min_pages,
@@ -755,6 +782,7 @@ def get_full_job_config(job_id: int, db: Session = Depends(get_db)):
         "autostart_enabled": job.autostart_enabled,
         # Advanced scraping settings
         "sites": job.sites,
+        "exclude_sites": job.exclude_sites,
         "search_terms": job.search_terms,
         "exclude_terms": job.exclude_terms,
         "min_pages": job.min_pages,

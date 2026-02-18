@@ -206,8 +206,13 @@
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Additional Sites to Scrape (one per line, optional)</label>
-                                        <textarea class="form-control" id="sites" rows="4" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
+                                        <textarea class="form-control" id="sites" rows="3" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
                                         <div class="form-text">Enter additional URLs to scrape. The scraper will crawl each site concurrently along with sites found from DuckDuckGo.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">Sites to Exclude (one per line, optional)</label>
+                                        <textarea class="form-control" id="excludeSites" rows="2" placeholder="example.com&#10;spam-site.com&#10;paywall-site.com"></textarea>
+                                        <div class="form-text">Domains or partial URLs to exclude from scraping. Useful for blocking spam, paywalls, or broken sites.</div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">File Extensions (comma-separated)</label>
@@ -405,8 +410,13 @@
                                     <div id="aiMultiSiteFields" style="display: block;">
                                         <div class="mb-3">
                                             <label class="form-label">Additional Sites to Scrape (one per line, optional)</label>
-                                            <textarea class="form-control" id="aiGeneratedSites" rows="4" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
+                                            <textarea class="form-control" id="aiGeneratedSites" rows="3" placeholder="https://example.com/manuals&#10;https://another-site.com/documents&#10;https://manual-archive.com"></textarea>
                                             <div class="form-text">Enter additional URLs to scrape. The scraper will crawl each site concurrently along with sites found from DuckDuckGo.</div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Sites to Exclude (one per line, optional)</label>
+                                            <textarea class="form-control" id="aiGeneratedExcludeSites" rows="2" placeholder="example.com&#10;spam-site.com&#10;paywall-site.com"></textarea>
+                                            <div class="form-text">Domains or partial URLs to exclude from scraping. Useful for blocking spam, paywalls, or broken sites.</div>
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">File Extensions (comma-separated)</label>
@@ -545,6 +555,11 @@
                             <div class="mb-3">
                                 <label class="form-label">Additional Sites (one per line)</label>
                                 <textarea class="form-control" id="editSites" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Sites to Exclude (one per line)</label>
+                                <textarea class="form-control" id="editExcludeSites" rows="2"></textarea>
+                                <div class="form-text">Domains or partial URLs to exclude from scraping.</div>
                             </div>
                         </div>
 

@@ -474,6 +474,11 @@ async function generateScrapeConfig() {
             document.getElementById('aiGeneratedSites').value = config.sites;
         }
         
+        // Exclude sites (if provided)
+        if (config.exclude_sites) {
+            document.getElementById('aiGeneratedExcludeSites').value = config.exclude_sites;
+        }
+        
         // Autostart
         document.getElementById('aiGeneratedAutostartEnabled').checked = config.autostart_enabled || false;
         
@@ -539,6 +544,14 @@ async function generateScrapeConfig() {
                  allSites = sitesValue.split('\n').filter(s => s.trim());
              }
              jobData.sites = allSites.length > 0 ? JSON.stringify(allSites) : null;
+             
+             // Exclude sites
+             const excludeSitesValue = document.getElementById('aiGeneratedExcludeSites').value.trim();
+             let excludeSites = [];
+             if (excludeSitesValue) {
+                 excludeSites = excludeSitesValue.split('\n').filter(s => s.trim());
+             }
+             jobData.exclude_sites = excludeSites.length > 0 ? JSON.stringify(excludeSites) : null;
          }
      } else {
          // Use manual form
@@ -548,11 +561,18 @@ async function generateScrapeConfig() {
              // Multi-site scraping with DuckDuckGo
              const ddgQuery = document.getElementById('ddgSearchQuery').value.trim();
              const sitesValue = document.getElementById('sites').value.trim();
+             const excludeSitesValue = document.getElementById('excludeSites').value.trim();
              
              // Combine DuckDuckGo query with additional sites
              let allSites = [];
              if (sitesValue) {
                  allSites = sitesValue.split('\n').filter(s => s.trim());
+             }
+             
+             // Parse exclude sites
+             let excludeSites = [];
+             if (excludeSitesValue) {
+                 excludeSites = excludeSitesValue.split('\n').filter(s => s.trim());
              }
              
              jobData = {
@@ -567,6 +587,7 @@ async function generateScrapeConfig() {
                  autostart_enabled: document.getElementById('autostartEnabled').checked || false,
                  // Advanced settings
                  sites: allSites.length > 0 ? JSON.stringify(allSites) : null,
+                 exclude_sites: excludeSites.length > 0 ? JSON.stringify(excludeSites) : null,
                  search_terms: document.getElementById('searchTerms').value.trim() || null,
                  exclude_terms: document.getElementById('excludeTerms').value.trim() || null,
                  min_pages: parseInt(document.getElementById('minPages').value) || 5,
@@ -712,6 +733,18 @@ async function editJob(jobId) {
             document.getElementById('editSites').value = '';
         }
 
+        // Exclude sites
+        if (config.exclude_sites) {
+            try {
+                const excludeSites = JSON.parse(config.exclude_sites);
+                document.getElementById('editExcludeSites').value = excludeSites.join('\n');
+            } catch {
+                document.getElementById('editExcludeSites').value = config.exclude_sites;
+            }
+        } else {
+            document.getElementById('editExcludeSites').value = '';
+        }
+
         // Search & Filter settings
         document.getElementById('editMaxResults').value = config.max_results || 100;
         document.getElementById('editFileExtensions').value = config.file_extensions || 'pdf';
@@ -783,6 +816,16 @@ async function updateScrapeJob() {
         }
     }
 
+    // Parse exclude sites from textarea
+    const excludeSitesValue = document.getElementById('editExcludeSites').value.trim();
+    let excludeSites = null;
+    if (excludeSitesValue) {
+        const excludeSiteLines = excludeSitesValue.split('\n').filter(s => s.trim());
+        if (excludeSiteLines.length > 0) {
+            excludeSites = JSON.stringify(excludeSiteLines);
+        }
+    }
+
     const jobData = {
         name: document.getElementById('editJobName').value.trim(),
         source_type: document.getElementById('editSourceType').value,
@@ -795,6 +838,7 @@ async function updateScrapeJob() {
         autostart_enabled: document.getElementById('editAutostartEnabled').checked,
         // Advanced settings
         sites: sites,
+        exclude_sites: excludeSites,
         search_terms: document.getElementById('editSearchTerms').value.trim() || null,
         exclude_terms: document.getElementById('editExcludeTerms').value.trim() || null,
         min_pages: parseInt(document.getElementById('editMinPages').value) || null,
@@ -1018,6 +1062,12 @@ function renderJobConfigDetails(config) {
         <div class="col-12 mt-2">
             <strong>Sites:</strong>
             <pre class="bg-light p-2 mt-1" style="max-height: 150px; overflow-y: auto;">${escapeHtml(config.sites)}</pre>
+        </div>
+        ` : ''}
+        ${config.exclude_sites ? `
+        <div class="col-12 mt-2">
+            <strong>Excluded Sites:</strong>
+            <pre class="bg-light p-2 mt-1" style="max-height: 150px; overflow-y: auto;">${escapeHtml(config.exclude_sites)}</pre>
         </div>
         ` : ''}
         ${config.error_message ? `

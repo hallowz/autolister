@@ -108,7 +108,8 @@ def run_multi_site_scraping_job(
     skip_duplicates: bool = True,
     max_results: int = None,
     log_callback: Callable = None,
-    job_id: int = None
+    job_id: int = None,
+    exclude_sites: List[str] = None
 ):
     """
     Run a multi-site scraping job to discover PDF manuals
@@ -129,6 +130,7 @@ def run_multi_site_scraping_job(
         max_results: Maximum results per site
         log_callback: Optional callback function for logging
         job_id: ID of the scrape job creating these manuals
+        exclude_sites: List of sites/domains to exclude from scraping
     """
     db = SessionLocal()
 
@@ -153,6 +155,7 @@ def run_multi_site_scraping_job(
             'timeout': settings.request_timeout,
             'max_results': max_results or settings.max_results_per_search,
             'sites': sites,
+            'exclude_sites': exclude_sites,
             'search_terms': ','.join(search_terms) if search_terms else '',
             'exclude_terms': ','.join(exclude_terms) if exclude_terms else '',
             'min_pages': min_pages,

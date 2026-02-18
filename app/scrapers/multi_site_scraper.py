@@ -38,6 +38,7 @@ class MultiSiteScraper(BaseScraper):
         
         # Advanced settings with defaults
         self.sites = self.config.get('sites', [])
+        self.exclude_sites = self.config.get('exclude_sites', [])
         self.search_terms = self._parse_list(self.config.get('search_terms', ''))
         self.exclude_terms = self._parse_list(self.config.get('exclude_terms', ''))
         self.min_pages = self.config.get('min_pages', 5)
@@ -74,6 +75,21 @@ class MultiSiteScraper(BaseScraper):
         """Extract domain from URL"""
         parsed = urlparse(url)
         return parsed.netloc
+    
+    def _is_excluded_site(self, url: str) -> bool:
+        """Check if URL or its domain is in the exclude list"""
+        if not self.exclude_sites:
+            return False
+        
+        domain = self._extract_domain(url).lower()
+        url_lower = url.lower()
+        
+        for excluded in self.exclude_sites:
+            excluded_lower = excluded.lower().strip()
+            # Check if excluded pattern matches domain or URL
+            if excluded_lower in domain or excluded_lower in url_lower:
+                return True
+        return False
     
     def _is_valid_extension(self, url: str) -> bool:
         """Check if URL has a valid file extension"""
@@ -265,6 +281,12 @@ class MultiSiteScraper(BaseScraper):
             
             # Check if this is a direct PDF file
             if self._is_valid_extension(url):
+                # Skip if from excluded site
+                if self._is_excluded_site(url):
+                    if log_callback:
+                        log_callback(f"Skipping PDF from excluded site: {url}")
+                    return results
+                
                 if self._matches_search_terms(url) and not self._matches_exclude_terms(url):
                     # Check file size if filters are set
                     file_size_mb = self._get_file_size_mb(url)
@@ -314,6 +336,12 @@ class MultiSiteScraper(BaseScraper):
                 
                 # Skip if already scraped
                 if pdf_url_normalized in scraped_urls:
+                    continue
+                
+                # Skip if from excluded site
+                if self._is_excluded_site(pdf_url):
+                    if log_callback:
+                        log_callback(f"Skipping PDF from excluded site: {pdf_url}")
                     continue
                 
                 # Get title from link text or URL (prefer link text)
@@ -429,6 +457,7 @@ class MultiSiteScraper(BaseScraper):
             log_callback(f"Starting multi-site scraping across {len(self.sites)} sites")
             log_callback(f"Search terms: {', '.join(self.search_terms) if self.search_terms else 'None'}")
             log_callback(f"Exclude terms: {', '.join(self.exclude_terms) if self.exclude_terms else 'None'}")
+            log_callback(f"Exclude sites: {', '.join(self.exclude_sites) if self.exclude_sites else 'None'}")
             log_callback(f"Max depth: {self.max_depth}, Follow links: {self.follow_links}")
         
         # Scrape sites concurrently
@@ -472,6 +501,12 @@ class MultiSiteScraper(BaseScraper):
             # Ensure URL has a scheme
             if not site_url.startswith(('http://', 'https://')):
                 site_url = f'https://{site_url}'
+            
+            # Check if this site is excluded
+            if self._is_excluded_site(site_url):
+                if log_callback:
+                    log_callback(f"Skipping excluded site: {site_url}")
+                return results
             
             results = self._scrape_page(site_url, 0, visited_urls, scraped_urls, log_callback)
             

@@ -180,6 +180,7 @@ class ScrapeJob(Base):
     
     # Advanced scraping settings
     sites = Column(Text, nullable=True)  # JSON array of site URLs to scrape
+    exclude_sites = Column(Text, nullable=True)  # JSON array of site URLs/domains to exclude
     search_terms = Column(Text, nullable=True)  # Comma-separated search terms
     exclude_terms = Column(Text, nullable=True)  # Comma-separated terms to exclude
     min_pages = Column(Integer, nullable=True, default=5)  # Minimum PDF page count
