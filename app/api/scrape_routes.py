@@ -679,3 +679,97 @@ def generate_scrape_config(request: GenerateConfigRequest):
     result.pop('traceback', None)
     
     return GenerateConfigResponse(**result)
+
+
+@router.post("/{job_id}/clone", response_model=ScrapeJobResponse, status_code=status.HTTP_201_CREATED)
+def clone_scrape_job(job_id: int, db: Session = Depends(get_db)):
+    """Clone an existing scrape job with all its configuration options"""
+    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scrape job with ID {job_id} not found"
+        )
+    
+    # Get the next queue position
+    queue_pos = get_queue_position(db)
+    
+    # Create a new job with the same configuration
+    new_job = ScrapeJob(
+        name=f"{job.name} (Copy)",
+        source_type=job.source_type,
+        query=job.query,
+        max_results=job.max_results,
+        status='queued',
+        scheduled_time=None,  # Cloned jobs start as queued, not scheduled
+        schedule_frequency=job.schedule_frequency,
+        equipment_type=job.equipment_type,
+        manufacturer=job.manufacturer,
+        queue_position=queue_pos,
+        autostart_enabled=job.autostart_enabled,
+        # Advanced scraping settings - copy all
+        sites=job.sites,
+        search_terms=job.search_terms,
+        exclude_terms=job.exclude_terms,
+        min_pages=job.min_pages,
+        max_pages=job.max_pages,
+        min_file_size_mb=job.min_file_size_mb,
+        max_file_size_mb=job.max_file_size_mb,
+        follow_links=job.follow_links,
+        max_depth=job.max_depth,
+        extract_directories=job.extract_directories,
+        file_extensions=job.file_extensions,
+        skip_duplicates=job.skip_duplicates,
+        notes=job.notes
+    )
+    
+    db.add(new_job)
+    db.commit()
+    db.refresh(new_job)
+    
+    return new_job
+
+
+@router.get("/{job_id}/full-config")
+def get_full_job_config(job_id: int, db: Session = Depends(get_db)):
+    """Get the full configuration of a job for cloning/editing purposes"""
+    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+    
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scrape job with ID {job_id} not found"
+        )
+    
+    return {
+        "id": job.id,
+        "name": job.name,
+        "source_type": job.source_type,
+        "query": job.query,
+        "max_results": job.max_results,
+        "scheduled_time": job.scheduled_time.isoformat() if job.scheduled_time else None,
+        "schedule_frequency": job.schedule_frequency,
+        "equipment_type": job.equipment_type,
+        "manufacturer": job.manufacturer,
+        "autostart_enabled": job.autostart_enabled,
+        # Advanced scraping settings
+        "sites": job.sites,
+        "search_terms": job.search_terms,
+        "exclude_terms": job.exclude_terms,
+        "min_pages": job.min_pages,
+        "max_pages": job.max_pages,
+        "min_file_size_mb": job.min_file_size_mb,
+        "max_file_size_mb": job.max_file_size_mb,
+        "follow_links": job.follow_links,
+        "max_depth": job.max_depth,
+        "extract_directories": job.extract_directories,
+        "file_extensions": job.file_extensions,
+        "skip_duplicates": job.skip_duplicates,
+        "notes": job.notes,
+        "status": job.status,
+        "progress": job.progress,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None
+    }

@@ -7,6 +7,7 @@ let scrapeJobs = [];
 let currentEditingJobId = null;
 let autostartEnabled = false;
 let currentScrapeInterval = null;
+let currentViewingJobId = null; // For job details modal
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
@@ -277,7 +278,7 @@ function renderJobCard(job) {
     const statusClass = job.status;
     const statusLabel = getStatusLabel(job.status);
     const scheduleInfo = getScheduledInfo(job);
-    
+
     return `
         <div class="card job-card ${statusClass}" data-job-id="${job.id}">
             <div class="card-body">
@@ -324,6 +325,12 @@ function renderJobCard(job) {
                                 <i class="bi bi-stop-fill"></i>
                             </button>
                         ` : ''}
+                        <button class="btn btn-outline-info btn-sm" onclick="viewJobDetails(${job.id})" title="View Details & Logs">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" onclick="cloneJob(${job.id})" title="Clone Job">
+                            <i class="bi bi-copy"></i>
+                        </button>
                         <button class="btn btn-outline-secondary btn-sm" onclick="editJob(${job.id})" title="Edit">
                             <i class="bi bi-pencil"></i>
                         </button>
@@ -779,15 +786,225 @@ async function stopJob(jobId) {
         const response = await fetch(`/api/scrape-jobs/${jobId}/stop`, {
             method: 'POST'
         });
-        
+
         if (!response.ok) throw new Error('Failed to stop job');
-        
+
         refreshQueue();
         showSuccess('Job stopped successfully!');
-        
+
     } catch (error) {
         console.error('Error stopping job:', error);
         showError('Failed to stop job. Please try again.');
+    }
+}
+
+/**
+ * Clone a scrape job
+ */
+async function cloneJob(jobId) {
+    try {
+        const response = await fetch(`/api/scrape-jobs/${jobId}/clone`, {
+            method: 'POST'
+        });
+
+        if (!response.ok) throw new Error('Failed to clone job');
+
+        const newJob = await response.json();
+        refreshQueue();
+        showSuccess(`Job cloned successfully! New job: ${newJob.name}`);
+
+    } catch (error) {
+        console.error('Error cloning job:', error);
+        showError('Failed to clone job. Please try again.');
+    }
+}
+
+/**
+ * View job details and logs
+ */
+async function viewJobDetails(jobId) {
+    currentViewingJobId = jobId;
+
+    try {
+        // Fetch full job config
+        const configResponse = await fetch(`/api/scrape-jobs/${jobId}/full-config`);
+        if (!configResponse.ok) throw new Error('Failed to fetch job config');
+        const config = await configResponse.json();
+
+        // Fetch job logs
+        const logsResponse = await fetch(`/api/scrape-jobs/${jobId}/logs`);
+        if (!logsResponse.ok) throw new Error('Failed to fetch job logs');
+        const logsData = await logsResponse.json();
+
+        // Render job configuration
+        renderJobConfigDetails(config);
+
+        // Render logs
+        renderJobLogs(logsData.logs);
+
+        // Update clone button in modal
+        document.getElementById('cloneFromDetailsBtn').onclick = () => {
+            bootstrap.Modal.getInstance(document.getElementById('jobDetailsModal')).hide();
+            cloneJob(jobId);
+        };
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('jobDetailsModal'));
+        modal.show();
+
+    } catch (error) {
+        console.error('Error viewing job details:', error);
+        showError('Failed to load job details. Please try again.');
+    }
+}
+
+/**
+ * Render job configuration details in modal
+ */
+function renderJobConfigDetails(config) {
+    const container = document.getElementById('jobConfigDetails');
+
+    const formatValue = (value) => {
+        if (value === null || value === undefined || value === '') return '<span class="text-muted">Not set</span>';
+        return escapeHtml(String(value));
+    };
+
+    container.innerHTML = `
+        <div class="col-md-6">
+            <table class="table table-sm">
+                <tbody>
+                    <tr><th>Name</th><td>${formatValue(config.name)}</td></tr>
+                    <tr><th>Status</th><td><span class="badge bg-${getStatusBadgeClass(config.status)}">${getStatusLabel(config.status)}</span></td></tr>
+                    <tr><th>Source Type</th><td>${formatValue(getSourceTypeLabel(config.source_type))}</td></tr>
+                    <tr><th>Query</th><td><code>${formatValue(config.query)}</code></td></tr>
+                    <tr><th>Max Results</th><td>${formatValue(config.max_results)}</td></tr>
+                    <tr><th>Equipment Type</th><td>${formatValue(config.equipment_type)}</td></tr>
+                    <tr><th>Manufacturer</th><td>${formatValue(config.manufacturer)}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="col-md-6">
+            <table class="table table-sm">
+                <tbody>
+                    <tr><th>Search Terms</th><td>${formatValue(config.search_terms)}</td></tr>
+                    <tr><th>Exclude Terms</th><td>${formatValue(config.exclude_terms)}</td></tr>
+                    <tr><th>File Extensions</th><td>${formatValue(config.file_extensions)}</td></tr>
+                    <tr><th>Min Pages</th><td>${formatValue(config.min_pages)}</td></tr>
+                    <tr><th>Max Pages</th><td>${formatValue(config.max_pages)}</td></tr>
+                    <tr><th>File Size (MB)</th><td>${formatValue(config.min_file_size_mb)} - ${formatValue(config.max_file_size_mb)}</td></tr>
+                    <tr><th>Max Depth</th><td>${formatValue(config.max_depth)}</td></tr>
+                    <tr><th>Follow Links</th><td>${config.follow_links ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td></tr>
+                    <tr><th>Extract Directories</th><td>${config.extract_directories ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td></tr>
+                    <tr><th>Skip Duplicates</th><td>${config.skip_duplicates ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td></tr>
+                    <tr><th>Autostart</th><td>${config.autostart_enabled ? '<i class="bi bi-check-circle text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td></tr>
+                </tbody>
+            </table>
+        </div>
+        ${config.sites ? `
+        <div class="col-12 mt-2">
+            <strong>Sites:</strong>
+            <pre class="bg-light p-2 mt-1" style="max-height: 150px; overflow-y: auto;">${escapeHtml(config.sites)}</pre>
+        </div>
+        ` : ''}
+        ${config.error_message ? `
+        <div class="col-12 mt-2">
+            <div class="alert alert-danger mb-0">
+                <strong>Error:</strong> ${escapeHtml(config.error_message)}
+            </div>
+        </div>
+        ` : ''}
+    `;
+}
+
+/**
+ * Get badge class for status
+ */
+function getStatusBadgeClass(status) {
+    const classes = {
+        'queued': 'secondary',
+        'scheduled': 'info',
+        'running': 'primary',
+        'completed': 'success',
+        'failed': 'danger'
+    };
+    return classes[status] || 'secondary';
+}
+
+/**
+ * Render job logs in modal
+ */
+function renderJobLogs(logs) {
+    const container = document.getElementById('jobLogsContainer');
+
+    if (!logs || logs.length === 0) {
+        container.innerHTML = '<div class="text-muted">No logs available for this job.</div>';
+        return;
+    }
+
+    let html = '';
+    logs.forEach(log => {
+        const time = new Date(log.time).toLocaleTimeString();
+        const messageClass = log.level ? `log-message ${log.level}` : 'log-message';
+        html += `<div class="log-entry">
+            <span class="log-time">[${time}]</span>
+            <span class="${messageClass}">${escapeHtml(log.message)}</span>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+    container.scrollTop = container.scrollHeight;
+}
+
+/**
+ * Populate form with existing job config for editing
+ */
+async function populateFormWithJob(jobId) {
+    try {
+        const response = await fetch(`/api/scrape-jobs/${jobId}/full-config`);
+        if (!response.ok) throw new Error('Failed to fetch job config');
+        const config = await response.json();
+
+        // Populate manual form fields
+        document.getElementById('jobName').value = config.name || '';
+        document.getElementById('sourceType').value = config.source_type || 'multi_site';
+        document.getElementById('ddgSearchQuery').value = config.query || '';
+        document.getElementById('maxResults').value = config.max_results || 100;
+        document.getElementById('searchTerms').value = config.search_terms || '';
+        document.getElementById('excludeTerms').value = config.exclude_terms || '';
+        document.getElementById('minPages').value = config.min_pages || 5;
+        document.getElementById('equipmentType').value = config.equipment_type || '';
+        document.getElementById('manufacturer').value = config.manufacturer || '';
+        document.getElementById('autostartEnabled').checked = config.autostart_enabled || false;
+        document.getElementById('maxDepth').value = config.max_depth || 2;
+        document.getElementById('followLinks').checked = config.follow_links !== false;
+        document.getElementById('extractDirectories').checked = config.extract_directories !== false;
+        document.getElementById('skipDuplicates').checked = config.skip_duplicates !== false;
+        document.getElementById('fileExtensions').value = config.file_extensions || 'pdf';
+        document.getElementById('minFileSizeMb').value = config.min_file_size_mb || '';
+        document.getElementById('maxFileSizeMb').value = config.max_file_size_mb || '';
+
+        // Handle sites (JSON array or string)
+        if (config.sites) {
+            try {
+                const sites = JSON.parse(config.sites);
+                document.getElementById('sites').value = sites.join('\n');
+            } catch {
+                document.getElementById('sites').value = config.sites;
+            }
+        }
+
+        // Toggle multi-site fields visibility
+        toggleMultiSiteFields();
+
+        // Switch to manual tab
+        document.querySelector('#manual-tab').click();
+
+        // Show success message
+        showSuccess('Job configuration loaded. Modify as needed and click Create Job.');
+
+    } catch (error) {
+        console.error('Error loading job config:', error);
+        showError('Failed to load job configuration. Please try again.');
     }
 }
 
