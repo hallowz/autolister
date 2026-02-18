@@ -421,6 +421,10 @@ Return ONLY a JSON object with this format:
 
             return suitable
 
+        except Exception as e:
+            print(f"[DEBUG] Error evaluating manual with AI: {str(e)}")
+            return False
+
     def _create_listings_for_manuals(self, count: int) -> int:
         """Create Etsy listings for suitable manuals"""
         from app.passive_income.database import PlatformListing
