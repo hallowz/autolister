@@ -204,6 +204,93 @@ class AgentLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class NicheDiscovery(Base):
+    """
+    Stores AI-discovered niches for passive income opportunities
+    """
+    __tablename__ = "niche_discoveries"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    niche = Column(String, nullable=False)  # Niche name
+    description = Column(Text, nullable=True)  # Detailed description
+    search_query = Column(Text, nullable=True)  # Suggested search query
+    potential_price = Column(String, nullable=True)  # e.g., "4.99-9.99"
+    demand_level = Column(String, default='medium')  # 'low', 'medium', 'high'
+    competition_level = Column(String, default='medium')  # 'low', 'medium', 'high'
+    keywords = Column(Text, nullable=True)  # JSON array of keywords
+    sites_to_search = Column(Text, nullable=True)  # JSON array of sites
+    reason = Column(Text, nullable=True)  # Why this niche is good
+    status = Column(String, default='discovered')  # 'discovered', 'job_created', 'scraping', 'evaluated', 'exhausted'
+    scrape_job_id = Column(Integer, ForeignKey("scrape_jobs.id"), nullable=True)
+    manuals_found = Column(Integer, default=0)
+    manuals_listed = Column(Integer, default=0)
+    revenue_generated = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    last_scraped_at = Column(DateTime, nullable=True)
+
+
+class MarketResearch(Base):
+    """
+    Stores market research data for individual manuals/products
+    """
+    __tablename__ = "market_research"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    manual_id = Column(Integer, ForeignKey("manuals.id"), nullable=True)
+    niche_id = Column(Integer, ForeignKey("niche_discoveries.id"), nullable=True)
+    
+    # Search data
+    search_query = Column(Text, nullable=True)
+    similar_listings = Column(Text, nullable=True)  # JSON array of similar listings found
+    competitor_prices = Column(Text, nullable=True)  # JSON array of prices
+    average_price = Column(Float, nullable=True)
+    price_range_low = Column(Float, nullable=True)
+    price_range_high = Column(Float, nullable=True)
+    
+    # Market analysis
+    demand_score = Column(Float, default=0.0)  # 0-1 score
+    competition_score = Column(Float, default=0.0)  # 0-1 score
+    profitability_score = Column(Float, default=0.0)  # 0-1 score
+    
+    # AI evaluation
+    ai_evaluation = Column(Text, nullable=True)  # JSON with full AI evaluation
+    is_suitable = Column(Boolean, default=True)
+    confidence_score = Column(Float, default=0.0)
+    suggested_price = Column(Float, default=4.99)
+    seo_title = Column(String, nullable=True)
+    target_audience = Column(Text, nullable=True)
+    concerns = Column(Text, nullable=True)  # JSON array of concerns
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    manual = relationship("Manual", backref="market_research")
+
+
+class AutoScrapingState(Base):
+    """
+    Tracks the state of the auto-scraping agent
+    """
+    __tablename__ = "auto_scraping_state"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    is_enabled = Column(Boolean, default=False)
+    current_phase = Column(String, default='idle')  # 'idle', 'discovering', 'scraping', 'evaluating', 'listing'
+    current_job_id = Column(Integer, nullable=True)
+    last_cycle_at = Column(DateTime, nullable=True)
+    next_cycle_at = Column(DateTime, nullable=True)
+    cycle_count = Column(Integer, default=0)
+    total_niches_discovered = Column(Integer, default=0)
+    total_manuals_evaluated = Column(Integer, default=0)
+    total_manuals_listed = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class PassiveIncomeManager:
     """
     Manager class for passive income operations
@@ -364,7 +451,10 @@ def create_passive_income_tables():
         ActionQueue.__table__,
         Revenue.__table__,
         Setting.__table__,
-        AgentLog.__table__
+        AgentLog.__table__,
+        NicheDiscovery.__table__,
+        MarketResearch.__table__,
+        AutoScrapingState.__table__
     ])
 
 

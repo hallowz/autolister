@@ -33,6 +33,12 @@
         .platform-card.disconnected { border-left: 4px solid var(--danger-red); }
         .platform-card.pending { border-left: 4px solid var(--warning-yellow); }
         
+        .niche-card { transition: all 0.3s ease; }
+        .niche-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .niche-card.high-demand { border-left: 4px solid var(--success-green); }
+        .niche-card.medium-demand { border-left: 4px solid var(--warning-yellow); }
+        .niche-card.low-demand { border-left: 4px solid var(--info-blue); }
+        
         .action-required { background-color: rgba(248, 113, 113, 0.1); border: 1px solid var(--danger-red); }
         .action-required .card-header { background-color: rgba(248, 113, 113, 0.2); }
         
@@ -90,6 +96,8 @@
         .btn-outline-secondary:hover { background-color: #475569; color: #fff; }
         .btn-outline-light { color: var(--text-primary); border-color: #475569; }
         .btn-outline-light:hover { background-color: #475569; color: #fff; }
+        .btn-outline-danger { color: var(--danger-red); border-color: var(--danger-red); }
+        .btn-outline-danger:hover { background-color: var(--danger-red); color: #fff; }
         
         .form-control, .form-select { background-color: #0f172a; border-color: #334155; color: var(--text-primary); }
         .form-control::placeholder { color: var(--text-muted); }
@@ -97,10 +105,92 @@
         
         .alert-info { background-color: #1e3a5f; border-color: var(--info-blue); color: var(--text-primary); }
         .alert-danger { background-color: #3f1f1f; border-color: var(--danger-red); color: var(--text-primary); }
+        .alert-success { background-color: #1f3f1f; border-color: var(--success-green); color: var(--text-primary); }
+        .alert-warning { background-color: #3f3f1f; border-color: var(--warning-yellow); color: var(--text-primary); }
         
         .modal-content { background-color: #1e293b; }
         .modal-header { border-color: #334155; }
         .modal-footer { border-color: #334155; }
+        
+        .auto-scraping-toggle {
+            background: linear-gradient(135deg, #1e293b 0%, #2d3b4f 100%);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #475569;
+            transition: .4s;
+            border-radius: 30px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: var(--success-green);
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(30px);
+        }
+        
+        .phase-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.85rem;
+        }
+        
+        .phase-idle { background-color: #334155; }
+        .phase-discovering { background-color: #3b82f6; }
+        .phase-scraping { background-color: #8b5cf6; }
+        .phase-evaluating { background-color: #f59e0b; }
+        .phase-listing { background-color: #10b981; }
+        .phase-error { background-color: #ef4444; }
+        
+        .log-entry {
+            padding: 0.5rem;
+            border-left: 3px solid #334155;
+            margin-bottom: 0.25rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+        
+        .log-started { border-left-color: var(--info-blue); }
+        .log-completed { border-left-color: var(--success-green); }
+        .log-failed { border-left-color: var(--danger-red); }
+        .log-waiting { border-left-color: var(--warning-yellow); }
     </style>
 </head>
 <body>
@@ -135,8 +225,63 @@
                     <strong>Action Required!</strong>
                     <span id="action-count">0</span> items need your attention.
                 </div>
-                <button class="btn btn-sm btn-outline-light ms-auto" onclick="showActionsModal()">
+                <button class="btn btn-sm btn-outline-light ms-auto" onclick="showActionsTab()">
                     View Actions
+                </button>
+            </div>
+        </div>
+
+        <!-- Auto-Scraping Control Panel -->
+        <div class="auto-scraping-toggle">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-1">
+                        <i class="bi bi-robot me-2"></i>AI Auto-Scraping Agent
+                    </h5>
+                    <small class="text-muted">Automatically discovers profitable niches, scrapes content, and creates listings</small>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div id="phase-display" class="phase-indicator phase-idle">
+                        <i class="bi bi-circle"></i>
+                        <span id="phase-text">Idle</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="auto-scraping-toggle" onchange="toggleAutoScraping()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+            
+            <!-- Agent Stats -->
+            <div class="row mt-3" id="agent-stats">
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Niches Discovered</small>
+                    <strong id="stat-niches">0</strong>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Manuals Evaluated</small>
+                    <strong id="stat-evaluated">0</strong>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Manuals Listed</small>
+                    <strong id="stat-listed">0</strong>
+                </div>
+                <div class="col-md-3">
+                    <small class="text-muted d-block">Last Cycle</small>
+                    <strong id="stat-last-cycle">Never</strong>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="runCycle()" id="run-cycle-btn">
+                    <i class="bi bi-play-fill"></i> Run Cycle Now
+                </button>
+                <button class="btn btn-sm btn-outline-info" onclick="discoverNiches()">
+                    <i class="bi bi-lightbulb"></i> Discover Niches
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="showAgentLogs()">
+                    <i class="bi bi-journal-text"></i> View Logs
                 </button>
             </div>
         </div>
@@ -172,7 +317,10 @@
         <!-- Tabs -->
         <ul class="nav nav-tabs mb-4">
             <li class="nav-item">
-                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#platforms">Platforms</button>
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#niches">Discovered Niches</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#platforms">Platforms</button>
             </li>
             <li class="nav-item">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#listings">Listings</button>
@@ -188,8 +336,30 @@
         </ul>
 
         <div class="tab-content">
+            <!-- Niches Tab -->
+            <div class="tab-pane fade show active" id="niches">
+                <div class="d-flex justify-content-between mb-3">
+                    <h4>AI-Discovered Profitable Niches</h4>
+                    <div>
+                        <select class="form-select d-inline-block w-auto" id="niche-filter" onchange="loadNiches()">
+                            <option value="">All Statuses</option>
+                            <option value="discovered">Discovered</option>
+                            <option value="job_created">Job Created</option>
+                            <option value="scraping">Scraping</option>
+                            <option value="evaluated">Evaluated</option>
+                        </select>
+                        <button class="btn btn-primary ms-2" onclick="discoverNiches()">
+                            <i class="bi bi-lightbulb"></i> Discover New
+                        </button>
+                    </div>
+                </div>
+                <div class="row" id="niches-grid">
+                    <!-- Niche cards will be loaded here -->
+                </div>
+            </div>
+
             <!-- Platforms Tab -->
-            <div class="tab-pane fade show active" id="platforms">
+            <div class="tab-pane fade" id="platforms">
                 <div class="d-flex justify-content-between mb-3">
                     <h4>Platform Management</h4>
                     <button class="btn btn-primary" onclick="runAgentCycle()">
@@ -290,17 +460,429 @@
         </div>
     </div>
 
+    <!-- Agent Logs Modal -->
+    <div class="modal fade" id="logsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title">Agent Logs</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+                    <div id="logs-container">
+                        <!-- Logs will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Niche Details Modal -->
+    <div class="modal fade" id="nicheModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="nicheModalTitle">Niche Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="nicheModalBody">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="niche-action-btn">Create Job</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cycle Results Modal -->
+    <div class="modal fade" id="cycleResultsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="bi bi-robot me-2"></i>Agent Cycle Results
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="cycle-results-content">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="run-again-btn">
+                        <i class="bi bi-arrow-repeat"></i> Run Again
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentPlatformId = null;
         let currentActionId = null;
+        let currentNicheId = null;
+        let autoScrapingEnabled = false;
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             loadStats();
             loadPlatforms();
             loadActions();
+            loadAutoScrapingStatus();
+            loadNiches();
+            
+            // Setup Run Again button
+            const runAgainBtn = document.getElementById('run-again-btn');
+            if (runAgainBtn) {
+                runAgainBtn.addEventListener('click', () => {
+                    bootstrap.Modal.getInstance(document.getElementById('cycleResultsModal')).hide();
+                    runCycle();
+                });
+            }
+            
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadAutoScrapingStatus();
+                loadStats();
+            }, 30000);
         });
+        
+        async function loadAutoScrapingStatus() {
+            try {
+                const response = await fetch('/api/passive-income/auto-scraping/status');
+                const data = await response.json();
+                
+                autoScrapingEnabled = data.enabled;
+                document.getElementById('auto-scraping-toggle').checked = data.enabled;
+                
+                // Update phase indicator
+                const phase = data.current_phase || 'idle';
+                updatePhaseIndicator(phase);
+                
+                // Update stats - show pending work prominently
+                document.getElementById('stat-niches').textContent = data.available_niches || 0;
+                document.getElementById('stat-evaluated').textContent = data.total_manuals_evaluated || 0;
+                document.getElementById('stat-listed').textContent = data.total_manuals_listed || 0;
+                
+                if (data.last_cycle) {
+                    const lastDate = new Date(data.last_cycle);
+                    document.getElementById('stat-last-cycle').textContent = lastDate.toLocaleTimeString();
+                }
+                
+                // Update pending work display
+                updatePendingWork(data);
+                
+                // Update niches if provided
+                if (data.niches && data.niches.length > 0) {
+                    renderNiches(data.niches);
+                }
+                
+                // Show error if any
+                if (data.last_error && data.error_count > 0) {
+                    console.warn('Auto-scraping error:', data.last_error);
+                }
+                
+            } catch (error) {
+                console.error('Error loading auto-scraping status:', error);
+            }
+        }
+        
+        function updatePendingWork(data) {
+            // Find or create pending work display
+            let pendingDiv = document.getElementById('pending-work-display');
+            if (!pendingDiv) {
+                pendingDiv = document.createElement('div');
+                pendingDiv.id = 'pending-work-display';
+                pendingDiv.className = 'mt-3 p-2 rounded bg-dark';
+                
+                const agentStats = document.getElementById('agent-stats');
+                if (agentStats) {
+                    agentStats.parentElement.appendChild(pendingDiv);
+                }
+            }
+            
+            const hasWork = (data.pending_manuals > 0 || data.approved_manuals > 0 || data.running_jobs > 0);
+            
+            if (hasWork) {
+                let workHtml = '<div class="d-flex justify-content-around text-center">';
+                
+                if (data.pending_manuals > 0) {
+                    workHtml += `<div><span class="badge bg-warning text-dark fs-6">${data.pending_manuals}</span><br><small>Pending</small></div>`;
+                }
+                if (data.approved_manuals > 0) {
+                    workHtml += `<div><span class="badge bg-success fs-6">${data.approved_manuals}</span><br><small>Approved</small></div>`;
+                }
+                if (data.running_jobs > 0) {
+                    workHtml += `<div><span class="badge bg-primary fs-6">${data.running_jobs}</span><br><small>Running</small></div>`;
+                }
+                
+                workHtml += '</div>';
+                pendingDiv.innerHTML = workHtml;
+                pendingDiv.classList.remove('d-none');
+            } else {
+                pendingDiv.innerHTML = '<div class="text-center text-muted small">No pending work - ready to discover new niches</div>';
+            }
+        }
+        
+        function updatePhaseIndicator(phase) {
+            const indicator = document.getElementById('phase-display');
+            const text = document.getElementById('phase-text');
+            
+            // Remove all phase classes
+            indicator.classList.remove('phase-idle', 'phase-discovering', 'phase-scraping', 'phase-evaluating', 'phase-listing', 'phase-error');
+            
+            const phases = {
+                'idle': { icon: 'bi-circle', text: 'Idle', class: 'phase-idle' },
+                'discovering': { icon: 'bi-lightbulb', text: 'Discovering', class: 'phase-discovering' },
+                'scraping': { icon: 'bi-download', text: 'Scraping', class: 'phase-scraping' },
+                'evaluating': { icon: 'bi-clipboard-check', text: 'Evaluating', class: 'phase-evaluating' },
+                'listing': { icon: 'bi-shop', text: 'Listing', class: 'phase-listing' },
+                'error': { icon: 'bi-exclamation-triangle', text: 'Error', class: 'phase-error' }
+            };
+            
+            const phaseInfo = phases[phase] || phases['idle'];
+            indicator.classList.add(phaseInfo.class);
+            indicator.querySelector('i').className = 'bi ' + phaseInfo.icon;
+            text.textContent = phaseInfo.text;
+        }
+        
+        async function toggleAutoScraping() {
+            const toggle = document.getElementById('auto-scraping-toggle');
+            const endpoint = toggle.checked ? 'enable' : 'disable';
+            
+            try {
+                const response = await fetch(`/api/passive-income/auto-scraping/${endpoint}`, { method: 'POST' });
+                const data = await response.json();
+                
+                autoScrapingEnabled = toggle.checked;
+                updatePhaseIndicator(toggle.checked ? 'idle' : 'idle');
+                
+                showToast(data.message, toggle.checked ? 'success' : 'warning');
+                
+            } catch (error) {
+                toggle.checked = autoScrapingEnabled; // Revert on error
+                showToast('Error toggling auto-scraping: ' + error.message, 'danger');
+            }
+        }
+        
+        async function runCycle() {
+            const btn = document.getElementById('run-cycle-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
+            
+            // Update phase indicator
+            updatePhaseIndicator('evaluating');
+            
+            try {
+                const response = await fetch('/api/passive-income/auto-scraping/run-cycle', { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                // Show detailed results modal
+                showCycleResults(data);
+                
+                loadAutoScrapingStatus();
+                loadNiches();
+                
+            } catch (error) {
+                showToast('Error running cycle: ' + error.message, 'danger');
+                updatePhaseIndicator('error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-play-fill"></i> Run Cycle Now';
+            }
+        }
+        
+        function showCycleResults(data) {
+            const container = document.getElementById('cycle-results-content');
+            
+            let html = '<div class="mb-3">';
+            
+            // Status
+            const statusClass = data.status === 'completed' ? 'success' : (data.status === 'error' ? 'danger' : 'warning');
+            html += `<div class="alert alert-${statusClass} mb-3"><strong>Status:</strong> ${data.status}</div>`;
+            
+            // Summary stats
+            html += '<div class="row mb-3">';
+            html += `<div class="col-3 text-center"><div class="h4 text-info">${data.manuals_evaluated || 0}</div><small class="text-muted">Evaluated</small></div>`;
+            html += `<div class="col-3 text-center"><div class="h4 text-success">${data.manuals_processed || 0}</div><small class="text-muted">Processed</small></div>`;
+            html += `<div class="col-3 text-center"><div class="h4 text-warning">${data.jobs_created || 0}</div><small class="text-muted">Jobs Created</small></div>`;
+            html += `<div class="col-3 text-center"><div class="h4 text-primary">${data.running_jobs || 0}</div><small class="text-muted">Running</small></div>`;
+            html += '</div>';
+            
+            // Actions taken
+            if (data.actions_taken && data.actions_taken.length > 0) {
+                html += '<h6>Actions Taken:</h6><ul class="list-group mb-3">';
+                data.actions_taken.forEach(action => {
+                    const icon = action.startsWith('✓') ? 'check-circle text-success' : 
+                                action.startsWith('✗') ? 'x-circle text-danger' : 
+                                action.startsWith('!') ? 'exclamation-circle text-warning' : 
+                                'arrow-right text-info';
+                    html += `<li class="list-group-item bg-transparent border-secondary"><i class="bi bi-${icon} me-2"></i>${action}</li>`;
+                });
+                html += '</ul>';
+            } else if (data.status !== 'disabled') {
+                html += '<div class="text-center text-muted py-3">No actions needed - system is idle</div>';
+            }
+            
+            // Error if any
+            if (data.error) {
+                html += `<div class="alert alert-danger"><strong>Error:</strong> ${data.error}</div>`;
+            }
+            
+            html += '</div>';
+            
+            container.innerHTML = html;
+            
+            const modal = new bootstrap.Modal(document.getElementById('cycleResultsModal'));
+            modal.show();
+        }
+        
+        async function discoverNiches() {
+            try {
+                const response = await fetch('/api/passive-income/auto-scraping/discover-niches', { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadNiches();
+                loadAutoScrapingStatus();
+                
+            } catch (error) {
+                showToast('Error discovering niches: ' + error.message, 'danger');
+            }
+        }
+        
+        async function loadNiches() {
+            const status = document.getElementById('niche-filter').value;
+            const url = '/api/passive-income/auto-scraping/niches' + (status ? `?status=${status}` : '');
+            
+            try {
+                const response = await fetch(url);
+                const niches = await response.json();
+                renderNiches(niches);
+            } catch (error) {
+                console.error('Error loading niches:', error);
+            }
+        }
+        
+        function renderNiches(niches) {
+            const grid = document.getElementById('niches-grid');
+            
+            if (!niches || niches.length === 0) {
+                grid.innerHTML = '<div class="col-12 text-center text-muted py-5">No niches discovered yet. Click "Discover New" to let AI find profitable niches.</div>';
+                return;
+            }
+            
+            grid.innerHTML = niches.map(n => {
+                const demandClass = n.demand_level === 'high' ? 'high-demand' : (n.demand_level === 'medium' ? 'medium-demand' : 'low-demand');
+                const statusBadge = {
+                    'discovered': 'bg-info',
+                    'job_created': 'bg-warning',
+                    'scraping': 'bg-primary',
+                    'evaluated': 'bg-success',
+                    'exhausted': 'bg-secondary'
+                }[n.status] || 'bg-secondary';
+                
+                return `
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card niche-card ${demandClass}">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <h5 class="card-title">${n.niche}</h5>
+                                <span class="badge ${statusBadge}">${n.status}</span>
+                            </div>
+                            <p class="card-text text-muted small">${n.description || 'No description'}</p>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <div>
+                                    <small class="text-muted">Price:</small>
+                                    <span class="text-success">$${n.potential_price || '4.99'}</span>
+                                </div>
+                                <div>
+                                    <small class="text-muted">Demand:</small>
+                                    <span class="badge bg-${n.demand_level === 'high' ? 'success' : (n.demand_level === 'medium' ? 'warning' : 'secondary')}">${n.demand_level || 'medium'}</span>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <small class="text-muted">Keywords: ${(n.keywords || []).slice(0, 3).join(', ')}</small>
+                            </div>
+                            <div class="mt-2 d-flex gap-2">
+                                ${n.status === 'discovered' ? 
+                                    `<button class="btn btn-sm btn-outline-success" onclick="createNicheJob(${n.id})"><i class="bi bi-plus"></i> Create Job</button>` : 
+                                    ''}
+                                <button class="btn btn-sm btn-outline-info" onclick="showNicheDetails(${n.id})"><i class="bi bi-eye"></i> Details</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `}).join('');
+        }
+        
+        async function createNicheJob(nicheId) {
+            try {
+                const response = await fetch(`/api/passive-income/auto-scraping/niches/${nicheId}/create-job`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadNiches();
+                
+            } catch (error) {
+                showToast('Error creating job: ' + error.message, 'danger');
+            }
+        }
+        
+        function showNicheDetails(nicheId) {
+            currentNicheId = nicheId;
+            // Load niche details and show modal
+            // For now, just show a simple modal
+            const modal = new bootstrap.Modal(document.getElementById('nicheModal'));
+            modal.show();
+        }
+        
+        async function showAgentLogs() {
+            try {
+                const response = await fetch('/api/passive-income/auto-scraping/logs?limit=50');
+                const logs = await response.json();
+                
+                const container = document.getElementById('logs-container');
+                if (!logs || logs.length === 0) {
+                    container.innerHTML = '<div class="text-center text-muted py-3">No logs available</div>';
+                } else {
+                    container.innerHTML = logs.map(l => `
+                        <div class="log-entry log-${l.status}">
+                            <div class="d-flex justify-content-between">
+                                <strong>${l.action}</strong>
+                                <small class="text-muted">${new Date(l.created_at).toLocaleString()}</small>
+                            </div>
+                            <div>${l.message}</div>
+                            ${l.data ? `<pre class="mb-0 mt-1 small">${JSON.stringify(l.data, null, 2)}</pre>` : ''}
+                        </div>
+                    `).join('');
+                }
+                
+                const modal = new bootstrap.Modal(document.getElementById('logsModal'));
+                modal.show();
+                
+            } catch (error) {
+                showToast('Error loading logs: ' + error.message, 'danger');
+            }
+        }
         
         async function loadStats() {
             try {
@@ -523,7 +1105,7 @@
                 loadPlatforms();
                 
             } catch (error) {
-                alert('Error saving configuration: ' + error.message);
+                showToast('Error saving configuration: ' + error.message, 'danger');
             }
         }
         
@@ -534,7 +1116,7 @@
                 await fetch(`/api/passive-income/platforms/${platformId}/${endpoint}`, {method: 'POST'});
                 loadPlatforms();
             } catch (error) {
-                alert('Error: ' + error.message);
+                showToast('Error: ' + error.message, 'danger');
             }
         }
         
@@ -544,14 +1126,14 @@
                 const data = await response.json();
                 
                 if (!response.ok) {
-                    alert('Sync failed: ' + (data.detail || JSON.stringify(data)));
+                    showToast('Sync failed: ' + (data.detail || JSON.stringify(data)), 'danger');
                 } else {
-                    alert(data.message || 'Sync completed');
+                    showToast(data.message || 'Sync completed', 'success');
                     loadStats();
                     loadPlatforms();
                 }
             } catch (error) {
-                alert('Error syncing: ' + error.message);
+                showToast('Error syncing: ' + error.message, 'danger');
             }
         }
         
@@ -559,12 +1141,12 @@
             try {
                 const response = await fetch('/api/passive-income/agent/run', {method: 'POST'});
                 const data = await response.json();
-                alert(data.message);
+                showToast(data.message, 'info');
                 loadStats();
                 loadActions();
                 loadListings();
             } catch (error) {
-                alert('Error running agent: ' + error.message);
+                showToast('Error running agent: ' + error.message, 'danger');
             }
         }
         
@@ -590,7 +1172,7 @@
                 loadStats();
                 
             } catch (error) {
-                alert('Error submitting response: ' + error.message);
+                showToast('Error submitting response: ' + error.message, 'danger');
             }
         }
         
@@ -599,7 +1181,7 @@
                 await fetch(`/api/passive-income/actions/${actionId}/cancel`, {method: 'POST'});
                 loadActions();
             } catch (error) {
-                alert('Error: ' + error.message);
+                showToast('Error: ' + error.message, 'danger');
             }
         }
         
@@ -608,8 +1190,33 @@
                 await fetch(`/api/passive-income/listings/${listingId}/retry`, {method: 'POST'});
                 loadListings();
             } catch (error) {
-                alert('Error retrying: ' + error.message);
+                showToast('Error retrying: ' + error.message, 'danger');
             }
+        }
+        
+        function showActionsTab() {
+            document.querySelector('button[data-bs-target="#actions"]').click();
+        }
+        
+        function showToast(message, type = 'info') {
+            // Simple alert for now - could be replaced with a proper toast
+            const alertClass = {
+                'success': 'alert-success',
+                'danger': 'alert-danger',
+                'warning': 'alert-warning',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+            
+            const toast = document.createElement('div');
+            toast.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+            toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; max-width: 400px;';
+            toast.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => toast.remove(), 5000);
         }
     </script>
 </body>

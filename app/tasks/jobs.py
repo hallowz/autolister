@@ -575,3 +575,229 @@ def check_action_timeouts():
         print(f"[check_action_timeouts] Error: {e}")
     finally:
         db.close()
+
+
+@shared_task(name="app.tasks.jobs.run_auto_scraping_cycle")
+def run_auto_scraping_cycle():
+    """
+    Run a cycle of the auto-scraping agent
+    
+    This task should be scheduled to run periodically (e.g., every 5-10 minutes)
+    to:
+    - Evaluate pending manuals for listing suitability
+    - Process approved manuals (download/process)
+    - Monitor running scrape jobs
+    - Create new scrape jobs if idle
+    
+    Returns detailed results of what was done.
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+        from app.passive_income.database import AutoScrapingState
+        
+        # Check if auto-scraping is enabled
+        state = db.query(AutoScrapingState).first()
+        if not state or not state.is_enabled:
+            print("[run_auto_scraping_cycle] Auto-scraping is disabled")
+            return {'status': 'disabled', 'message': 'Auto-scraping is disabled'}
+        
+        agent = AutoScrapingAgent(db)
+        
+        # Run the intelligent cycle
+        results = agent.run_cycle()
+        
+        print(f"[run_auto_scraping_cycle] Cycle completed: {results.get('status')}")
+        print(f"  - Manuals evaluated: {results.get('manuals_evaluated', 0)}")
+        print(f"  - Jobs created: {results.get('jobs_created', 0)}")
+        print(f"  - Actions: {results.get('actions_taken', [])}")
+        
+        return results
+        
+    except Exception as e:
+        print(f"[run_auto_scraping_cycle] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Update state on error
+        try:
+            if 'state' in dir() and state:
+                state.current_phase = 'error'
+                state.error_count = (state.error_count or 0) + 1
+                state.last_error = str(e)
+                db.commit()
+        except:
+            pass
+        
+        return {'status': 'error', 'error': str(e)}
+            
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.evaluate_pending_manuals")
+def evaluate_pending_manuals(limit: int = 50):
+    """
+    Evaluate pending manuals for listing suitability using AI
+    
+    Args:
+        limit: Maximum number of manuals to evaluate
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+        from app.passive_income.database import AutoScrapingState, MarketResearch
+        
+        agent = AutoScrapingAgent(db)
+        
+        # Get pending manuals that haven't been evaluated
+        pending_manuals = db.query(Manual).filter(
+            Manual.status == 'pending',
+            Manual.id.notin_(
+                db.query(MarketResearch.manual_id).filter(
+                    MarketResearch.is_suitable == True
+                )
+            )
+        ).limit(limit).all()
+        
+        print(f"[evaluate_pending_manuals] Evaluating {len(pending_manuals)} manuals")
+        
+        evaluated_count = 0
+        suitable_count = 0
+        
+        for manual in pending_manuals:
+            try:
+                evaluation = agent._evaluate_manual(manual)
+                
+                if evaluation.get('suitable') and evaluation.get('confidence', 0) > 0.6:
+                    manual.status = 'approved'
+                    suitable_count += 1
+                
+                evaluated_count += 1
+                
+            except Exception as e:
+                print(f"[evaluate_pending_manuals] Error evaluating manual {manual.id}: {e}")
+        
+        # Update state
+        state = db.query(AutoScrapingState).first()
+        if state:
+            state.total_manuals_evaluated = (state.total_manuals_evaluated or 0) + evaluated_count
+        db.commit()
+        
+        print(f"[evaluate_pending_manuals] Evaluated {evaluated_count} manuals, {suitable_count} suitable")
+        
+    except Exception as e:
+        print(f"[evaluate_pending_manuals] Error: {e}")
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.discover_niches")
+def discover_niches():
+    """
+    Use AI to discover new profitable niches for passive income
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+        from app.passive_income.database import AutoScrapingState, NicheDiscovery
+        import json
+        
+        agent = AutoScrapingAgent(db)
+        niches = agent.discover_niches()
+        
+        # Store discovered niches
+        for niche_data in niches:
+            existing = db.query(NicheDiscovery).filter(
+                NicheDiscovery.niche == niche_data.get('niche')
+            ).first()
+            
+            if not existing:
+                niche = NicheDiscovery(
+                    niche=niche_data.get('niche'),
+                    description=niche_data.get('description'),
+                    search_query=niche_data.get('search_query'),
+                    potential_price=niche_data.get('potential_price'),
+                    demand_level=niche_data.get('demand_level', 'medium'),
+                    competition_level=niche_data.get('competition_level', 'medium'),
+                    keywords=json.dumps(niche_data.get('keywords', [])),
+                    sites_to_search=json.dumps(niche_data.get('sites_to_search', [])),
+                    reason=niche_data.get('reason')
+                )
+                db.add(niche)
+        
+        # Update state
+        state = db.query(AutoScrapingState).first()
+        if state:
+            state.total_niches_discovered = (state.total_niches_discovered or 0) + len(niches)
+        
+        db.commit()
+        
+        print(f"[discover_niches] Discovered {len(niches)} new niches")
+        
+    except Exception as e:
+        print(f"[discover_niches] Error: {e}")
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.create_jobs_for_niches")
+def create_jobs_for_niches():
+    """
+    Create scrape jobs for discovered niches that don't have jobs yet
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.database import NicheDiscovery
+        from app.database import ScrapeJob
+        import json
+        
+        # Get niches without jobs
+        niches = db.query(NicheDiscovery).filter(
+            NicheDiscovery.status == 'discovered',
+            NicheDiscovery.scrape_job_id == None
+        ).all()
+        
+        jobs_created = 0
+        
+        for niche in niches:
+            try:
+                keywords = json.loads(niche.keywords) if niche.keywords else []
+                sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
+                
+                job = ScrapeJob(
+                    name=f"Auto: {niche.niche}",
+                    source_type='multi_site',
+                    query=niche.search_query or niche.niche,
+                    search_terms=','.join([niche.niche] + keywords[:5]) if keywords else niche.niche,
+                    exclude_terms='preview,operator,user manual,quick start,brochure,catalog',
+                    sites=json.dumps(sites) if sites else None,
+                    max_results=100,
+                    equipment_type=niche.niche.split()[0] if niche.niche else None,
+                    autostart_enabled=True,
+                    status='queued'
+                )
+                
+                db.add(job)
+                db.commit()
+                db.refresh(job)
+                
+                niche.scrape_job_id = job.id
+                niche.status = 'job_created'
+                db.commit()
+                
+                jobs_created += 1
+                
+            except Exception as e:
+                print(f"[create_jobs_for_niches] Error creating job for {niche.niche}: {e}")
+        
+        print(f"[create_jobs_for_niches] Created {jobs_created} jobs from niches")
+        
+    except Exception as e:
+        print(f"[create_jobs_for_niches] Error: {e}")
+    finally:
+        db.close()

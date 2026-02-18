@@ -10,9 +10,11 @@ import json
 from app.database import get_db
 from app.passive_income.database import (
     Platform, PlatformListing, ActionQueue, Revenue, Setting,
-    PassiveIncomeManager, create_passive_income_tables, init_default_platforms
+    PassiveIncomeManager, create_passive_income_tables, init_default_platforms,
+    NicheDiscovery, MarketResearch, AutoScrapingState
 )
 from app.passive_income.agent import AutonomousAgent
+from app.passive_income.auto_scraping_agent import AutoScrapingAgent
 from app.passive_income.platforms import PlatformRegistry
 
 router = APIRouter(prefix="/api/passive-income", tags=["Passive Income"])
@@ -347,3 +349,375 @@ def initialize_passive_income(db: Session = Depends(get_db)):
 
 # Add Manual import
 from app.database import Manual
+
+
+# ============ Auto-Scraping Endpoints ============
+
+@router.get("/auto-scraping/status")
+def get_auto_scraping_status(db: Session = Depends(get_db)):
+    """Get the current status of the auto-scraping agent"""
+    
+    # Get or create state
+    state = db.query(AutoScrapingState).first()
+    if not state:
+        state = AutoScrapingState()
+        db.add(state)
+        db.commit()
+        db.refresh(state)
+    
+    # Count pending manuals
+    pending_count = db.query(Manual).filter(
+        Manual.status == 'pending'
+    ).count()
+    
+    # Count approved manuals waiting to be processed
+    approved_count = db.query(Manual).filter(
+        Manual.status == 'approved',
+        Manual.pdf_path == None
+    ).count()
+    
+    # Count running jobs
+    running_jobs = db.query(ScrapeJob).filter(
+        ScrapeJob.status == 'running'
+    ).count()
+    
+    # Get available niches count
+    available_niches = db.query(NicheDiscovery).filter(
+        NicheDiscovery.status == 'discovered',
+        NicheDiscovery.scrape_job_id == None
+    ).count()
+    
+    # Get recent niche discoveries
+    niches = db.query(NicheDiscovery).order_by(NicheDiscovery.created_at.desc()).limit(10).all()
+    
+    # Get recent market research
+    research = db.query(MarketResearch).order_by(MarketResearch.created_at.desc()).limit(10).all()
+    
+    return {
+        'enabled': state.is_enabled,
+        'current_phase': state.current_phase,
+        'current_job_id': state.current_job_id,
+        'last_cycle': state.last_cycle_at.isoformat() if state.last_cycle_at else None,
+        'next_cycle': state.next_cycle_at.isoformat() if state.next_cycle_at else None,
+        'cycle_count': state.cycle_count,
+        'total_niches_discovered': state.total_niches_discovered,
+        'total_manuals_evaluated': state.total_manuals_evaluated,
+        'total_manuals_listed': state.total_manuals_listed,
+        'error_count': state.error_count,
+        'last_error': state.last_error,
+        # New fields for better visibility
+        'pending_manuals': pending_count,
+        'approved_manuals': approved_count,
+        'running_jobs': running_jobs,
+        'available_niches': available_niches,
+        'niches': [{
+            'id': n.id,
+            'niche': n.niche,
+            'description': n.description,
+            'demand_level': n.demand_level,
+            'competition_level': n.competition_level,
+            'potential_price': n.potential_price,
+            'status': n.status,
+            'manuals_found': n.manuals_found,
+            'manuals_listed': n.manuals_listed,
+            'revenue_generated': n.revenue_generated,
+            'created_at': n.created_at.isoformat()
+        } for n in niches],
+        'recent_research': [{
+            'id': r.id,
+            'manual_id': r.manual_id,
+            'is_suitable': r.is_suitable,
+            'confidence_score': r.confidence_score,
+            'suggested_price': r.suggested_price,
+            'seo_title': r.seo_title,
+            'created_at': r.created_at.isoformat()
+        } for r in research]
+    }
+
+
+@router.post("/auto-scraping/enable")
+def enable_auto_scraping(db: Session = Depends(get_db)):
+    """Enable the auto-scraping agent"""
+    agent = AutoScrapingAgent(db)
+    agent.enable()
+    
+    # Update state
+    state = db.query(AutoScrapingState).first()
+    if not state:
+        state = AutoScrapingState(is_enabled=True)
+        db.add(state)
+    else:
+        state.is_enabled = True
+    db.commit()
+    
+    return {'message': 'Auto-scraping enabled', 'enabled': True}
+
+
+@router.post("/auto-scraping/disable")
+def disable_auto_scraping(db: Session = Depends(get_db)):
+    """Disable the auto-scraping agent"""
+    agent = AutoScrapingAgent(db)
+    agent.disable()
+    
+    # Update state
+    state = db.query(AutoScrapingState).first()
+    if state:
+        state.is_enabled = False
+        db.commit()
+    
+    return {'message': 'Auto-scraping disabled', 'enabled': False}
+
+
+@router.post("/auto-scraping/run-cycle")
+def run_auto_scraping_cycle(db: Session = Depends(get_db)):
+    """Manually trigger an auto-scraping cycle"""
+    import traceback
+    
+    agent = AutoScrapingAgent(db)
+    
+    try:
+        # Run the cycle and get detailed results
+        results = agent.run_cycle()
+        
+        return {
+            'message': 'Cycle completed',
+            'status': results.get('status'),
+            'actions_taken': results.get('actions_taken', []),
+            'manuals_evaluated': results.get('manuals_evaluated', 0),
+            'manuals_processed': results.get('manuals_processed', 0),
+            'jobs_created': results.get('jobs_created', 0),
+            'niches_discovered': results.get('niches_discovered', 0),
+            'running_jobs': results.get('running_jobs', 0),
+            'error': results.get('error')
+        }
+        
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"{str(e)}\n{tb}")
+
+
+@router.post("/auto-scraping/discover-niches")
+def discover_niches(db: Session = Depends(get_db)):
+    """Trigger AI niche discovery"""
+    agent = AutoScrapingAgent(db)
+    
+    try:
+        niches = agent.discover_niches()
+        
+        # Store discovered niches in database
+        for niche_data in niches:
+            existing = db.query(NicheDiscovery).filter(
+                NicheDiscovery.niche == niche_data.get('niche')
+            ).first()
+            
+            if not existing:
+                niche = NicheDiscovery(
+                    niche=niche_data.get('niche'),
+                    description=niche_data.get('description'),
+                    search_query=niche_data.get('search_query'),
+                    potential_price=niche_data.get('potential_price'),
+                    demand_level=niche_data.get('demand_level', 'medium'),
+                    competition_level=niche_data.get('competition_level', 'medium'),
+                    keywords=json.dumps(niche_data.get('keywords', [])),
+                    sites_to_search=json.dumps(niche_data.get('sites_to_search', [])),
+                    reason=niche_data.get('reason')
+                )
+                db.add(niche)
+        
+        # Update state
+        state = db.query(AutoScrapingState).first()
+        if state:
+            state.total_niches_discovered = (state.total_niches_discovered or 0) + len(niches)
+        
+        db.commit()
+        
+        return {
+            'message': f'Discovered {len(niches)} niches',
+            'niches': niches
+        }
+        
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{str(e)}\n{traceback.format_exc()}")
+
+
+@router.get("/auto-scraping/niches")
+def get_discovered_niches(
+    status: str = None,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """Get discovered niches"""
+    query = db.query(NicheDiscovery)
+    
+    if status:
+        query = query.filter(NicheDiscovery.status == status)
+    
+    niches = query.order_by(NicheDiscovery.created_at.desc()).limit(limit).all()
+    
+    return [{
+        'id': n.id,
+        'niche': n.niche,
+        'description': n.description,
+        'search_query': n.search_query,
+        'potential_price': n.potential_price,
+        'demand_level': n.demand_level,
+        'competition_level': n.competition_level,
+        'keywords': json.loads(n.keywords) if n.keywords else [],
+        'sites_to_search': json.loads(n.sites_to_search) if n.sites_to_search else [],
+        'reason': n.reason,
+        'status': n.status,
+        'scrape_job_id': n.scrape_job_id,
+        'manuals_found': n.manuals_found,
+        'manuals_listed': n.manuals_listed,
+        'revenue_generated': n.revenue_generated,
+        'created_at': n.created_at.isoformat(),
+        'last_scraped_at': n.last_scraped_at.isoformat() if n.last_scraped_at else None
+    } for n in niches]
+
+
+@router.post("/auto-scraping/niches/{niche_id}/create-job")
+def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
+    """Create a scrape job for a specific niche"""
+    from app.database import ScrapeJob
+    
+    niche = db.query(NicheDiscovery).filter(NicheDiscovery.id == niche_id).first()
+    if not niche:
+        raise HTTPException(status_code=404, detail="Niche not found")
+    
+    if niche.status not in ['discovered', 'job_created']:
+        raise HTTPException(status_code=400, detail=f"Niche is in status '{niche.status}'")
+    
+    # Create scrape job
+    keywords = json.loads(niche.keywords) if niche.keywords else []
+    sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
+    
+    job = ScrapeJob(
+        name=f"Auto: {niche.niche}",
+        source_type='multi_site',
+        query=niche.search_query or niche.niche,
+        search_terms=','.join([niche.niche] + keywords[:5]) if keywords else niche.niche,
+        exclude_terms='preview,operator,user manual,quick start,brochure,catalog',
+        sites=json.dumps(sites) if sites else None,
+        max_results=100,
+        equipment_type=niche.niche.split()[0] if niche.niche else None,
+        autostart_enabled=True,
+        status='queued'
+    )
+    
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    
+    # Update niche
+    niche.scrape_job_id = job.id
+    niche.status = 'job_created'
+    db.commit()
+    
+    return {
+        'message': f'Created scrape job for {niche.niche}',
+        'job_id': job.id,
+        'niche_id': niche_id
+    }
+
+
+@router.get("/market-research/{manual_id}")
+def get_market_research(manual_id: int, db: Session = Depends(get_db)):
+    """Get market research for a specific manual"""
+    research = db.query(MarketResearch).filter(
+        MarketResearch.manual_id == manual_id
+    ).first()
+    
+    if not research:
+        raise HTTPException(status_code=404, detail="Market research not found")
+    
+    return {
+        'id': research.id,
+        'manual_id': research.manual_id,
+        'search_query': research.search_query,
+        'similar_listings': json.loads(research.similar_listings) if research.similar_listings else [],
+        'competitor_prices': json.loads(research.competitor_prices) if research.competitor_prices else [],
+        'average_price': research.average_price,
+        'price_range_low': research.price_range_low,
+        'price_range_high': research.price_range_high,
+        'demand_score': research.demand_score,
+        'competition_score': research.competition_score,
+        'profitability_score': research.profitability_score,
+        'ai_evaluation': json.loads(research.ai_evaluation) if research.ai_evaluation else {},
+        'is_suitable': research.is_suitable,
+        'confidence_score': research.confidence_score,
+        'suggested_price': research.suggested_price,
+        'seo_title': research.seo_title,
+        'target_audience': research.target_audience,
+        'concerns': json.loads(research.concerns) if research.concerns else [],
+        'created_at': research.created_at.isoformat()
+    }
+
+
+@router.post("/market-research/{manual_id}/evaluate")
+def evaluate_manual(manual_id: int, db: Session = Depends(get_db)):
+    """Trigger AI evaluation for a specific manual"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    agent = AutoScrapingAgent(db)
+    
+    try:
+        evaluation = agent._evaluate_manual(manual)
+        
+        # Create or update market research
+        research = db.query(MarketResearch).filter(
+            MarketResearch.manual_id == manual_id
+        ).first()
+        
+        if not research:
+            research = MarketResearch(manual_id=manual_id)
+            db.add(research)
+        
+        research.ai_evaluation = json.dumps(evaluation)
+        research.is_suitable = evaluation.get('suitable', True)
+        research.confidence_score = evaluation.get('confidence', 0.5)
+        research.suggested_price = evaluation.get('suggested_price', 4.99)
+        research.seo_title = evaluation.get('seo_title', manual.title)
+        research.target_audience = evaluation.get('target_audience', '')
+        research.concerns = json.dumps(evaluation.get('concerns', []))
+        research.market_analysis = json.dumps(evaluation.get('market_analysis', {}))
+        
+        db.commit()
+        
+        return {
+            'message': 'Evaluation completed',
+            'evaluation': evaluation
+        }
+        
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{str(e)}\n{traceback.format_exc()}")
+
+
+# ============ Auto-Scraping Logs ============
+
+@router.get("/auto-scraping/logs")
+def get_auto_scraping_logs(
+    limit: int = 100,
+    agent_id: str = 'auto_scraping',
+    db: Session = Depends(get_db)
+):
+    """Get recent auto-scraping agent logs"""
+    from app.passive_income.database import AgentLog
+    
+    logs = db.query(AgentLog).filter(
+        AgentLog.agent_id == agent_id
+    ).order_by(AgentLog.created_at.desc()).limit(limit).all()
+    
+    return [{
+        'id': l.id,
+        'agent_id': l.agent_id,
+        'action': l.action,
+        'status': l.status,
+        'message': l.message,
+        'data': json.loads(l.data) if l.data else None,
+        'created_at': l.created_at.isoformat()
+    } for l in logs]
