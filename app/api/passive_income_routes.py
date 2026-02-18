@@ -55,6 +55,10 @@ def configure_platform(platform_id: int, credentials: dict, db: Session = Depend
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found")
     
+    # Register platforms if not done
+    from app.passive_income.platforms.registry import auto_register_platforms
+    auto_register_platforms()
+    
     # Store credentials (in production, encrypt these!)
     platform.credentials = json.dumps(credentials)
     platform.credentials_status = 'pending'
@@ -68,14 +72,20 @@ def configure_platform(platform_id: int, credentials: dict, db: Session = Depend
         status_result = platform_client.check_status()
         if status_result.is_connected:
             platform.credentials_status = 'verified'
+            platform.sync_error = None
         else:
             platform.credentials_status = 'error'
-            platform.sync_error = status_result.error
+            platform.sync_error = status_result.error or 'Connection failed'
+        db.commit()
+    else:
+        platform.credentials_status = 'error'
+        platform.sync_error = f"Platform {platform.name} not registered"
         db.commit()
     
     return {
         'message': 'Credentials configured',
-        'status': platform.credentials_status
+        'status': platform.credentials_status,
+        'error': platform.sync_error
     }
 
 
@@ -115,13 +125,23 @@ def sync_platform(platform_id: int, db: Session = Depends(get_db)):
     if not platform:
         raise HTTPException(status_code=404, detail="Platform not found")
     
+    # Check if credentials are configured
+    if platform.credentials_status != 'verified':
+        raise HTTPException(status_code=400, detail="Platform credentials not verified")
+    
+    # Register platforms if not done
+    from app.passive_income.platforms.registry import auto_register_platforms
+    auto_register_platforms()
+    
     agent = AutonomousAgent(db)
     
     try:
         agent._sync_platform_sales(platform)
-        return {'message': 'Sync completed', 'last_sync': platform.last_sync.isoformat()}
+        return {'message': 'Sync completed', 'last_sync': platform.last_sync.isoformat() if platform.last_sync else None}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        error_detail = f"{str(e)}\n{traceback.format_exc()}"
+        raise HTTPException(status_code=500, detail=error_detail)
 
 
 # ============ Dashboard Stats ============
