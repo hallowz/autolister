@@ -416,7 +416,7 @@ Return ONLY a JSON object with this format:
                 item = result[0]
                 suitable = item.get('suitable', False)
                 confidence = item.get('confidence', 0.0)
-                reason = item.get('reason', 'Could not evaluate')
+                eval_reason = item.get('reason', 'Could not evaluate')
                 suitable = suitable and confidence > 0.5
 
             return suitable
