@@ -569,3 +569,7 @@ Return ONLY a JSON object with this format:
             self.log('niche_discovery', 'completed', f'Discovered {len(niches)} niches')
 
             return niches
+
+        except Exception as e:
+            self.log('niche_discovery', 'failed', f'Error discovering niches: {str(e)}')
+            return []
