@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passive Income Dashboard - AutoLister</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --success-green: #10b981;
+            --warning-yellow: #f59e0b;
+            --danger-red: #ef4444;
+            --info-blue: #3b82f6;
+        }
+        
+        body { background-color: #1a1a2e; color: #eee; }
+        .card { background-color: #16213e; border: 1px solid #0f3460; }
+        .card-header { background-color: #0f3460; border-bottom: 1px solid #1a1a2e; }
+        .table { color: #eee; }
+        .table-hover tbody tr:hover { background-color: #0f3460; }
+        
+        .platform-card { transition: all 0.3s ease; }
+        .platform-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        .platform-card.connected { border-left: 4px solid var(--success-green); }
+        .platform-card.disconnected { border-left: 4px solid var(--danger-red); }
+        .platform-card.pending { border-left: 4px solid var(--warning-yellow); }
+        
+        .action-required { background-color: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger-red); }
+        .action-required .card-header { background-color: rgba(239, 68, 68, 0.2); }
+        
+        .stat-card { text-align: center; padding: 1.5rem; }
+        .stat-value { font-size: 2.5rem; font-weight: bold; }
+        .stat-label { color: #888; font-size: 0.9rem; }
+        
+        .revenue-green { color: var(--success-green); }
+        .revenue-card { background: linear-gradient(135deg, #16213e 0%, #1a3a1a 100%); }
+        
+        .badge-api { background-color: var(--info-blue); }
+        .badge-manual { background-color: var(--warning-yellow); color: #000; }
+        .badge-free { background-color: var(--success-green); }
+        
+        .pulse-animation { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .action-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--danger-red);
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .nav-tabs .nav-link { color: #888; }
+        .nav-tabs .nav-link.active { background-color: #16213e; color: #fff; border-color: #0f3460 #0f3460 #16213e; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/dashboard">AutoLister</a>
+            <div class="navbar-nav">
+                <a class="nav-link" href="/dashboard">Dashboard</a>
+                <a class="nav-link active" href="/passive-income">Passive Income</a>
+                <a class="nav-link" href="/scrape-queue">Scrape Queue</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Action Required Banner -->
+        <div id="action-banner" class="alert alert-danger d-none mb-4" role="alert">
+            <div class="d-flex align-items-center">
+                <i class="bi bi-exclamation-triangle-fill me-2 fs-4"></i>
+                <div>
+                    <strong>Action Required!</strong>
+                    <span id="action-count">0</span> items need your attention.
+                </div>
+                <button class="btn btn-sm btn-outline-light ms-auto" onclick="showActionsModal()">
+                    View Actions
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-value revenue-green" id="total-revenue">$0.00</div>
+                    <div class="stat-label">Total Revenue (30 days)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-value text-info" id="total-listings">0</div>
+                    <div class="stat-label">Active Listings</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-value text-success" id="total-sales">0</div>
+                    <div class="stat-label">Sales (30 days)</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="stat-value text-warning" id="active-platforms">0</div>
+                    <div class="stat-label">Active Platforms</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-tabs mb-4">
+            <li class="nav-item">
+                <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#platforms">Platforms</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#listings">Listings</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#actions">
+                    Actions <span class="badge bg-danger" id="actions-tab-badge">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#revenue">Revenue</button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- Platforms Tab -->
+            <div class="tab-pane fade show active" id="platforms">
+                <div class="d-flex justify-content-between mb-3">
+                    <h4>Platform Management</h4>
+                    <button class="btn btn-primary" onclick="runAgentCycle()">
+                        <i class="bi bi-play-fill"></i> Run Agent
+                    </button>
+                </div>
+                <div class="row" id="platforms-grid">
+                    <!-- Platform cards will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Listings Tab -->
+            <div class="tab-pane fade" id="listings">
+                <div class="d-flex justify-content-between mb-3">
+                    <h4>Cross-Platform Listings</h4>
+                    <select class="form-select w-auto" id="listing-filter" onchange="loadListings()">
+                        <option value="">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="listed">Listed</option>
+                        <option value="active">Active</option>
+                        <option value="error">Error</option>
+                    </select>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Platform</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Sales</th>
+                                    <th>Revenue</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="listings-table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Tab -->
+            <div class="tab-pane fade" id="actions">
+                <h4 class="mb-3">Actions Required</h4>
+                <div id="actions-list">
+                    <!-- Action cards will be loaded here -->
+                </div>
+            </div>
+
+            <!-- Revenue Tab -->
+            <div class="tab-pane fade" id="revenue">
+                <h4 class="mb-3">Revenue Analytics</h4>
+                <div class="row" id="revenue-by-platform">
+                    <!-- Revenue by platform will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Platform Config Modal -->
+    <div class="modal fade" id="platformModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="platformModalTitle">Configure Platform</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="platformModalBody">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="savePlatformConfig()">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Response Modal -->
+    <div class="modal fade" id="actionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="actionModalTitle">Action Required</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="actionModalBody">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cancelAction()">Skip</button>
+                    <button type="button" class="btn btn-primary" onclick="submitActionResponse()">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentPlatformId = null;
+        let currentActionId = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStats();
+            loadPlatforms();
+            loadActions();
+        });
+        
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/passive-income/stats');
+                const data = await response.json();
+                
+                document.getElementById('total-revenue').textContent = '$' + (data.revenue.total_revenue || 0).toFixed(2);
+                document.getElementById('total-sales').textContent = data.revenue.total_sales || 0;
+                document.getElementById('active-platforms').textContent = data.platforms.active_platforms || 0;
+                document.getElementById('total-listings').textContent = data.platforms.total_listings || 0;
+                
+                // Show action banner if needed
+                if (data.pending_actions > 0) {
+                    document.getElementById('action-banner').classList.remove('d-none');
+                    document.getElementById('action-count').textContent = data.pending_actions;
+                    document.getElementById('actions-tab-badge').textContent = data.pending_actions;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+        
+        async function loadPlatforms() {
+            try {
+                const response = await fetch('/api/passive-income/platforms');
+                const platforms = await response.json();
+                
+                const grid = document.getElementById('platforms-grid');
+                grid.innerHTML = platforms.map(p => `
+                    <div class="col-md-4 mb-3">
+                        <div class="card platform-card ${getPlatformStatus(p)}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <h5 class="card-title">${p.display_name}</h5>
+                                    <span class="badge ${p.is_free ? 'badge-free' : 'bg-secondary'}">
+                                        ${p.is_free ? 'Free' : 'Paid'}
+                                    </span>
+                                </div>
+                                <p class="card-text text-muted small">
+                                    ${p.supports_api_listing ? 'API Enabled' : 'Manual Listing'}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <div>
+                                        <small class="text-muted">Revenue:</small>
+                                        <span class="text-success fw-bold">$${(p.total_revenue || 0).toFixed(2)}</span>
+                                    </div>
+                                    <div>
+                                        <small class="text-muted">Listings:</small>
+                                        <span class="fw-bold">${p.listing_count || 0}</span>
+                                    </div>
+                                </div>
+                                <div class="mt-3 d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-primary" onclick="configurePlatform(${p.id}, '${p.name}')">
+                                        <i class="bi bi-gear"></i> Configure
+                                    </button>
+                                    ${p.is_active ? 
+                                        `<button class="btn btn-sm btn-outline-warning" onclick="togglePlatform(${p.id}, false)">Disable</button>` :
+                                        `<button class="btn btn-sm btn-outline-success" onclick="togglePlatform(${p.id}, true)">Enable</button>`
+                                    }
+                                    ${p.supports_api_listing ? 
+                                        `<button class="btn btn-sm btn-outline-info" onclick="syncPlatform(${p.id})">
+                                            <i class="bi bi-arrow-repeat"></i> Sync
+                                        </button>` : ''
+                                    }
+                                </div>
+                                ${p.credentials_status === 'error' ? 
+                                    `<div class="alert alert-danger mt-2 mb-0 py-1 small">${p.sync_error || 'Connection error'}</div>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading platforms:', error);
+            }
+        }
+        
+        function getPlatformStatus(p) {
+            if (p.credentials_status === 'verified' && p.is_active) return 'connected';
+            if (p.credentials_status === 'pending') return 'pending';
+            return 'disconnected';
+        }
+        
+        async function loadActions() {
+            try {
+                const response = await fetch('/api/passive-income/actions');
+                const actions = await response.json();
+                
+                const list = document.getElementById('actions-list');
+                
+                if (actions.length === 0) {
+                    list.innerHTML = '<div class="text-center text-muted py-5">No pending actions</div>';
+                    return;
+                }
+                
+                list.innerHTML = actions.map(a => `
+                    <div class="card action-required mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-exclamation-triangle text-danger me-2"></i>${a.title}</span>
+                            <span class="badge bg-danger">Priority ${a.priority}</span>
+                        </div>
+                        <div class="card-body">
+                            <p>${a.description}</p>
+                            ${a.prompt ? `<p class="text-muted"><strong>Required:</strong> ${a.prompt}</p>` : ''}
+                            <button class="btn btn-primary" onclick="showActionModal(${a.id})">
+                                Respond
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="cancelActionById(${a.id})">
+                                Skip
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading actions:', error);
+            }
+        }
+        
+        async function loadListings() {
+            const status = document.getElementById('listing-filter').value;
+            const url = '/api/passive-income/listings' + (status ? `?status=${status}` : '');
+            
+            try {
+                const response = await fetch(url);
+                const listings = await response.json();
+                
+                const tbody = document.getElementById('listings-table');
+                tbody.innerHTML = listings.map(l => `
+                    <tr>
+                        <td><a href="${l.platform_url || '#'}" target="_blank">${l.title}</a></td>
+                        <td>${l.platform_id}</td>
+                        <td>$${l.price.toFixed(2)}</td>
+                        <td><span class="badge bg-${getStatusColor(l.status)}">${l.status}</span></td>
+                        <td>${l.sales}</td>
+                        <td class="text-success">$${l.revenue.toFixed(2)}</td>
+                        <td>
+                            ${l.status === 'error' ? `<button class="btn btn-sm btn-outline-warning" onclick="retryListing(${l.id})">Retry</button>` : ''}
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading listings:', error);
+            }
+        }
+        
+        function getStatusColor(status) {
+            const colors = {
+                'pending': 'warning',
+                'listed': 'success',
+                'active': 'success',
+                'error': 'danger',
+                'action_required': 'danger'
+            };
+            return colors[status] || 'secondary';
+        }
+        
+        function configurePlatform(platformId, platformName) {
+            currentPlatformId = platformId;
+            
+            let formHtml = '';
+            
+            if (platformName === 'etsy') {
+                formHtml = `
+                    <div class="mb-3">
+                        <label class="form-label">API Key</label>
+                        <input type="text" class="form-control" id="cred-api_key" placeholder="Your Etsy API Key">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">API Secret</label>
+                        <input type="password" class="form-control" id="cred-api_secret">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Access Token</label>
+                        <input type="password" class="form-control" id="cred-access_token">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Shop ID</label>
+                        <input type="text" class="form-control" id="cred-shop_id">
+                    </div>
+                `;
+            } else if (platformName === 'gumroad') {
+                formHtml = `
+                    <div class="mb-3">
+                        <label class="form-label">API Token</label>
+                        <input type="password" class="form-control" id="cred-api_token" placeholder="Your Gumroad API Token">
+                    </div>
+                `;
+            } else {
+                formHtml = `
+                    <div class="alert alert-info">
+                        This platform requires manual listing. No API configuration needed.
+                    </div>
+                `;
+            }
+            
+            document.getElementById('platformModalTitle').textContent = 'Configure ' + platformName.charAt(0).toUpperCase() + platformName.slice(1);
+            document.getElementById('platformModalBody').innerHTML = formHtml;
+            
+            new bootstrap.Modal(document.getElementById('platformModal')).show();
+        }
+        
+        async function savePlatformConfig() {
+            const inputs = document.querySelectorAll('[id^="cred-"]');
+            const credentials = {};
+            
+            inputs.forEach(input => {
+                const key = input.id.replace('cred-', '');
+                if (input.value) credentials[key] = input.value;
+            });
+            
+            try {
+                const response = await fetch(`/api/passive-income/platforms/${currentPlatformId}/configure`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(credentials)
+                });
+                
+                const data = await response.json();
+                
+                bootstrap.Modal.getInstance(document.getElementById('platformModal')).hide();
+                loadPlatforms();
+                
+            } catch (error) {
+                alert('Error saving configuration: ' + error.message);
+            }
+        }
+        
+        async function togglePlatform(platformId, activate) {
+            const endpoint = activate ? 'activate' : 'deactivate';
+            
+            try {
+                await fetch(`/api/passive-income/platforms/${platformId}/${endpoint}`, {method: 'POST'});
+                loadPlatforms();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        async function syncPlatform(platformId) {
+            try {
+                const response = await fetch(`/api/passive-income/platforms/${platformId}/sync`, {method: 'POST'});
+                const data = await response.json();
+                alert(data.message);
+                loadStats();
+            } catch (error) {
+                alert('Error syncing: ' + error.message);
+            }
+        }
+        
+        async function runAgentCycle() {
+            try {
+                const response = await fetch('/api/passive-income/agent/run', {method: 'POST'});
+                const data = await response.json();
+                alert(data.message);
+                loadStats();
+                loadActions();
+                loadListings();
+            } catch (error) {
+                alert('Error running agent: ' + error.message);
+            }
+        }
+        
+        function showActionModal(actionId) {
+            currentActionId = actionId;
+            // Load action details and show modal
+            const modal = new bootstrap.Modal(document.getElementById('actionModal'));
+            modal.show();
+        }
+        
+        async function submitActionResponse() {
+            const response = document.querySelector('#actionModalBody input, #actionModalBody textarea')?.value || '';
+            
+            try {
+                await fetch(`/api/passive-income/actions/${currentActionId}/resolve`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({response})
+                });
+                
+                bootstrap.Modal.getInstance(document.getElementById('actionModal')).hide();
+                loadActions();
+                loadStats();
+                
+            } catch (error) {
+                alert('Error submitting response: ' + error.message);
+            }
+        }
+        
+        async function cancelActionById(actionId) {
+            try {
+                await fetch(`/api/passive-income/actions/${actionId}/cancel`, {method: 'POST'});
+                loadActions();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        async function retryListing(listingId) {
+            try {
+                await fetch(`/api/passive-income/listings/${listingId}/retry`, {method: 'POST'});
+                loadListings();
+            } catch (error) {
+                alert('Error retrying: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

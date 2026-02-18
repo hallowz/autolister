@@ -9,6 +9,7 @@ from app.database import init_db
 from app.api.routes import router
 from app.api.file_routes import router as file_router
 from app.api.scrape_routes import router as scrape_router
+from app.api.passive_income_routes import router as passive_income_router
 from app.config import get_settings
 
 settings = get_settings()
@@ -17,19 +18,30 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="Automatic PDF Manual Scraper and Etsy Lister"
+    description="Automatic PDF Manual Scraper and Passive Income Generator"
 )
 
 # Include API routes
 app.include_router(router)
 app.include_router(file_router)
 app.include_router(scrape_router)
+app.include_router(passive_income_router)
 
 # Initialize database on startup
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
     init_db()
+    
+    # Initialize passive income tables
+    try:
+        from app.passive_income.database import create_passive_income_tables, init_default_platforms
+        create_passive_income_tables()
+        init_default_platforms()
+        print("Passive income system initialized!")
+    except Exception as e:
+        print(f"Warning: Could not initialize passive income system: {e}")
+    
     print(f"{settings.app_name} v{settings.app_version} started!")
 
 
@@ -73,6 +85,16 @@ async def scrape_queue():
     if queue_path.exists():
         return FileResponse(queue_path)
     return {"message": "Scrape queue not found"}
+
+
+# Serve passive income dashboard HTML
+@app.get("/passive-income")
+async def passive_income_dashboard():
+    """Serve the passive income dashboard HTML"""
+    dashboard_path = Path(__file__).parent / "static" / "passive-income.html"
+    if dashboard_path.exists():
+        return FileResponse(dashboard_path)
+    return {"message": "Passive income dashboard not found"}
 
 
 @app.get("/favicon.ico")

@@ -470,3 +470,105 @@ def check_queue():
         db.rollback()
     finally:
         db.close()
+
+
+@shared_task(name="app.tasks.jobs.run_passive_income_agent")
+def run_passive_income_agent():
+    """
+    Run the passive income autonomous agent cycle
+    
+    This task should be scheduled to run periodically (e.g., every 30 minutes)
+    to:
+    - List processed manuals on multiple platforms
+    - Sync sales/revenue data from platforms
+    - Handle action queue timeouts
+    - Auto-adjust pricing
+    """
+    try:
+        from app.passive_income.agent import AutonomousAgent
+        agent = AutonomousAgent()
+        agent.run_cycle()
+        print("[run_passive_income_agent] Agent cycle completed successfully")
+    except Exception as e:
+        print(f"[run_passive_income_agent] Error: {e}")
+
+
+@shared_task(name="app.tasks.jobs.sync_platform_sales")
+def sync_platform_sales(platform_id: int = None):
+    """
+    Sync sales data from platforms
+    
+    Args:
+        platform_id: Specific platform to sync, or None for all active platforms
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.database import Platform
+        from app.passive_income.agent import AutonomousAgent
+        
+        agent = AutonomousAgent(db)
+        
+        if platform_id:
+            platforms = [db.query(Platform).get(platform_id)]
+        else:
+            platforms = db.query(Platform).filter(
+                Platform.is_active == True,
+                Platform.credentials_status == 'verified'
+            ).all()
+        
+        for platform in platforms:
+            if platform:
+                try:
+                    agent._sync_platform_sales(platform)
+                    print(f"[sync_platform_sales] Synced {platform.name}")
+                except Exception as e:
+                    print(f"[sync_platform_sales] Error syncing {platform.name}: {e}")
+        
+    except Exception as e:
+        print(f"[sync_platform_sales] Error: {e}")
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.auto_list_processed_manuals")
+def auto_list_processed_manuals():
+    """
+    Automatically list processed manuals on all active platforms
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.database import Platform
+        from app.passive_income.agent import AutonomousAgent
+        
+        agent = AutonomousAgent(db)
+        agent._process_pending_listings()
+        
+        print("[auto_list_processed_manuals] Completed auto-listing cycle")
+        
+    except Exception as e:
+        print(f"[auto_list_processed_manuals] Error: {e}")
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.check_action_timeouts")
+def check_action_timeouts():
+    """
+    Check for and handle expired actions in the action queue
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.agent import AutonomousAgent
+        
+        agent = AutonomousAgent(db)
+        agent._check_action_timeouts()
+        
+        print("[check_action_timeouts] Checked action timeouts")
+        
+    except Exception as e:
+        print(f"[check_action_timeouts] Error: {e}")
+    finally:
+        db.close()
