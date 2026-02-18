@@ -29,16 +29,16 @@ def get_queue_position(db: Session) -> int:
     return (highest_position[0] + 1) if highest_position else 1
 
 
-def reposition_queue(db: Session, from_position: int):
-    """Reposition queue items after a given position"""
+def reposition_queue(db: Session, from_position: int = 0):
+    """Reposition all queued items to have consecutive positions starting from 1"""
     jobs = db.query(ScrapeJob).filter(
-        ScrapeJob.queue_position.isnot(None),
-        ScrapeJob.queue_position > from_position,
-        ScrapeJob.status == 'queued'
-    ).order_by(ScrapeJob.queue_position).all()
+        ScrapeJob.status == 'queued',
+        ScrapeJob.queue_position.isnot(None)
+    ).order_by(ScrapeJob.queue_position.asc()).all()
     
-    for job in jobs:
-        job.queue_position -= 1
+    # Reassign positions consecutively
+    for i, job in enumerate(jobs, start=1):
+        job.queue_position = i
     
     db.commit()
 
@@ -423,15 +423,20 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                 if job:
                     job.status = 'completed'
                     job.progress = 100
+                    job.completed_at = datetime.utcnow()
                     job.updated_at = datetime.utcnow()
                     db.commit()
                     
                     # Check if autostart is enabled and start next job
                     if job_autostart_enabled:
-                        start_next_queued_job(db)
+                        print(f"[autostart] Job {job_id} completed with autostart, starting next job...")
+                        start_next_queued_job(db, previous_job_autostart=True)
                     db.close()
             except Exception as e:
                 # Mark job as failed
+                import traceback
+                print(f"Error in job thread: {e}")
+                traceback.print_exc()
                 db = SessionLocal()
                 job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
                 if job:
@@ -439,6 +444,11 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     job.error_message = str(e)
                     job.updated_at = datetime.utcnow()
                     db.commit()
+                    
+                    # Still try to continue autostart chain on failure
+                    if job_autostart_enabled:
+                        print(f"[autostart] Job {job_id} failed but autostart enabled, continuing chain...")
+                        start_next_queued_job(db, previous_job_autostart=True)
                     db.close()
         
         thread = threading.Thread(target=run_job_with_callback, daemon=True)
@@ -457,149 +467,218 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     return {"message": "Scrape job started successfully"}
 
 
-def start_next_queued_job(db: Session):
-    """Start the next queued job if autostart is enabled"""
+def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
+    """Start the next queued job if autostart chain is enabled"""
     try:
-        # Get the next queued job (position 1)
-        next_job = db.query(ScrapeJob).filter(
-            ScrapeJob.status == 'queued',
-            ScrapeJob.queue_position == 1
-        ).first()
+        # First, reposition the queue to ensure position 1 exists
+        reposition_queue(db, 0)
         
-        if next_job and next_job.autostart_enabled:
-            # Update job status
-            next_job.status = 'running'
-            next_job.queue_position = None
-            next_job.progress = 0
-            next_job.error_message = None
-            next_job.updated_at = datetime.utcnow()
-            db.commit()
+        # Get the next queued job (position 1 or first by position)
+        next_job = db.query(ScrapeJob).filter(
+            ScrapeJob.status == 'queued'
+        ).order_by(ScrapeJob.queue_position.asc()).first()
+        
+        if not next_job:
+            print("[start_next_queued_job] No queued jobs found")
+            return False
+        
+        print(f"[start_next_queued_job] Found next job: {next_job.name} (id={next_job.id}, queue_position={next_job.queue_position})")
+        
+        # Update job status
+        next_job.status = 'running'
+        next_job.queue_position = None
+        next_job.progress = 0
+        next_job.error_message = None
+        next_job.started_at = datetime.utcnow()
+        next_job.updated_at = datetime.utcnow()
+        db.commit()
+        
+        # Reposition remaining queue
+        reposition_queue(db, 0)
+        
+        # Store job data for the thread
+        job_id = next_job.id
+        job_autostart = next_job.autostart_enabled
+        job_source_type = next_job.source_type
+        job_query = next_job.query
+        job_max_results = next_job.max_results
+        job_min_pages = next_job.min_pages
+        job_max_pages = next_job.max_pages
+        job_min_file_size_mb = next_job.min_file_size_mb
+        job_max_file_size_mb = next_job.max_file_size_mb
+        job_follow_links = next_job.follow_links
+        job_max_depth = next_job.max_depth
+        job_extract_directories = next_job.extract_directories
+        job_skip_duplicates = next_job.skip_duplicates
+        job_equipment_type = next_job.equipment_type
+        job_manufacturer = next_job.manufacturer
+        job_sites_str = next_job.sites
+        job_search_terms = next_job.search_terms
+        job_exclude_terms = next_job.exclude_terms
+        job_file_extensions = next_job.file_extensions
+        job_exclude_sites_str = next_job.exclude_sites
+        
+        # Trigger the actual scraping job
+        import threading
+        
+        # Parse advanced settings
+        sites = None
+        if job_sites_str:
+            try:
+                sites = json.loads(job_sites_str)
+            except json.JSONDecodeError:
+                sites = [s.strip() for s in job_sites_str.split('\n') if s.strip()]
+        
+        search_terms = None
+        if job_search_terms:
+            search_terms = [t.strip() for t in job_search_terms.split(',') if t.strip()]
+        
+        exclude_terms = None
+        if job_exclude_terms:
+            exclude_terms = [t.strip() for t in job_exclude_terms.split(',') if t.strip()]
+        
+        file_extensions = None
+        if job_file_extensions:
+            file_extensions = [e.strip() for e in job_file_extensions.split(',') if e.strip()]
+        
+        exclude_sites = None
+        if job_exclude_sites_str:
+            try:
+                exclude_sites = json.loads(job_exclude_sites_str)
+            except json.JSONDecodeError:
+                exclude_sites = [s.strip() for s in job_exclude_sites_str.split('\n') if s.strip()]
+        
+        def run_job_with_callback():
+            # Create a local copy of sites to avoid modifying the outer variable
+            job_sites = sites.copy() if sites else None
             
-            # Reposition remaining queue
-            reposition_queue(db, 0)
-            
-            # Trigger the actual scraping job
-            from app.tasks.jobs import run_search_job, run_multi_site_scraping_job
-            import threading
-            
-            # Parse advanced settings
-            sites = None
-            if next_job.sites:
+            def log_callback(message):
                 try:
-                    sites = json.loads(next_job.sites)
-                except json.JSONDecodeError:
-                    sites = [s.strip() for s in next_job.sites.split('\n') if s.strip()]
-            
-            search_terms = None
-            if next_job.search_terms:
-                search_terms = [t.strip() for t in next_job.search_terms.split(',') if t.strip()]
-            
-            exclude_terms = None
-            if next_job.exclude_terms:
-                exclude_terms = [t.strip() for t in next_job.exclude_terms.split(',') if t.strip()]
-            
-            file_extensions = None
-            if next_job.file_extensions:
-                file_extensions = [e.strip() for e in next_job.file_extensions.split(',') if e.strip()]
-            
-            def run_job_with_callback():
-                # Create a local copy of sites to avoid modifying the outer variable
-                job_sites = sites.copy() if sites else None
-                
-                def log_callback(message):
-                    try:
-                        db = SessionLocal()
-                        job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
-                        if job:
-                            import re
-                            progress_match = re.search(r'(\d+)%', message)
-                            if progress_match:
-                                job.progress = int(progress_match.group(1))
-                            job.updated_at = datetime.utcnow()
-                            db.commit()
-                        db.close()
-                    except Exception as e:
-                        print(f"Error updating job progress: {e}")
-                
-                try:
-                    # Choose the appropriate scraper based on source_type
-                    if next_job.source_type == 'multi_site':
-                        # If no sites provided, use DuckDuckGo to find sites
-                        if not job_sites:
-                            from app.scrapers.duckduckgo import DuckDuckGoScraper
-                            ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
-                            log_callback("Searching DuckDuckGo for sites...")
-                            ddg_results = ddg_scraper.search(next_job.query, max_results=100)
-                            
-                            # Extract unique domains from DuckDuckGo results
-                            unique_domains = set()
-                            job_sites = []
-                            for result in ddg_results:
-                                from urllib.parse import urlparse
-                                parsed = urlparse(result.url)
-                                domain = parsed.netloc
-                                if domain and domain not in unique_domains:
-                                    unique_domains.add(domain)
-                                    # Use the base URL of the site
-                                    base_url = f"{parsed.scheme}://{domain}"
-                                    job_sites.append(base_url)
-                                    log_callback(f"Found site: {base_url}")
-                            
-                            if not job_sites:
-                                log_callback("No sites found from DuckDuckGo search")
-                                raise Exception("No sites found from DuckDuckGo search")
-                        
-                        log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
-                        run_multi_site_scraping_job(
-                            sites=job_sites,
-                            search_terms=search_terms,
-                            exclude_terms=exclude_terms,
-                            min_pages=next_job.min_pages,
-                            max_pages=next_job.max_pages,
-                            min_file_size_mb=next_job.min_file_size_mb,
-                            max_file_size_mb=next_job.max_file_size_mb,
-                            follow_links=next_job.follow_links,
-                            max_depth=next_job.max_depth,
-                            extract_directories=next_job.extract_directories,
-                            file_extensions=file_extensions,
-                            skip_duplicates=next_job.skip_duplicates,
-                            max_results=next_job.max_results,
-                            log_callback=log_callback
-                        )
-                    else:
-                        run_search_job(
-                            query=next_job.query,
-                            source_type=next_job.source_type,
-                            max_results=next_job.max_results,
-                            equipment_type=next_job.equipment_type,
-                            manufacturer=next_job.manufacturer
-                        )
-                    db = SessionLocal()
-                    job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
+                    db_local = SessionLocal()
+                    job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
                     if job:
-                        job.status = 'completed'
-                        job.progress = 100
-                        job.updated_at = datetime.utcnow()
-                        db.commit()
+                        import re
+                        progress_match = re.search(r'(\d+)%', message)
+                        if progress_match:
+                            job.progress = int(progress_match.group(1))
                         
-                        # Check if autostart is enabled and start next job
-                        if job.autostart_enabled:
-                            start_next_queued_job(db)
-                        db.close()
+                        # Add log entry
+                        log_entry = ScrapeJobLog(
+                            job_id=job_id,
+                            time=datetime.utcnow(),
+                            level="info",
+                            message=message
+                        )
+                        db_local.add(log_entry)
+                        job.updated_at = datetime.utcnow()
+                        db_local.commit()
+                    db_local.close()
                 except Exception as e:
-                    db = SessionLocal()
-                    job = db.query(ScrapeJob).filter(ScrapeJob.id == next_job.id).first()
-                    if job:
-                        job.status = 'failed'
-                        job.error_message = str(e)
-                        job.updated_at = datetime.utcnow()
-                        db.commit()
-                        db.close()
+                    print(f"Error updating job progress: {e}")
             
-            thread = threading.Thread(target=run_job_with_callback, daemon=True)
-            thread.start()
+            try:
+                from app.tasks.jobs import run_search_job, run_multi_site_scraping_job
+                
+                # Choose the appropriate scraper based on source_type
+                if job_source_type == 'multi_site':
+                    # If no sites provided, use DuckDuckGo to find sites
+                    if not job_sites:
+                        from app.scrapers.duckduckgo import DuckDuckGoScraper
+                        ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
+                        log_callback("Searching DuckDuckGo for sites...")
+                        ddg_results = ddg_scraper.search(job_query, max_results=100)
+                        
+                        # Extract unique domains from DuckDuckGo results
+                        unique_domains = set()
+                        job_sites = []
+                        for result in ddg_results:
+                            from urllib.parse import urlparse
+                            parsed = urlparse(result.url)
+                            domain = parsed.netloc
+                            # Skip excluded sites
+                            if exclude_sites and any(exc in domain for exc in exclude_sites):
+                                log_callback(f"Excluding site: {domain}")
+                                continue
+                            if domain and domain not in unique_domains:
+                                unique_domains.add(domain)
+                                # Use the base URL of the site
+                                base_url = f"{parsed.scheme}://{domain}"
+                                job_sites.append(base_url)
+                                log_callback(f"Found site: {base_url}")
+                        
+                        if not job_sites:
+                            log_callback("No sites found from DuckDuckGo search")
+                            raise Exception("No sites found from DuckDuckGo search")
+                    
+                    log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
+                    run_multi_site_scraping_job(
+                        sites=job_sites,
+                        search_terms=search_terms,
+                        exclude_terms=exclude_terms,
+                        min_pages=job_min_pages,
+                        max_pages=job_max_pages,
+                        min_file_size_mb=job_min_file_size_mb,
+                        max_file_size_mb=job_max_file_size_mb,
+                        follow_links=job_follow_links,
+                        max_depth=job_max_depth,
+                        extract_directories=job_extract_directories,
+                        file_extensions=file_extensions,
+                        skip_duplicates=job_skip_duplicates,
+                        max_results=job_max_results,
+                        log_callback=log_callback,
+                        job_id=job_id,
+                        exclude_sites=exclude_sites
+                    )
+                else:
+                    run_search_job(
+                        query=job_query,
+                        source_type=job_source_type,
+                        max_results=job_max_results,
+                        equipment_type=job_equipment_type,
+                        manufacturer=job_manufacturer,
+                        job_id=job_id
+                    )
+                    
+                db_local = SessionLocal()
+                job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                if job:
+                    job.status = 'completed'
+                    job.progress = 100
+                    job.completed_at = datetime.utcnow()
+                    job.updated_at = datetime.utcnow()
+                    db_local.commit()
+                    
+                    # Continue autostart chain if this job has autostart enabled
+                    if job.autostart_enabled:
+                        print(f"[autostart] Job {job_id} completed with autostart, starting next job...")
+                        start_next_queued_job(db_local, previous_job_autostart=True)
+                    db_local.close()
+            except Exception as e:
+                import traceback
+                print(f"Error in autostart job: {e}")
+                traceback.print_exc()
+                db_local = SessionLocal()
+                job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                if job:
+                    job.status = 'failed'
+                    job.error_message = str(e)
+                    job.updated_at = datetime.utcnow()
+                    db_local.commit()
+                    
+                    # Still try to continue autostart chain
+                    if job.autostart_enabled:
+                        start_next_queued_job(db_local, previous_job_autostart=True)
+                db_local.close()
+        
+        thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        thread.start()
+        return True
+        
     except Exception as e:
+        import traceback
         print(f"Error starting next queued job: {e}")
+        traceback.print_exc()
+        return False
 
 
 @router.post("/toggle-autostart")
