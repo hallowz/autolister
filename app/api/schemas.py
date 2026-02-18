@@ -1,7 +1,7 @@
 """
 Pydantic schemas for API requests and responses
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -230,15 +230,48 @@ class GenerateConfigRequest(BaseModel):
 
 
 class GenerateConfigResponse(BaseModel):
-    """Schema for generated scrape config response"""
-    name: str
-    source_type: str
-    query: str
-    max_results: int
-    equipment_type: Optional[str] = None
-    manufacturer: Optional[str] = None
-    # Additional fields for advanced scraping
-    search_terms: Optional[str] = None  # Comma-separated search terms
-    exclude_terms: Optional[str] = None  # Terms to exclude from search
-    min_pages: Optional[int] = None  # Minimum PDF page count
-    traversal_pattern: Optional[str] = None  # Pattern for traversing links
+    """Schema for generated scrape config response - ALL fields populated by AI"""
+    
+    # Basic configuration
+    name: str = Field(description="Short, descriptive name for the job")
+    source_type: str = Field(default="multi_site", description="Source type: multi_site, search, forum, manual_site, gdrive")
+    query: str = Field(description="Search query with OR between terms for better results")
+    max_results: int = Field(default=100, description="Maximum number of results to fetch")
+    
+    # Equipment categorization
+    equipment_type: Optional[str] = Field(default=None, description="Type of equipment (e.g., Camera, ATV, Generator)")
+    manufacturer: Optional[str] = Field(default=None, description="Manufacturer name (e.g., Honda, Canon, Nikon)")
+    model_patterns: Optional[str] = Field(default=None, description="Model patterns to match (e.g., TRX, EOS, D750)")
+    year_range: Optional[str] = Field(default=None, description="Year range (e.g., 1990-2020, 1970s)")
+    
+    # Search terms - CRITICAL for finding correct files
+    search_terms: str = Field(description="Comma-separated terms that MUST appear in URL or title")
+    exclude_terms: str = Field(default="preview,operator,operation,user manual,owner manual,quick start,brochure,catalog,sample", 
+                              description="Comma-separated terms to EXCLUDE")
+    
+    # File filtering - CRITICAL for getting the right files
+    file_extensions: str = Field(default="pdf", description="File extensions to search for (e.g., pdf, zip)")
+    min_pages: int = Field(default=5, description="Minimum PDF page count to avoid previews")
+    max_pages: Optional[int] = Field(default=None, description="Maximum PDF page count")
+    min_file_size_mb: float = Field(default=0.5, description="Minimum file size in MB")
+    max_file_size_mb: Optional[float] = Field(default=100, description="Maximum file size in MB")
+    
+    # Crawling behavior
+    follow_links: bool = Field(default=True, description="Whether to follow links on discovered pages")
+    max_depth: int = Field(default=3, description="Maximum depth to follow links")
+    extract_directories: bool = Field(default=True, description="Extract from PDF directories")
+    skip_duplicates: bool = Field(default=True, description="Skip URLs already in database")
+    
+    # Site targeting
+    sites: Optional[str] = Field(default=None, description="Specific sites to scrape (JSON array or newline-separated)")
+    url_patterns: Optional[str] = Field(default=None, description="URL patterns to match (regex patterns)")
+    
+    # Advanced filtering
+    title_patterns: Optional[str] = Field(default=None, description="Patterns that must be in the title")
+    content_keywords: Optional[str] = Field(default=None, description="Keywords expected in PDF content")
+    
+    # Priority and scheduling
+    priority: int = Field(default=5, description="Job priority 1-10 (1=highest)")
+    
+    # Metadata
+    description: Optional[str] = Field(default=None, description="Human-readable description of what this job targets")

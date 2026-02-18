@@ -664,175 +664,18 @@ def get_scrape_job_logs(job_id: int, db: Session = Depends(get_db)):
 @router.post("/generate-config", response_model=GenerateConfigResponse)
 def generate_scrape_config(request: GenerateConfigRequest):
     """Generate scrape configuration using AI (Groq)"""
-    try:
-        from groq import Groq
-        
-        # Check if API key is configured
-        if not settings.groq_api_key:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Groq API key is not configured. Please set GROQ_API_KEY in your environment."
-            )
-        
-        # Initialize Groq client
-        client = Groq(api_key=settings.groq_api_key)
-        
-        # Create enhanced prompt for Groq with service manual focus
-        system_prompt = """You are an expert at configuring web scraping jobs for finding PDF service manuals and technical documentation. Your goal is to generate comprehensive scrape configurations that discover as many service manuals as possible across multiple websites.
-
-Your task is to generate a scrape job configuration based on the user's description. The configuration MUST include these fields:
-- name: A short, descriptive name for the job
-- source_type: One of: 'multi_site', 'search', 'forum', 'manual_site', 'gdrive' (DEFAULT to 'multi_site' for best results)
-- query: The search query to use - use search terms with OR between them for better results
-- max_results: Number of results to fetch (DEFAULT to 100 for comprehensive discovery)
-- equipment_type: Optional - the type of equipment (e.g., Camera, Radio, etc.)
-- manufacturer: Optional - the manufacturer name (e.g., Canon, Nikon, etc.)
-- search_terms: Optional - Comma-separated relevant search terms for finding the target documents
-- exclude_terms: Optional - Terms to exclude from search (e.g., "preview, operator, operation, user manual")
-- min_pages: Optional - Minimum PDF page count (default: 5)
-- traversal_pattern: Optional - Pattern for traversing links (e.g., "Follow links labeled 'download', 'manual', 'service'")
-
-DEFAULT CONFIGURATION FOR SERVICE MANUALS:
-When no specific equipment is mentioned, default to searching for service manuals with these criteria:
-- source_type: 'multi_site' (uses DuckDuckGo to find sites, then traverses through them)
-- Focus on: service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
-- Exclude: operator manuals, operation manuals, user manuals, owner's manuals, quick start guides, preview PDFs, sample pages, brochures, catalogs
-- Minimum pages: 5 (to avoid short preview documents)
-- Max results: 100 (to discover as many manuals as possible)
-- Traversal: Look for download links, manual sections, service documentation areas, document repositories, file directories
-
-MULTI-SITE SCRAPING STRATEGY (DEFAULT):
-The multi_site source type is the most powerful option for discovering service manuals:
-1. First, it searches DuckDuckGo for relevant websites containing PDF manuals
-2. Then it traverses through each discovered website to find PDF files
-3. It follows links to directories containing multiple PDFs
-4. It scrapes document repositories and file archives
-5. This approach typically finds 50-100+ manuals from many different websites
-
-WHEN TO USE MULTI-SITE:
-- User wants comprehensive discovery across many sources
-- User wants to find as many manuals as possible
-- User doesn't specify particular websites
-- User wants to explore the web broadly for documentation
-
-WHEN TO USE SEARCH:
-- User wants quick results from search engines
-- User specifies a particular search query
-- User wants targeted results from specific sources
-
-EXAMPLE 1 (Service Manual Default - Multi-Site):
-For "Find service manuals", you would generate:
-{
-  "name": "Service Manuals Collection",
-  "source_type": "multi_site",
-  "query": "service manual OR repair manual OR workshop manual OR service station manual OR technical manual OR maintenance manual OR diagnostic manual OR troubleshooting guide",
-  "max_results": 100,
-  "equipment_type": null,
-  "manufacturer": null,
-  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide",
-  "exclude_terms": "",
-  "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory"
-}
-
-EXAMPLE 2 (Specific Equipment - Multi-Site):
-For "I want to find vintage Canon camera service manuals from the 1970s", you would generate:
-{
-  "name": "Vintage Canon Service Manuals 1970s",
-  "source_type": "multi_site",
-  "query": "Canon service manual OR repair manual OR workshop manual 1970s",
-  "max_results": 100,
-  "equipment_type": "Camera",
-  "manufacturer": "Canon",
-  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Canon, vintage, 1970s",
-  "exclude_terms": "",
-  "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Canon, vintage, document, repository, archive, directory"
-}
-
-EXAMPLE 3 (Nikon DSLR - Multi-Site):
-For "Find Nikon DSLR service manuals", you would generate:
-{
-  "name": "Nikon DSLR Service Manuals",
-  "source_type": "multi_site",
-  "query": "Nikon DSLR service manual OR repair manual OR workshop manual",
-  "max_results": 100,
-  "equipment_type": "Camera",
-  "manufacturer": "Nikon",
-  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, Nikon, DSLR",
-  "exclude_terms": "",
-  "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, Nikon, DSLR, document, repository, archive, directory"
-}
-
-EXAMPLE 4 (General Equipment - Multi-Site):
-For "Find service manuals for industrial equipment", you would generate:
-{
-  "name": "Industrial Equipment Service Manuals",
-  "source_type": "multi_site",
-  "query": "industrial equipment service manual OR repair manual OR workshop manual OR technical manual",
-  "max_results": 100,
-  "equipment_type": "Industrial Equipment",
-  "manufacturer": null,
-  "search_terms": "service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide, industrial equipment, machinery",
-  "exclude_terms": "",
-  "min_pages": 5,
-  "traversal_pattern": "Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, industrial, equipment, machinery, document, repository, archive, directory"
-}
-
-IMPORTANT RULES:
-1. DEFAULT to source_type 'multi_site' for comprehensive discovery across many websites
-2. Use search terms with OR between them in the query for better results (DO NOT use 'filetype:pdf')
-3. Set min_pages to 5 or higher to avoid short preview documents
-4. Set max_results to 100 for comprehensive discovery (unless user specifies otherwise)
-5. Focus on service manuals, repair manuals, workshop manuals, service station manuals, technical manuals, maintenance manuals, diagnostic manuals, troubleshooting guides
-6. Keep the name concise but descriptive
-7. Extract equipment_type and manufacturer from the description if available
-8. Provide comprehensive search_terms that include relevant synonyms and variations
-9. Provide detailed traversal_pattern for finding PDFs on web pages
-10. Multi-site scraping typically finds 50-100+ manuals from many different websites
-
-Return ONLY valid JSON, no other text."""
-        
-        user_prompt = f"Generate a scrape job configuration for: {request.prompt}"
-        
-        # Call Groq API
-        completion = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=800,
-            response_format={"type": "json_object"}
-        )
-        
-        # Parse response
-        config_json = completion.choices[0].message.content
-        config = json.loads(config_json)
-        
-        # Validate and set defaults
-        config.setdefault('name', 'Service Manuals Collection')
-        config.setdefault('source_type', 'multi_site')
-        config.setdefault('query', 'service manual OR repair manual OR workshop manual OR service station manual OR technical manual OR maintenance manual OR diagnostic manual OR troubleshooting guide')
-        config.setdefault('max_results', 100)
-        config.setdefault('equipment_type', None)
-        config.setdefault('manufacturer', None)
-        config.setdefault('search_terms', 'service manual, repair manual, workshop manual, service station manual, technical manual, maintenance manual, diagnostic manual, troubleshooting guide')
-        config.setdefault('exclude_terms', '')
-        config.setdefault('min_pages', 5)
-        config.setdefault('traversal_pattern', 'Follow links containing: download, manual, service, repair, workshop, technical, maintenance, diagnostic, troubleshooting, document, repository, archive, directory')
-        
-        return GenerateConfigResponse(**config)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        error_detail = f"Failed to generate configuration: {str(e)}\n{traceback.format_exc()}"
-        print(f"Error in generate_scrape_config: {error_detail}")
+    from app.processors.config_generator import generate_scrape_config
+    
+    result = generate_scrape_config(request.prompt)
+    
+    if not result.get('success', False):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate configuration: {str(e)}"
+            detail=result.get('error', 'Failed to generate configuration')
         )
+    
+    # Remove the success key before returning
+    result.pop('success', None)
+    result.pop('traceback', None)
+    
+    return GenerateConfigResponse(**result)
