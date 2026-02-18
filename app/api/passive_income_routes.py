@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 import json
 
-from app.database import get_db
+from app.database import get_db, Manual, ScrapeJob
 from app.passive_income.database import (
     Platform, PlatformListing, ActionQueue, Revenue, Setting,
     PassiveIncomeManager, create_passive_income_tables, init_default_platforms,
@@ -347,10 +347,6 @@ def initialize_passive_income(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Add Manual import
-from app.database import Manual
-
-
 # ============ Auto-Scraping Endpoints ============
 
 @router.get("/auto-scraping/status")
@@ -580,7 +576,6 @@ def get_discovered_niches(
 @router.post("/auto-scraping/niches/{niche_id}/create-job")
 def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
     """Create a scrape job for a specific niche"""
-    from app.database import ScrapeJob
     
     niche = db.query(NicheDiscovery).filter(NicheDiscovery.id == niche_id).first()
     if not niche:
