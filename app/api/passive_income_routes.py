@@ -590,10 +590,30 @@ def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
     niche.status = 'job_created'
     db.commit()
     
-    # Trigger the job to start via Celery
+    # Trigger the job to start - try Celery first, then fallback to sync
     try:
         from app.tasks.jobs import check_queue
-        check_queue.delay()
+        try:
+            # Try async Celery first
+            check_queue.delay()
+        except Exception as celery_error:
+            # Fallback to synchronous execution if Celery is not available
+            print(f"[create_job_for_niche] Celery not available ({celery_error}), running synchronously")
+            import threading
+            # Run in a separate thread to avoid blocking
+            def run_check_queue():
+                from app.database import SessionLocal
+                db = SessionLocal()
+                try:
+                    from app.tasks.jobs import check_queue as check_queue_func
+                    # Run the actual function, not the Celery task
+                    check_queue_func()
+                except Exception as e:
+                    print(f"[job_thread] Error: {e}")
+                finally:
+                    db.close()
+            thread = threading.Thread(target=run_check_queue, daemon=True)
+            thread.start()
     except Exception as e:
         print(f"[create_job_for_niche] Warning: Could not trigger check_queue: {e}")
     

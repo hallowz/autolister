@@ -769,6 +769,9 @@ def create_jobs_for_niches():
                 keywords = json.loads(niche.keywords) if niche.keywords else []
                 sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
                 
+                # Ensure description is not empty
+                description = niche.description or niche.reason or f"Service manuals for {niche.niche}"
+                
                 job = ScrapeJob(
                     name=f"Auto: {niche.niche}",
                     source_type='multi_site',
@@ -788,9 +791,18 @@ def create_jobs_for_niches():
                 
                 niche.scrape_job_id = job.id
                 niche.status = 'job_created'
+                # Update description if it was empty
+                if not niche.description:
+                    niche.description = description
                 db.commit()
                 
                 jobs_created += 1
+                
+                # Try to trigger job start
+                try:
+                    check_queue.delay()
+                except:
+                    pass  # Celery not available, job will be picked up later
                 
             except Exception as e:
                 print(f"[create_jobs_for_niches] Error creating job for {niche.niche}: {e}")

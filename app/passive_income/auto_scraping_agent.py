@@ -485,11 +485,32 @@ class AutoScrapingAgent:
                     f"Created scrape job for niche: {niche.niche}",
                     {'job_id': job.id, 'niche': niche.niche})
             
-            # Trigger the job to start via Celery
+            # Trigger the job to start - try Celery first, then fallback to sync
             try:
                 from app.tasks.jobs import check_queue
-                check_queue.delay()
-                self.log('job_started', 'completed', f'Triggered check_queue for job {job.id}')
+                try:
+                    # Try async Celery first
+                    check_queue.delay()
+                    self.log('job_started', 'completed', f'Triggered check_queue (async) for job {job.id}')
+                except Exception as celery_error:
+                    # Fallback to synchronous execution if Celery is not available
+                    self.log('job_started', 'info', f'Celery not available ({celery_error}), running synchronously')
+                    import threading
+                    # Run in a separate thread to avoid blocking
+                    def run_check_queue():
+                        from app.database import SessionLocal
+                        db = SessionLocal()
+                        try:
+                            from app.tasks.jobs import check_queue as check_queue_func
+                            # Run the actual function, not the Celery task
+                            check_queue_func()
+                        except Exception as e:
+                            print(f"[job_thread] Error: {e}")
+                        finally:
+                            db.close()
+                    thread = threading.Thread(target=run_check_queue, daemon=True)
+                    thread.start()
+                    self.log('job_started', 'completed', f'Started job {job.id} in background thread')
             except Exception as start_error:
                 self.log('job_started', 'warning', f'Job created but could not auto-start: {start_error}')
             
@@ -569,25 +590,35 @@ class AutoScrapingAgent:
                 if not isinstance(niche_data, dict):
                     continue
                 
-                print(f"[DEBUG] Storing niche: {niche_data.get('niche')}, desc: {niche_data.get('description', 'NO DESC')[:50] if niche_data.get('description') else 'NONE'}")
+                # Extract and validate fields - ensure description is never empty
+                niche_name = niche_data.get('niche')
+                if not niche_name:
+                    continue
+                    
+                description = niche_data.get('description') or niche_data.get('reason', '')
+                if not description:
+                    description = f"Service manuals and repair guides for {niche_name}"
+                
+                print(f"[DEBUG] Storing niche: {niche_name}, desc: {description[:50] if description else 'NONE'}")
                     
                 existing = self.db.query(NicheDiscovery).filter(
-                    NicheDiscovery.niche == niche_data.get('niche')
+                    NicheDiscovery.niche == niche_name
                 ).first()
                 
                 if not existing:
                     niche = NicheDiscovery(
-                        niche=niche_data.get('niche'),
-                        description=niche_data.get('description'),
-                        search_query=niche_data.get('search_query'),
-                        potential_price=niche_data.get('potential_price'),
-                        demand_level=niche_data.get('demand_level', 'medium'),
-                        competition_level=niche_data.get('competition_level', 'medium'),
-                        keywords=json.dumps(niche_data.get('keywords', [])),
-                        sites_to_search=json.dumps(niche_data.get('sites_to_search', [])),
-                        reason=niche_data.get('reason')
+                        niche=niche_name,
+                        description=description,
+                        search_query=niche_data.get('search_query') or niche_name,
+                        potential_price=niche_data.get('potential_price', '4.99-9.99'),
+                        demand_level=niche_data.get('demand_level', 'medium') or 'medium',
+                        competition_level=niche_data.get('competition_level', 'medium') or 'medium',
+                        keywords=json.dumps(niche_data.get('keywords', []) or []),
+                        sites_to_search=json.dumps(niche_data.get('sites_to_search', []) or []),
+                        reason=niche_data.get('reason') or description
                     )
                     self.db.add(niche)
+                    print(f"[DEBUG] Created niche: {niche_name} with description: {description[:50]}")
             
             self.db.commit()
             
