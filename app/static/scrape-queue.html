@@ -511,32 +511,145 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
+                    <div id="editJobStatusAlert" class="alert alert-warning" style="display: none;">
+                        <i class="bi bi-exclamation-triangle"></i> <span id="editJobStatusMessage"></span>
+                    </div>
                     <form id="editJobForm">
                         <input type="hidden" id="editJobId">
+
+                        <!-- Basic Settings -->
+                        <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-gear"></i> Basic Settings</h6>
                         <div class="mb-3">
                             <label class="form-label">Job Name</label>
                             <input type="text" class="form-control" id="editJobName">
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Source Type</label>
-                            <select class="form-select" id="editSourceType">
+                            <select class="form-select" id="editSourceType" onchange="toggleEditMultiSiteFields()">
+                                <option value="multi_site">Multi-Site Scraper (DuckDuckGo + Traversal)</option>
                                 <option value="search">Search Engine</option>
                                 <option value="forum">Forums</option>
                                 <option value="manual_site">Manual Sites</option>
                                 <option value="gdrive">Google Drive</option>
-                                <option value="multi_site">Multi-Site Scraper</option>
                             </select>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Search Query</label>
-                            <input type="text" class="form-control" id="editSearchQuery">
+
+                        <!-- Multi-Site Fields -->
+                        <div id="editMultiSiteFields">
+                            <h6 class="border-bottom pb-2 mb-3"><i class="bi bi-diagram-3"></i> Multi-Site Settings</h6>
+                            <div class="mb-3">
+                                <label class="form-label">DuckDuckGo Search Query</label>
+                                <input type="text" class="form-control" id="editDdgSearchQuery">
+                                <div class="form-text">DuckDuckGo will find sites, then we'll traverse them for PDFs.</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Additional Sites (one per line)</label>
+                                <textarea class="form-control" id="editSites" rows="3"></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Search & Filter Settings -->
+                        <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-funnel"></i> Search & Filter Settings</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Max Results</label>
+                                    <input type="number" class="form-control" id="editMaxResults" min="1" max="200">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">File Extensions</label>
+                                    <input type="text" class="form-control" id="editFileExtensions" value="pdf">
+                                </div>
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Max Results</label>
-                            <input type="number" class="form-control" id="editMaxResults" min="1" max="100">
+                            <label class="form-label">Search Terms (comma-separated)</label>
+                            <input type="text" class="form-control" id="editSearchTerms">
+                            <div class="form-text">Terms that must appear in URL or title.</div>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Schedule</label>
+                            <label class="form-label">Exclude Terms (comma-separated)</label>
+                            <input type="text" class="form-control" id="editExcludeTerms">
+                            <div class="form-text">Documents with these terms will be filtered out.</div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Min Pages</label>
+                                    <input type="number" class="form-control" id="editMinPages" min="1">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Max Pages</label>
+                                    <input type="number" class="form-control" id="editMaxPages" min="1">
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3">
+                                    <label class="form-label">Max Link Depth</label>
+                                    <input type="number" class="form-control" id="editMaxDepth" min="1" max="10">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Min File Size (MB)</label>
+                                    <input type="number" class="form-control" id="editMinFileSizeMb" min="0" step="0.1">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Max File Size (MB)</label>
+                                    <input type="number" class="form-control" id="editMaxFileSizeMb" min="0" step="0.1">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="mb-3 form-check">
+                                    <input class="form-check-input" type="checkbox" id="editFollowLinks">
+                                    <label class="form-check-label" for="editFollowLinks">Follow Links</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3 form-check">
+                                    <input class="form-check-input" type="checkbox" id="editExtractDirectories">
+                                    <label class="form-check-label" for="editExtractDirectories">Extract Directories</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="mb-3 form-check">
+                                    <input class="form-check-input" type="checkbox" id="editSkipDuplicates">
+                                    <label class="form-check-label" for="editSkipDuplicates">Skip Duplicates</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Categorization -->
+                        <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-tags"></i> Categorization</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Equipment Type</label>
+                                    <input type="text" class="form-control" id="editEquipmentType">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Manufacturer</label>
+                                    <input type="text" class="form-control" id="editManufacturer">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scheduling -->
+                        <h6 class="border-bottom pb-2 mb-3 mt-4"><i class="bi bi-clock"></i> Scheduling</h6>
+                        <div class="mb-3">
+                            <label class="form-label">Schedule (Optional)</label>
                             <div class="row">
                                 <div class="col-md-6">
                                     <input type="datetime-local" class="form-control" id="editScheduleTime">
@@ -551,13 +664,12 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Equipment Type</label>
-                            <input type="text" class="form-control" id="editEquipmentType">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Manufacturer</label>
-                            <input type="text" class="form-control" id="editManufacturer">
+                        <div class="mb-3 form-check">
+                            <input class="form-check-input" type="checkbox" id="editAutostartEnabled">
+                            <label class="form-check-label" for="editAutostartEnabled">
+                                <i class="bi bi-play-circle"></i> Enable Autostart
+                            </label>
+                            <div class="form-text">Auto-start next job in queue when this job completes.</div>
                         </div>
                     </form>
                 </div>

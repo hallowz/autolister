@@ -664,24 +664,104 @@ async function generateScrapeConfig() {
 /**
  * Edit a scrape job
  */
-function editJob(jobId) {
+async function editJob(jobId) {
     const job = scrapeJobs.find(j => j.id === jobId);
     if (!job) return;
-    
+
     currentEditingJobId = jobId;
-    
-    document.getElementById('editJobId').value = job.id;
-    document.getElementById('editJobName').value = job.name;
-    document.getElementById('editSourceType').value = job.source_type;
-    document.getElementById('editSearchQuery').value = job.query;
-    document.getElementById('editMaxResults').value = job.max_results;
-    document.getElementById('editScheduleTime').value = job.scheduled_time ? job.scheduled_time.slice(0, 16) : '';
-    document.getElementById('editScheduleFrequency').value = job.schedule_frequency || '';
-    document.getElementById('editEquipmentType').value = job.equipment_type || '';
-    document.getElementById('editManufacturer').value = job.manufacturer || '';
-    
-    const modal = new bootstrap.Modal(document.getElementById('editJobModal'));
-    modal.show();
+
+    // Show warning if job has already run
+    const statusAlert = document.getElementById('editJobStatusAlert');
+    const statusMessage = document.getElementById('editJobStatusMessage');
+
+    if (job.status === 'completed' || job.status === 'failed') {
+        statusAlert.style.display = 'block';
+        statusAlert.className = 'alert alert-warning';
+        statusMessage.textContent = `This job has already ${job.status}. Editing will create a new job configuration. Consider cloning instead.`;
+    } else if (job.status === 'running') {
+        statusAlert.style.display = 'block';
+        statusAlert.className = 'alert alert-danger';
+        statusMessage.textContent = 'This job is currently running. You cannot edit it while it is active.';
+    } else {
+        statusAlert.style.display = 'none';
+    }
+
+    // Load full configuration
+    try {
+        const response = await fetch(`/api/scrape-jobs/${jobId}/full-config`);
+        if (!response.ok) throw new Error('Failed to fetch job config');
+        const config = await response.json();
+
+        // Populate all form fields
+        document.getElementById('editJobId').value = config.id;
+        document.getElementById('editJobName').value = config.name || '';
+        document.getElementById('editSourceType').value = config.source_type || 'multi_site';
+
+        // Query field (use as DuckDuckGo query for multi-site)
+        document.getElementById('editDdgSearchQuery').value = config.query || '';
+
+        // Sites
+        if (config.sites) {
+            try {
+                const sites = JSON.parse(config.sites);
+                document.getElementById('editSites').value = sites.join('\n');
+            } catch {
+                document.getElementById('editSites').value = config.sites;
+            }
+        } else {
+            document.getElementById('editSites').value = '';
+        }
+
+        // Search & Filter settings
+        document.getElementById('editMaxResults').value = config.max_results || 100;
+        document.getElementById('editFileExtensions').value = config.file_extensions || 'pdf';
+        document.getElementById('editSearchTerms').value = config.search_terms || '';
+        document.getElementById('editExcludeTerms').value = config.exclude_terms || '';
+        document.getElementById('editMinPages').value = config.min_pages || '';
+        document.getElementById('editMaxPages').value = config.max_pages || '';
+        document.getElementById('editMaxDepth').value = config.max_depth || 2;
+        document.getElementById('editMinFileSizeMb').value = config.min_file_size_mb || '';
+        document.getElementById('editMaxFileSizeMb').value = config.max_file_size_mb || '';
+
+        // Checkboxes
+        document.getElementById('editFollowLinks').checked = config.follow_links !== false;
+        document.getElementById('editExtractDirectories').checked = config.extract_directories !== false;
+        document.getElementById('editSkipDuplicates').checked = config.skip_duplicates !== false;
+
+        // Categorization
+        document.getElementById('editEquipmentType').value = config.equipment_type || '';
+        document.getElementById('editManufacturer').value = config.manufacturer || '';
+
+        // Scheduling
+        document.getElementById('editScheduleTime').value = config.scheduled_time ? config.scheduled_time.slice(0, 16) : '';
+        document.getElementById('editScheduleFrequency').value = config.schedule_frequency || '';
+        document.getElementById('editAutostartEnabled').checked = config.autostart_enabled || false;
+
+        // Toggle multi-site fields visibility
+        toggleEditMultiSiteFields();
+
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('editJobModal'));
+        modal.show();
+
+    } catch (error) {
+        console.error('Error loading job for edit:', error);
+        showError('Failed to load job configuration for editing.');
+    }
+}
+
+/**
+ * Toggle multi-site fields in edit modal
+ */
+function toggleEditMultiSiteFields() {
+    const sourceType = document.getElementById('editSourceType').value;
+    const multiSiteFields = document.getElementById('editMultiSiteFields');
+
+    if (sourceType === 'multi_site') {
+        multiSiteFields.style.display = 'block';
+    } else {
+        multiSiteFields.style.display = 'none';
+    }
 }
 
 /**
@@ -689,28 +769,62 @@ function editJob(jobId) {
  */
 async function updateScrapeJob() {
     const jobId = currentEditingJobId;
-    
+
+    // Get the job to check status
+    const job = scrapeJobs.find(j => j.id === jobId);
+
+    // Parse sites from textarea
+    const sitesValue = document.getElementById('editSites').value.trim();
+    let sites = null;
+    if (sitesValue) {
+        const siteLines = sitesValue.split('\n').filter(s => s.trim());
+        if (siteLines.length > 0) {
+            sites = JSON.stringify(siteLines);
+        }
+    }
+
     const jobData = {
         name: document.getElementById('editJobName').value.trim(),
         source_type: document.getElementById('editSourceType').value,
-        query: document.getElementById('editSearchQuery').value.trim(),
-        max_results: parseInt(document.getElementById('editMaxResults').value) || 10,
+        query: document.getElementById('editDdgSearchQuery').value.trim(),
+        max_results: parseInt(document.getElementById('editMaxResults').value) || 100,
         scheduled_time: document.getElementById('editScheduleTime').value || null,
         schedule_frequency: document.getElementById('editScheduleFrequency').value || null,
         equipment_type: document.getElementById('editEquipmentType').value.trim() || null,
-        manufacturer: document.getElementById('editManufacturer').value.trim() || null
+        manufacturer: document.getElementById('editManufacturer').value.trim() || null,
+        autostart_enabled: document.getElementById('editAutostartEnabled').checked,
+        // Advanced settings
+        sites: sites,
+        search_terms: document.getElementById('editSearchTerms').value.trim() || null,
+        exclude_terms: document.getElementById('editExcludeTerms').value.trim() || null,
+        min_pages: parseInt(document.getElementById('editMinPages').value) || null,
+        max_pages: parseInt(document.getElementById('editMaxPages').value) || null,
+        min_file_size_mb: parseFloat(document.getElementById('editMinFileSizeMb').value) || null,
+        max_file_size_mb: parseFloat(document.getElementById('editMaxFileSizeMb').value) || null,
+        follow_links: document.getElementById('editFollowLinks').checked,
+        max_depth: parseInt(document.getElementById('editMaxDepth').value) || 2,
+        extract_directories: document.getElementById('editExtractDirectories').checked,
+        file_extensions: document.getElementById('editFileExtensions').value.trim() || 'pdf',
+        skip_duplicates: document.getElementById('editSkipDuplicates').checked
     };
-    
+
     if (!jobData.name) {
         showError('Please enter a job name.');
         return;
     }
-    
+
     if (!jobData.query) {
         showError('Please enter a search query.');
         return;
     }
-    
+
+    // Check if job has already run - if so, show confirmation
+    if (job && (job.status === 'completed' || job.status === 'failed')) {
+        if (!confirm('This job has already run. Saving will update the configuration, but won\'t re-run the job. Consider cloning to create a new job with these settings. Continue?')) {
+            return;
+        }
+    }
+
     try {
         const response = await fetch(`/api/scrape-jobs/${jobId}`, {
             method: 'PUT',
@@ -719,17 +833,17 @@ async function updateScrapeJob() {
             },
             body: JSON.stringify(jobData)
         });
-        
+
         if (!response.ok) throw new Error('Failed to update job');
-        
+
         // Close modal and refresh
         const modal = bootstrap.Modal.getInstance(document.getElementById('editJobModal'));
         modal.hide();
-        
+
         currentEditingJobId = null;
         refreshQueue();
         showSuccess('Scrape job updated successfully!');
-        
+
     } catch (error) {
         console.error('Error updating job:', error);
         showError('Failed to update scrape job. Please try again.');
