@@ -435,30 +435,46 @@ async function generateScrapeConfig() {
         
         const config = await response.json();
         
-        // Populate AI-generated fields
+        // Populate ALL AI-generated fields
         document.getElementById('aiGeneratedJobName').value = jobName || config.name || '';
         document.getElementById('aiGeneratedSourceType').value = config.source_type || 'multi_site';
         document.getElementById('aiGeneratedQuery').value = config.query || '';
         document.getElementById('aiGeneratedMaxResults').value = config.max_results || 100;
-        document.getElementById('aiGeneratedSearchTerms').value = config.search_terms || '';
-        document.getElementById('aiGeneratedExcludeTerms').value = config.exclude_terms || '';
-        document.getElementById('aiGeneratedMinPages').value = config.min_pages || 5;
-        document.getElementById('aiGeneratedMaxPages').value = config.max_pages || '';
-        document.getElementById('aiGeneratedTraversalPattern').value = config.traversal_pattern || '';
+        
+        // Equipment categorization
         document.getElementById('aiGeneratedEquipmentType').value = config.equipment_type || '';
         document.getElementById('aiGeneratedManufacturer').value = config.manufacturer || '';
-        document.getElementById('aiGeneratedMinFileSizeMb').value = config.min_file_size_mb || '';
-        document.getElementById('aiGeneratedMaxFileSizeMb').value = config.max_file_size_mb || '';
+        
+        // Search/filter terms
+        document.getElementById('aiGeneratedSearchTerms').value = config.search_terms || '';
+        document.getElementById('aiGeneratedExcludeTerms').value = config.exclude_terms || '';
+        
+        // File filtering
+        document.getElementById('aiGeneratedMinPages').value = config.min_pages || 5;
+        document.getElementById('aiGeneratedMaxPages').value = config.max_pages || '';
+        document.getElementById('aiGeneratedMinFileSizeMb').value = config.min_file_size_mb || 0.5;
+        document.getElementById('aiGeneratedMaxFileSizeMb').value = config.max_file_size_mb || 100;
         document.getElementById('aiGeneratedFileExtensions').value = config.file_extensions || 'pdf';
-        document.getElementById('aiGeneratedMaxDepth').value = config.max_depth || 2;
+        
+        // Crawling behavior
+        document.getElementById('aiGeneratedMaxDepth').value = config.max_depth || 3;
         document.getElementById('aiGeneratedFollowLinks').checked = config.follow_links !== false;
         document.getElementById('aiGeneratedExtractDirectories').checked = config.extract_directories !== false;
         document.getElementById('aiGeneratedSkipDuplicates').checked = config.skip_duplicates !== false;
+        
+        // Sites (if provided)
+        if (config.sites) {
+            document.getElementById('aiGeneratedSites').value = config.sites;
+        }
+        
+        // Autostart
         document.getElementById('aiGeneratedAutostartEnabled').checked = config.autostart_enabled || false;
         
-        // Show the result section with generated config
-        // Note: The form fields are already in the HTML, we just need to show the result div
+        // Show the result section
         resultDiv.style.display = 'block';
+        
+        // Show a summary of what was generated
+        showSuccess('Configuration generated! Review the settings below.');
         
     } catch (error) {
         console.error('Error generating config:', error);
