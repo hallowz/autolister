@@ -117,6 +117,21 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_job)
     
+    # If autostart is enabled and no job is currently running, start immediately
+    if job.autostart_enabled and job_status == 'queued':
+        running_job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+        if not running_job:
+            print(f"[create_scrape_job] Autostart enabled and no running job, starting job {db_job.id} immediately")
+            # Start the job asynchronously
+            import threading
+            def auto_start():
+                db_local = SessionLocal()
+                start_next_queued_job(db_local, previous_job_autostart=False)
+                db_local.close()
+            
+            thread = threading.Thread(target=auto_start, daemon=True)
+            thread.start()
+    
     return db_job
 
 
