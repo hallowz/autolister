@@ -699,16 +699,20 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
 @router.post("/toggle-autostart")
 def toggle_autostart(db: Session = Depends(get_db)):
     """Toggle autostart for all queued jobs"""
-    # Get current autostart state from first queued job
-    first_job = db.query(ScrapeJob).filter(
+    # Get all queued jobs
+    queued_jobs = db.query(ScrapeJob).filter(
         ScrapeJob.status == 'queued'
-    ).order_by(ScrapeJob.queue_position).first()
+    ).all()
     
-    if not first_job:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No queued jobs to toggle autostart"
-        )
+    if not queued_jobs:
+        # No jobs to toggle - just return current state
+        return {
+            "autostart_enabled": False,
+            "message": "No queued jobs to toggle autostart"
+        }
+    
+    # Get current autostart state from first queued job
+    first_job = queued_jobs[0]
     
     # Toggle the state
     new_state = not first_job.autostart_enabled
