@@ -450,6 +450,14 @@ class AutoScrapingAgent:
             result['reason'] = f"Niche '{niche.niche}' was scraped recently"
             return result
         
+        # Get next queue position
+        highest_position = self.db.query(ScrapeJob.queue_position).filter(
+            ScrapeJob.queue_position.isnot(None),
+            ScrapeJob.status == 'queued'
+        ).order_by(ScrapeJob.queue_position.desc()).first()
+        
+        queue_position = (highest_position[0] + 1) if highest_position else 1
+        
         try:
             keywords = json.loads(niche.keywords) if niche.keywords else []
             sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
@@ -464,7 +472,8 @@ class AutoScrapingAgent:
                 max_results=100,
                 equipment_type=niche.niche.split()[0] if niche.niche else None,
                 autostart_enabled=True,
-                status='queued'
+                status='queued',
+                queue_position=queue_position
             )
             
             self.db.add(job)

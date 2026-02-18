@@ -847,12 +847,114 @@
             }
         }
         
-        function showNicheDetails(nicheId) {
+        async function showNicheDetails(nicheId) {
             currentNicheId = nicheId;
-            // Load niche details and show modal
-            // For now, just show a simple modal
-            const modal = new bootstrap.Modal(document.getElementById('nicheModal'));
-            modal.show();
+            
+            try {
+                const response = await fetch(`/api/passive-income/auto-scraping/niches`);
+                const niches = await response.json();
+                const niche = niches.find(n => n.id === nicheId);
+                
+                if (!niche) {
+                    showToast('Niche not found', 'danger');
+                    return;
+                }
+                
+                // Populate modal with niche details
+                const modalTitle = document.getElementById('nicheModalTitle');
+                const modalBody = document.getElementById('nicheModalBody');
+                const actionBtn = document.getElementById('niche-action-btn');
+                
+                modalTitle.textContent = `Niche: ${niche.niche}`;
+                
+                let html = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Description</h6>
+                            <p class="text-muted">${niche.description || 'No description available'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Status</h6>
+                            <span class="badge bg-${niche.status === 'discovered' ? 'info' : niche.status === 'job_created' ? 'warning' : 'success'}">${niche.status}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Search Query</h6>
+                            <p class="text-muted">${niche.search_query || niche.niche}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Potential Price</h6>
+                            <p class="text-success">$${niche.potential_price || '4.99'}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Demand Level</h6>
+                            <span class="badge bg-${niche.demand_level === 'high' ? 'success' : niche.demand_level === 'medium' ? 'warning' : 'secondary'}">${niche.demand_level || 'medium'}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Competition Level</h6>
+                            <span class="badge bg-${niche.competition_level === 'low' ? 'success' : niche.competition_level === 'medium' ? 'warning' : 'danger'}">${niche.competition_level || 'medium'}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6>Keywords</h6>
+                            <p class="text-muted">${(niche.keywords || []).join(', ') || 'No keywords'}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6>Sites to Search</h6>
+                            <p class="text-muted">${(niche.sites_to_search || []).join(', ') || 'Auto-discover'}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h6>Reason</h6>
+                            <p class="text-muted">${niche.reason || 'No reason provided'}</p>
+                        </div>
+                    </div>
+                `;
+                
+                if (niche.scrape_job_id) {
+                    html += `
+                        <hr>
+                        <div class="alert alert-info">
+                            <strong>Scrape Job ID:</strong> ${niche.scrape_job_id}<br>
+                            <strong>Manuals Found:</strong> ${niche.manuals_found || 0}<br>
+                            <strong>Manuals Listed:</strong> ${niche.manuals_listed || 0}<br>
+                            <strong>Revenue Generated:</strong> $${niche.revenue_generated || '0.00'}
+                        </div>
+                    `;
+                }
+                
+                modalBody.innerHTML = html;
+                
+                // Configure action button
+                if (niche.status === 'discovered') {
+                    actionBtn.style.display = 'block';
+                    actionBtn.textContent = 'Create Job';
+                    actionBtn.onclick = () => {
+                        createNicheJob(nicheId);
+                        bootstrap.Modal.getInstance(document.getElementById('nicheModal')).hide();
+                    };
+                } else {
+                    actionBtn.style.display = 'none';
+                }
+                
+                const modal = new bootstrap.Modal(document.getElementById('nicheModal'));
+                modal.show();
+                
+            } catch (error) {
+                console.error('Error loading niche details:', error);
+                showToast('Error loading niche details: ' + error.message, 'danger');
+            }
         }
         
         async function showAgentLogs() {

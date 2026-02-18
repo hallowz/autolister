@@ -764,6 +764,14 @@ def create_jobs_for_niches():
         
         jobs_created = 0
         
+        # Get current highest queue position
+        highest_position = db.query(ScrapeJob.queue_position).filter(
+            ScrapeJob.queue_position.isnot(None),
+            ScrapeJob.status == 'queued'
+        ).order_by(ScrapeJob.queue_position.desc()).first()
+        
+        next_queue_position = (highest_position[0] + 1) if highest_position else 1
+        
         for niche in niches:
             try:
                 keywords = json.loads(niche.keywords) if niche.keywords else []
@@ -782,12 +790,15 @@ def create_jobs_for_niches():
                     max_results=100,
                     equipment_type=niche.niche.split()[0] if niche.niche else None,
                     autostart_enabled=True,
-                    status='queued'
+                    status='queued',
+                    queue_position=next_queue_position
                 )
                 
                 db.add(job)
                 db.commit()
                 db.refresh(job)
+                
+                next_queue_position += 1
                 
                 niche.scrape_job_id = job.id
                 niche.status = 'job_created'

@@ -564,6 +564,14 @@ def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
     if niche.status not in ['discovered', 'job_created']:
         raise HTTPException(status_code=400, detail=f"Niche is in status '{niche.status}'")
     
+    # Get next queue position
+    highest_position = db.query(ScrapeJob.queue_position).filter(
+        ScrapeJob.queue_position.isnot(None),
+        ScrapeJob.status == 'queued'
+    ).order_by(ScrapeJob.queue_position.desc()).first()
+    
+    queue_position = (highest_position[0] + 1) if highest_position else 1
+    
     # Create scrape job
     keywords = json.loads(niche.keywords) if niche.keywords else []
     sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
@@ -578,7 +586,8 @@ def create_job_for_niche(niche_id: int, db: Session = Depends(get_db)):
         max_results=100,
         equipment_type=niche.niche.split()[0] if niche.niche else None,
         autostart_enabled=True,
-        status='queued'
+        status='queued',
+        queue_position=queue_position
     )
     
     db.add(job)
