@@ -209,7 +209,12 @@ def resolve_action(action_id: int, response: dict, db: Session = Depends(get_db)
     db.commit()
     
     # Process the response and resume work
-    agent = AutonomousAgent(db)
+    # Use AutoScrapingAgent for niche-related prompts, AutonomousAgent for others
+    if action.action_type in ['new_niche_prompt', 'refine_config_prompt']:
+        agent = AutoScrapingAgent(db)
+    else:
+        agent = AutonomousAgent(db)
+    
     agent.process_action_response(action_id, response.get('response'))
     
     return {'message': 'Action resolved', 'action_id': action_id}
