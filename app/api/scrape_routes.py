@@ -425,8 +425,13 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     db.close()
                 except Exception as e:
                     print(f"Error logging message: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             try:
+                # Log job start
+                log_callback(f"Job started: {job_source_type} - {job_query}")
+                
                 # Choose the appropriate scraper based on source_type
                 if job_source_type == 'multi_site':
                     # If no sites provided, use DuckDuckGo to find sites
@@ -508,6 +513,10 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         manufacturer=job_manufacturer,
                         job_id=job_id
                     )
+                
+                # Log job completion
+                log_callback("Job completed successfully")
+                
                 # Mark job as completed
                 db = SessionLocal()
                 job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
@@ -691,12 +700,27 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                         db_local.add(log_entry)
                         job.updated_at = datetime.utcnow()
                         db_local.commit()
+                    else:
+                        # If job not found, still try to save the log
+                        log_entry = ScrapeJobLog(
+                            job_id=job_id,
+                            time=datetime.utcnow(),
+                            level="info",
+                            message=message
+                        )
+                        db_local.add(log_entry)
+                        db_local.commit()
                     db_local.close()
                 except Exception as e:
-                    print(f"Error updating job progress: {e}")
+                    print(f"Error updating job progress/log: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             try:
                 from app.tasks.jobs import run_search_job, run_multi_site_scraping_job
+                
+                # Log job start
+                log_callback(f"Job started: {job_source_type} - {job_query}")
                 
                 # Choose the appropriate scraper based on source_type
                 if job_source_type == 'multi_site':
@@ -758,6 +782,9 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                         job_id=job_id
                     )
                     
+                # Log job completion
+                log_callback("Job completed successfully")
+                
                 db_local = SessionLocal()
                 job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
                 if job:
@@ -779,8 +806,11 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                 db_local.close()
             except Exception as e:
                 import traceback
-                print(f"Error in autostart job: {e}")
+                error_msg = f"Error in autostart job: {e}"
+                print(error_msg)
                 traceback.print_exc()
+                log_callback(error_msg)
+                log_callback(f"Error details: {traceback.format_exc()}")
                 db_local = SessionLocal()
                 job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
                 if job:
