@@ -26,6 +26,17 @@ celery_app.conf.update(
     task_soft_time_limit=25 * 60,  # 25 minutes
     worker_prefetch_multiplier=1,
     worker_max_tasks_per_child=50,
+    # Beat scheduler configuration
+    beat_schedule={
+        'run-auto-scraping-cycle': {
+            'task': 'app.tasks.jobs.run_auto_scraping_cycle',
+            'schedule': 300.0,  # Run every 5 minutes
+        },
+        'check-queue': {
+            'task': 'app.tasks.jobs.check_queue',
+            'schedule': 60.0,  # Run every 1 minute
+        },
+    },
 )
 
 from .jobs import (
