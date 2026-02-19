@@ -167,7 +167,7 @@ class AutoScrapingAgent:
                         job_result = self._create_job_from_niche(niche)
                         if job_result.get('created'):
                             jobs_created += 1
-                            result['actions_taken'].append(job_result.get('message'))
+                            result['actions_taken'].append(job_result.get('reason'))
 
                     result['jobs_created'] = jobs_created
 

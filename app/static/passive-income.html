@@ -723,9 +723,12 @@
             if (data.actions_taken && data.actions_taken.length > 0) {
                 html += '<h6>Actions Taken:</h6><ul class="list-group mb-3">';
                 data.actions_taken.forEach(action => {
-                    const icon = action.startsWith('✓') ? 'check-circle text-success' : 
-                                action.startsWith('✗') ? 'x-circle text-danger' : 
-                                action.startsWith('!') ? 'exclamation-circle text-warning' : 
+                    // Skip null or undefined actions
+                    if (!action) return;
+                    
+                    const icon = action.startsWith('✓') ? 'check-circle text-success' :
+                                action.startsWith('✗') ? 'x-circle text-danger' :
+                                action.startsWith('!') ? 'exclamation-circle text-warning' :
                                 'arrow-right text-info';
                     html += `<li class="list-group-item bg-transparent border-secondary"><i class="bi bi-${icon} me-2"></i>${action}</li>`;
                 });
