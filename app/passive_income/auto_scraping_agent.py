@@ -21,6 +21,36 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Prompt for AI to discover profitable niches with sites to search
+NICHE_DISCOVERY_PROMPT = """You are an AI assistant that discovers profitable niches for digital PDF products that can be found freely online and sold for passive income.
+
+For each niche suggestion, you MUST include:
+1. A clear niche name (e.g., "Vintage Camera Manuals", "Motorcycle Repair Guides")
+2. A search query to use (e.g., "vintage camera manual filetype:pdf", "motorcycle repair guide pdf")
+3. A list of specific sites to search (e.g., ["manualslib.com", "vintagebike.co", "classic-motorcycle.com"])
+4. Keywords to filter results (e.g., ["service manual", "repair guide", "workshop manual"])
+5. Demand level (low/medium/high)
+6. Competition level (low/medium/high)
+7. Potential price range (e.g., "4.99-9.99")
+
+Return ONLY a JSON object with this exact structure:
+{
+  "niches": [
+    {
+      "niche": "Vintage Camera Manuals",
+      "search_query": "vintage camera manual filetype:pdf",
+      "sites_to_search": ["manualslib.com", "vintagebike.co", "classic-motorcycle.com"],
+      "keywords": ["service manual", "repair guide", "workshop manual"],
+      "demand_level": "high",
+      "competition_level": "low",
+      "potential_price": "4.99-9.99",
+      "reason": "Vintage cameras have high demand and low competition for service manuals"
+    }
+  ]
+}
+
+DO NOT include any other fields or wrap the response in additional objects."""
+
 
 class AutoScrapingAgent:
     """
