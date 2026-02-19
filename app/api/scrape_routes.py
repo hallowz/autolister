@@ -319,6 +319,14 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
         if job.search_terms:
             search_terms = [t.strip() for t in job.search_terms.split(',') if t.strip()]
         
+        # Add job.query to search_terms if provided (this is the main search query)
+        if job.query:
+            # Split query into terms and add to search_terms
+            query_terms = [term.strip() for term in job.query.split() if term.strip()]
+            if search_terms is None:
+                search_terms = []
+            search_terms.extend(query_terms)
+        
         exclude_terms = None
         if job.exclude_terms:
             exclude_terms = [t.strip() for t in job.exclude_terms.split(',') if t.strip()]
@@ -547,6 +555,14 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
         search_terms = None
         if job_search_terms:
             search_terms = [t.strip() for t in job_search_terms.split(',') if t.strip()]
+        
+        # Add job_query to search_terms if provided (this is the main search query)
+        if job_query:
+            # Split query into terms and add to search_terms
+            query_terms = [term.strip() for term in job_query.split() if term.strip()]
+            if search_terms is None:
+                search_terms = []
+            search_terms.extend(query_terms)
         
         exclude_terms = None
         if job_exclude_terms:

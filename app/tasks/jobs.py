@@ -433,6 +433,12 @@ def check_queue():
                 search_terms = job.search_terms.split(',') if job.search_terms else []
                 exclude_terms = job.exclude_terms.split(',') if job.exclude_terms else []
                 
+                # Add job.query to search_terms if provided (this is the main search query)
+                if job.query:
+                    # Split query into terms and add to search_terms
+                    query_terms = [term.strip() for term in job.query.split() if term.strip()]
+                    search_terms.extend(query_terms)
+                
                 run_multi_site_scraping_job(
                     sites=sites,
                     search_terms=search_terms,
@@ -446,7 +452,9 @@ def check_queue():
                     extract_directories=job.extract_directories,
                     file_extensions=job.file_extensions.split(',') if job.file_extensions else None,
                     skip_duplicates=job.skip_duplicates,
-                    max_results=job.max_results
+                    max_results=job.max_results,
+                    job_id=job.id,
+                    exclude_sites=job.exclude_sites.split(',') if job.exclude_sites else None
                 )
             else:
                 # Run search job
