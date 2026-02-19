@@ -54,17 +54,17 @@ class DuckDuckGoScraper(BaseScraper):
         results_per_query = max(1, max_results // len(queries_to_search))
         
         for search_query in queries_to_search:
+            # Remove filetype:pdf operator if present (DuckDuckGo HTML doesn't support it)
+            search_query = re.sub(r'\bfiletype:pdf\b', '', search_query, flags=re.IGNORECASE)
+            search_query = search_query.strip()
+            
+            # Add "pdf" to query if not already present
+            if 'pdf' not in search_query.lower():
+                search_query_with_pdf = f"{search_query} pdf"
+            else:
+                search_query_with_pdf = search_query
+            
             try:
-                # Remove filetype:pdf operator if present (DuckDuckGo HTML doesn't support it)
-                search_query = re.sub(r'\bfiletype:pdf\b', '', search_query, flags=re.IGNORECASE)
-                search_query = search_query.strip()
-                
-                # Add "pdf" to query if not already present
-                if 'pdf' not in search_query.lower():
-                    search_query_with_pdf = f"{search_query} pdf"
-                else:
-                    search_query_with_pdf = search_query
-                
                 print(f"[DuckDuckGo] Searching for: {search_query_with_pdf}")
                 
                 # Prepare search parameters
