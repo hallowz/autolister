@@ -137,10 +137,34 @@ class AutoScrapingAgent:
             running_jobs = self.db.query(ScrapeJob).filter(ScrapeJob.status == 'running').count()
             result['running_jobs'] = running_jobs
 
+            # STEP 2.5: If job is running and there are pending manuals, evaluate them
             if running_jobs > 0:
-                self.log('job_check', 'completed', 'Job already running, waiting for completion')
-                result['status'] = 'running'
-                return result
+                pending_manuals = self.db.query(Manual).filter(
+                    Manual.status == 'pending'
+                ).count()
+                
+                if pending_manuals > 0:
+                    self.log('evaluation', 'started', f'Job running - evaluating {pending_manuals} pending manuals')
+                    result['status'] = 'evaluating'
+                    state.current_phase = 'evaluating'
+                    
+                    # Evaluate manuals
+                    manuals_processed = self._evaluate_pending_manuals(pending_manuals)
+                    result['manuals_processed'] = manuals_processed
+                    result['actions_taken'].append(f'Evaluated {manuals_processed} pending manuals during job execution')
+                    
+                    # Update state
+                    state.total_manuals_evaluated = (state.total_manuals_evaluated or 0) + manuals_processed
+                    self.manager.update_state(state)
+                    self.db.commit()
+                    
+                    self.log('evaluation', 'completed', f'Evaluated {manuals_processed} manuals, job continues running')
+                    result['status'] = 'running'
+                    return result
+                else:
+                    self.log('job_check', 'completed', 'Job running, no pending manuals to evaluate')
+                    result['status'] = 'running'
+                    return result
 
             # STEP 3: Check for pending manuals
             pending_manuals = self.db.query(Manual).filter(
@@ -704,66 +728,192 @@ class AutoScrapingAgent:
             ).first()
 
             if existing_research:
-                # Use existing research
-                suitable = existing_research.suitable == True
+                # Use existing research and update manual status
+                if existing_research.is_suitable:
+                    manual.status = 'approved'
+                    suitable_count += 1
+                else:
+                    manual.status = 'rejected'
+                manual.updated_at = datetime.utcnow()
             else:
                 # Evaluate using AI
-                suitable = self._evaluate_manual_with_ai(manual)
+                evaluation_result = self._evaluate_manual_with_ai(manual)
+                
+                if evaluation_result:
+                    if evaluation_result.get('suitable'):
+                        manual.status = 'approved'
+                        suitable_count += 1
+                    else:
+                        manual.status = 'rejected'
+                    manual.updated_at = datetime.utcnow()
+                    
+                    # Store evaluation result in market research
+                    research = MarketResearch(
+                        manual_id=manual.id,
+                        ai_evaluation=json.dumps(evaluation_result),
+                        is_suitable=evaluation_result.get('suitable', False),
+                        confidence_score=evaluation_result.get('confidence', 0.0),
+                        suggested_price=self._parse_price(evaluation_result.get('suggested_price', '4.99')),
+                        seo_title=evaluation_result.get('seo_title'),
+                        target_audience=evaluation_result.get('target_audience'),
+                        concerns=json.dumps(evaluation_result.get('concerns', [])),
+                        demand_score=self._parse_demand_score(evaluation_result.get('market_analysis', {}).get('demand', 'medium')),
+                        competition_score=self._parse_competition_score(evaluation_result.get('market_analysis', {}).get('competition', 'medium'))
+                    )
+                    self.db.add(research)
 
-            if suitable:
-                suitable_count += 1
-
+        self.db.commit()
         return suitable_count
+    
+    def _parse_price(self, price_str: str) -> float:
+        """Parse price string like '4.99-9.99' to float (take lower bound)"""
+        try:
+            if '-' in price_str:
+                return float(price_str.split('-')[0].strip())
+            return float(price_str.replace('$', '').strip())
+        except:
+            return 4.99
+    
+    def _parse_demand_score(self, demand: str) -> float:
+        """Parse demand level to score (0-1)"""
+        demand_map = {'low': 0.3, 'medium': 0.6, 'high': 0.9}
+        return demand_map.get(demand.lower(), 0.5)
+    
+    def _parse_competition_score(self, competition: str) -> float:
+        """Parse competition level to score (0-1)"""
+        competition_map = {'low': 0.9, 'medium': 0.5, 'high': 0.2}
+        return competition_map.get(competition.lower(), 0.5)
 
-    def _evaluate_manual_with_ai(self, manual: Manual) -> bool:
-        """Evaluate a manual using AI to determine if it's suitable for listing"""
+    def _evaluate_manual_with_ai(self, manual: Manual) -> Optional[Dict]:
+        """Evaluate a manual using AI to determine if it's suitable for listing
+        
+        Downloads the PDF, extracts text content, and uses AI to evaluate suitability.
+        Returns evaluation result dict or None if evaluation failed.
+        """
         from groq import Groq
         from app.config import get_settings
+        import requests
+        import tempfile
+        from pathlib import Path
+        from typing import Optional, Dict
 
         settings = get_settings()
         if not settings.groq_api_key:
-            return False
+            self.log('evaluation', 'failed', f'GROQ_API_KEY not configured for manual {manual.id}')
+            return None
 
         client = Groq(api_key=settings.groq_api_key)
 
-        # Prepare evaluation prompt
-        prompt = f"""Evaluate this PDF manual for passive income potential:
+        # Step 1: Download PDF
+        pdf_content = None
+        pdf_path = None
+        
+        try:
+            self.log('evaluation', 'started', f'Downloading PDF for manual {manual.id} from {manual.source_url}')
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(manual.source_url, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()
+            
+            # Save to temporary file
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_file:
+                for chunk in response.iter_content(chunk_size=8192):
+                    tmp_file.write(chunk)
+                pdf_path = tmp_file.name
+            
+            self.log('evaluation', 'completed', f'Downloaded PDF to {pdf_path}')
+            
+        except Exception as e:
+            self.log('evaluation', 'failed', f'Failed to download PDF for manual {manual.id}: {str(e)}')
+            return None
+
+        # Step 2: Extract text from PDF
+        pdf_text = ""
+        try:
+            import PyPDF2
+            
+            with open(pdf_path, 'rb') as f:
+                pdf_reader = PyPDF2.PdfReader(f)
+                
+                # Extract text from first 5 pages (usually enough for evaluation)
+                max_pages = min(5, len(pdf_reader.pages))
+                for i in range(max_pages):
+                    page = pdf_reader.pages[i]
+                    text = page.extract_text()
+                    if text:
+                        pdf_text += f"\n--- Page {i+1} ---\n{text}"
+            
+            # Limit text length for API
+            pdf_text = pdf_text[:10000]  # First 10k characters
+            
+            if not pdf_text or len(pdf_text.strip()) < 100:
+                self.log('evaluation', 'warning', f'Could not extract sufficient text from PDF for manual {manual.id}')
+                # Fall back to metadata-only evaluation
+            
+        except Exception as e:
+            self.log('evaluation', 'warning', f'Failed to extract text from PDF for manual {manual.id}: {str(e)}')
+            pdf_text = ""
+
+        # Step 3: Prepare evaluation prompt
+        prompt_context = f"""Evaluate this PDF manual for passive income potential:
 
 Title: {manual.title or 'Unknown'}
 Source URL: {manual.source_url}
 Equipment Type: {manual.equipment_type or 'Unknown'}
 Manufacturer: {manual.manufacturer or 'Unknown'}
-File Size: {manual.file_size or 'Unknown'} MB
+Model: {manual.model or 'Unknown'}
+Year: {manual.year or 'Unknown'}
+"""
 
-Is this a genuine service/repair manual (not a preview, user guide, or brochure)?
-Is there market demand for this type of content?
-Is the quality likely to be good enough to sell?
-Are there any legal concerns (copyright, trademark)?
-What price point would work?
+        if pdf_text:
+            prompt_context += f"""
+PDF Content (first pages):
+{pdf_text}
+"""
+        else:
+            prompt_context += """
+Note: Could not extract text from PDF. Evaluate based on metadata only.
+"""
+
+        prompt_context += """
+Analyze this manual and determine if it's suitable for selling as a digital product.
+
+Consider:
+1. Is this a genuine service/repair manual (not a preview, user guide, brochure, or marketing material)?
+2. Is there market demand for this type of content (repair manuals, service guides, technical documentation)?
+3. Is the quality likely to be good enough to sell (comprehensive, detailed, useful)?
+4. Are there any legal concerns (copyright, trademark, proprietary information)?
+5. What price point would work for this type of manual?
+6. Who is the target audience (DIYers, technicians, collectors, etc.)?
 
 Return ONLY a JSON object with this format:
-{{
+{
   "suitable": true/false,
   "confidence": 0.0-1.0,
-  "reason": "brief explanation",
+  "reason": "brief explanation of why suitable or not",
   "suggested_price": "4.99-9.99",
   "seo_title": "optimized title for listing",
   "target_audience": "who would buy this",
   "keywords": ["keyword1", "keyword2"],
   "concerns": ["any issues to note"],
-  "market_analysis": {{
+  "market_analysis": {
     "demand": "low/medium/high",
     "competition": "low/medium/high",
     "price_range": "3.99-7.99"
-  }}
-}}"""
+  }
+}
+"""
 
+        # Step 4: Call AI for evaluation
         try:
             completion = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": "Evaluate this manual"}
+                    {"role": "system", "content": "You are an expert at evaluating digital products for passive income potential. Analyze PDF manuals and determine their marketability."},
+                    {"role": "user", "content": prompt_context}
                 ],
                 temperature=0.7,
                 max_tokens=2000,
@@ -771,40 +921,52 @@ Return ONLY a JSON object with this format:
             )
 
             response_text = completion.choices[0].message.content
-            print(f"[DEBUG] AI evaluation response: {response_text[:500]}...")
+            print(f"[DEBUG] AI evaluation response for manual {manual.id}: {response_text[:500]}...")
             result = json.loads(response_text)
 
-            # Handle if it's wrapped in a key
-            if isinstance(result, dict):
-                # Try common wrapper keys
-                for key in ['niches', 'niche_suggestions', 'suggestions', 'results', 'items']:
-                    if key in result and isinstance(result[key], list):
-                        result = result[key]
-                        break
-                else:
-                    # Check if the dict itself looks like a single niche
-                    if 'niche' in result or 'description' in result:
-                        result = [result]
+            # Clean up temporary file
+            try:
+                Path(pdf_path).unlink()
+            except:
+                pass
 
-            if not isinstance(result, list):
-                result = []
+            # Validate result structure
+            if not isinstance(result, dict):
+                self.log('evaluation', 'warning', f'AI returned non-dict result for manual {manual.id}')
+                return None
 
-            suitable = False
-            confidence = 0.0
-            reason = "Could not evaluate"
+            # Ensure required fields exist
+            result.setdefault('suitable', False)
+            result.setdefault('confidence', 0.0)
+            result.setdefault('reason', 'No reason provided')
+            result.setdefault('suggested_price', '4.99')
+            result.setdefault('seo_title', manual.title or 'Service Manual')
+            result.setdefault('target_audience', 'General')
+            result.setdefault('keywords', [])
+            result.setdefault('concerns', [])
+            result.setdefault('market_analysis', {
+                'demand': 'medium',
+                'competition': 'medium',
+                'price_range': '4.99-9.99'
+            })
 
-            if isinstance(result, list) and len(result) > 0:
-                item = result[0]
-                suitable = item.get('suitable', False)
-                confidence = item.get('confidence', 0.0)
-                eval_reason = item.get('reason', 'Could not evaluate')
-                suitable = suitable and confidence > 0.5
+            # Log the evaluation
+            self.log('evaluation', 'completed',
+                    f"Manual {manual.id}: suitable={result['suitable']}, confidence={result['confidence']}, reason={result['reason'][:100]}")
 
-            return suitable
+            return result
 
         except Exception as e:
-            print(f"[DEBUG] Error evaluating manual with AI: {str(e)}")
-            return False
+            self.log('evaluation', 'failed', f'Error evaluating manual {manual.id} with AI: {str(e)}')
+            
+            # Clean up temporary file
+            try:
+                Path(pdf_path).unlink()
+            except:
+                pass
+            
+            return None
+
 
     def _create_listings_for_manuals(self, count: int) -> int:
         """Create Etsy listings for suitable manuals"""
@@ -824,7 +986,7 @@ Return ONLY a JSON object with this format:
                 MarketResearch.manual_id == manual.id
             ).first()
 
-            if existing_research and existing_research.suitable:
+            if existing_research and existing_research.is_suitable:
                 # Create listing
                 listing = PlatformListing(
                     manual_id=manual.id,
