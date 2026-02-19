@@ -93,6 +93,14 @@ class AutoScrapingAgent:
         self.db.add(setting)
         self.db.commit()
 
+    def enable(self):
+        """Enable auto-scraping agent"""
+        self.log('enable', 'completed', 'Auto-scraping agent enabled')
+    
+    def disable(self):
+        """Disable auto-scraping agent"""
+        self.log('disable', 'completed', 'Auto-scraping agent disabled')
+    
     def run_cycle(self) -> Dict:
         """
         Run one complete cycle of the auto-scraping agent
