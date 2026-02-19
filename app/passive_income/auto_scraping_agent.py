@@ -21,17 +21,16 @@ from app.config import get_settings
 
 settings = get_settings()
 
-# Prompt for AI to discover profitable niches with sites to search
+# Prompt for AI to discover profitable niches
 NICHE_DISCOVERY_PROMPT = """You are an AI assistant that discovers profitable niches for digital PDF products that can be found freely online and sold for passive income.
 
 For each niche suggestion, you MUST include:
 1. A clear niche name (e.g., "Vintage Camera Manuals", "Motorcycle Repair Guides")
 2. A search query to use (e.g., "vintage camera manual filetype:pdf", "motorcycle repair guide pdf")
-3. A list of specific sites to search (e.g., ["manualslib.com", "vintagebike.co", "classic-motorcycle.com"])
-4. Keywords to filter results (e.g., ["service manual", "repair guide", "workshop manual"])
-5. Demand level (low/medium/high)
-6. Competition level (low/medium/high)
-7. Potential price range (e.g., "4.99-9.99")
+3. Keywords to filter results (e.g., ["service manual", "repair guide", "workshop manual"])
+4. Demand level (low/medium/high)
+5. Competition level (low/medium/high)
+6. Potential price range (e.g., "4.99-9.99")
 
 Return ONLY a JSON object with this exact structure:
 {
@@ -39,7 +38,6 @@ Return ONLY a JSON object with this exact structure:
     {
       "niche": "Vintage Camera Manuals",
       "search_query": "vintage camera manual filetype:pdf",
-      "sites_to_search": ["manualslib.com", "vintagebike.co", "classic-motorcycle.com"],
       "keywords": ["service manual", "repair guide", "workshop manual"],
       "demand_level": "high",
       "competition_level": "low",
@@ -283,28 +281,8 @@ class AutoScrapingAgent:
             keywords = json.loads(niche.keywords) if niche.keywords else []
             sites = json.loads(niche.sites_to_search) if niche.sites_to_search else []
 
-            # If no sites specified, use default sites for the niche type
-            if not sites:
-                # Default sites based on niche category
-                default_sites = {
-                    'vintage': ['manualslib.com', 'vintagebike.co', 'classic-motorcycle.com'],
-                    'camera': ['butkus.org', 'camera-manual.com'],
-                    'motorcycle': ['manualslib.com', 'vintagebike.co'],
-                    'electronics': ['manualslib.com'],
-                    'audio': ['manualslib.com'],
-                    'automotive': ['manualslib.com'],
-                    'power_equipment': ['manualslib.com'],
-                }
-                # Try to determine category from niche name
-                niche_lower = niche.niche.lower()
-                if any(word in niche_lower for word in ['vintage', 'motorcycle', 'bike', 'atv', 'tractor', 'lawn', 'generator', 'chainsaw']):
-                    sites = default_sites.get('vintage', default_sites.get('motorcycle'))
-                elif any(word in niche_lower for word in ['camera', 'photo', 'canon', 'nikon', 'pentax', 'olympus', 'film', 'dslr']):
-                    sites = default_sites.get('camera')
-                elif any(word in niche_lower for word in ['electronics', 'audio', 'stereo', 'receiver', 'amp', 'speaker']):
-                    sites = default_sites.get('electronics')
-                else:
-                    sites = default_sites.get('electronics')
+            # Note: If no sites are specified, the multi_site_scraper will use
+            # DuckDuckGo to dynamically discover sites based on the search query
 
             job = ScrapeJob(
                 name=f"Auto: {niche.niche}",
@@ -312,7 +290,7 @@ class AutoScrapingAgent:
                 query=niche.search_query or niche.niche,
                 search_terms=','.join([niche.niche] + keywords[:5]) if keywords else niche.niche,
                 exclude_terms='preview,operator,user manual,quick start,brochure,catalog',
-                sites=json.dumps(sites) if sites else None,
+                sites=json.dumps(sites) if sites else None,  # None triggers DuckDuckGo site discovery
                 max_results=100,
                 equipment_type=niche.niche.split()[0] if niche.niche else None,
                 autostart_enabled=True,
