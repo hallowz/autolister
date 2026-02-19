@@ -61,13 +61,15 @@ class AutoScrapingAgent:
     4. Automatic listing creation
     """
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, agent_id: str = "auto_scraping_agent"):
         self.db = db
         self.manager = PassiveIncomeManager(db)
+        self.agent_id = agent_id
 
     def log(self, action: str, status: str, message: str, data: Dict = None):
         """Log agent action"""
         log_entry = AgentLog(
+            agent_id=self.agent_id,
             action=action,
             status=status,
             message=message,

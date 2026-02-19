@@ -441,6 +441,23 @@ class PassiveIncomeManager:
             query = query.filter(PlatformListing.platform_id == platform_id)
         
         return query.order_by(PlatformListing.created_at.desc()).all()
+    
+    def get_state(self) -> AutoScrapingState:
+        """Get the current auto-scraping state"""
+        state = self.db.query(AutoScrapingState).first()
+        if not state:
+            state = AutoScrapingState()
+            self.db.add(state)
+            self.db.commit()
+            self.db.refresh(state)
+        return state
+    
+    def update_state(self, state: AutoScrapingState) -> AutoScrapingState:
+        """Update the auto-scraping state"""
+        state.updated_at = datetime.utcnow()
+        self.db.commit()
+        self.db.refresh(state)
+        return state
 
 
 def create_passive_income_tables():
