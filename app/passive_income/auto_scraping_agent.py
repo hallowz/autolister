@@ -252,19 +252,53 @@ class AutoScrapingAgent:
 
                 # STEP 8: Handle idle state - prompt for new niches or refined configurations
                 if running_jobs == 0 and pending_manuals == 0 and result['jobs_created'] == 0:
-                    # Get available niches again for the idle check
-                    available_niches = self._get_available_niches()
+                    # Check again for pending manuals (may have been added since the start of the cycle)
+                    pending_manuals = self.db.query(Manual).filter(
+                        Manual.status == 'pending'
+                    ).count()
                     
-                    # Handle idle state
-                    prompt_result = self._handle_idle_state(running_jobs, pending_manuals, available_niches)
-                    
-                    if prompt_result.get('prompted'):
-                        result['prompted'] = True
-                        result['prompt_type'] = prompt_result.get('prompt_type')
-                        result['prompt_id'] = prompt_result.get('prompt_id')
-                        result['status'] = 'waiting_for_input'
-                        result['actions_taken'].append(f"Created {prompt_result.get('prompt_type')} prompt for user input")
-                        self.log('idle_state', 'completed', f'Agent idle, created {prompt_result.get("prompt_type")} prompt (ID: {prompt_result.get("prompt_id")})')
+                    if pending_manuals > 0:
+                        # Evaluate pending manuals when idle
+                        self.log('evaluation', 'started', f'Agent idle - evaluating {pending_manuals} pending manuals')
+                        result['status'] = 'evaluating'
+                        state.current_phase = 'evaluating'
+                        
+                        # Evaluate manuals
+                        manuals_processed = self._evaluate_pending_manuals(pending_manuals)
+                        result['manuals_processed'] = manuals_processed
+                        result['actions_taken'].append(f'Evaluated {manuals_processed} pending manuals during idle state')
+                        
+                        # Update state
+                        state.total_manuals_evaluated = (state.total_manuals_evaluated or 0) + manuals_processed
+                        self.manager.update_state(state)
+                        self.db.commit()
+                        
+                        # STEP 8.5: If suitable manuals found, create listings
+                        if manuals_processed > 0:
+                            self.log('listing', 'started', f'Creating listings for {manuals_processed} suitable manuals')
+                            result['status'] = 'creating_listings'
+                            state.current_phase = 'creating_listings'
+                            
+                            # Create listings (limit to 5 to avoid overwhelming the system)
+                            listings_created = self._create_listings_for_manuals(manuals_processed)
+                            result['actions_taken'].append(f'Created {listings_created} Etsy listings')
+                            result['listings_created'] = listings_created
+                        else:
+                            self.log('evaluation', 'completed', f'No suitable manuals found for listing')
+                    else:
+                        # Get available niches again for the idle check
+                        available_niches = self._get_available_niches()
+                        
+                        # Handle idle state
+                        prompt_result = self._handle_idle_state(running_jobs, pending_manuals, available_niches)
+                        
+                        if prompt_result.get('prompted'):
+                            result['prompted'] = True
+                            result['prompt_type'] = prompt_result.get('prompt_type')
+                            result['prompt_id'] = prompt_result.get('prompt_id')
+                            result['status'] = 'waiting_for_input'
+                            result['actions_taken'].append(f"Created {prompt_result.get('prompt_type')} prompt for user input")
+                            self.log('idle_state', 'completed', f'Agent idle, created {prompt_result.get("prompt_type")} prompt (ID: {prompt_result.get("prompt_id")})')
 
             # STEP 9: Update state
             state.total_niches_discovered = (state.total_niches_discovered or 0) + result['niches_discovered']
@@ -772,8 +806,6 @@ class AutoScrapingAgent:
     
     def _move_approved_to_queue(self) -> int:
         """Move approved manuals to the processing queue"""
-        from app.api.scrape_routes import get_queue_position
-        
         # Get all approved manuals that are not yet queued
         approved_manuals = self.db.query(Manual).filter(
             Manual.status == 'approved',
@@ -784,7 +816,13 @@ class AutoScrapingAgent:
             return 0
         
         moved_count = 0
-        start_position = get_queue_position(self.db)
+        
+        # Get the next available queue position for manuals (not jobs)
+        highest_position = self.db.query(Manual.queue_position).filter(
+            Manual.queue_position.isnot(None)
+        ).order_by(Manual.queue_position.desc()).first()
+        
+        start_position = (highest_position[0] + 1) if highest_position else 1
         
         for i, manual in enumerate(approved_manuals):
             manual.status = 'queued'
@@ -1004,14 +1042,32 @@ Return ONLY a JSON object with this format:
 
 
     def _create_listings_for_manuals(self, count: int) -> int:
-        """Create Etsy listings for suitable manuals"""
-        from app.passive_income.database import PlatformListing
+        """Create Gumroad listings for suitable manuals using existing processing functionality"""
+        from app.passive_income.database import PlatformListing, Platform
+        from app.processors.pdf_processor import PDFProcessor
+        from app.processors.summary_gen import SummaryGenerator
 
-        # Get suitable manuals
+        # Get Gumroad platform (prefer Gumroad as it's free)
+        gumroad_platform = self.db.query(Platform).filter(
+            Platform.name == 'gumroad'
+        ).first()
+        
+        # Fallback to Etsy if Gumroad not found
+        if not gumroad_platform:
+            gumroad_platform = self.db.query(Platform).filter(
+                Platform.name == 'etsy'
+            ).first()
+        
+        if not gumroad_platform:
+            self.log('listing', 'failed', 'No platform available for listing')
+            return 0
+
+        # Get suitable manuals that are queued for processing
         from sqlalchemy import desc
         manuals = self.db.query(Manual).filter(
-            Manual.status == 'pending'
-        ).order_by(desc(Manual.created_at)).limit(count).all()
+            Manual.status == 'queued',
+            Manual.queue_position.isnot(None)
+        ).order_by(Manual.queue_position.asc()).limit(count).all()
 
         listings_created = 0
 
@@ -1022,15 +1078,115 @@ Return ONLY a JSON object with this format:
             ).first()
 
             if existing_research and existing_research.is_suitable:
-                # Create listing
-                listing = PlatformListing(
-                    manual_id=manual.id,
-                    platform_id=1,  # Etsy
-                    status='draft',
-                    created_at=datetime.utcnow()
-                )
-                self.db.add(listing)
-                listings_created += 1
+                try:
+                    # Process the manual using existing functionality
+                    processor = PDFProcessor()
+                    summary_gen = SummaryGenerator()
+                    
+                    # Extract metadata
+                    pdf_metadata = processor.extract_metadata(manual.pdf_path)
+                    
+                    # Extract text
+                    text = processor.extract_first_page_text(manual.pdf_path)
+                    
+                    # Extract model_number from model if available
+                    model_number = None
+                    if manual.model:
+                        import re
+                        number_match = re.search(r'\d+', manual.model)
+                        if number_match:
+                            model_number = number_match.group()
+                    
+                    # Generate images
+                    images = processor.generate_listing_images(
+                        manual.pdf_path,
+                        manual.id,
+                        manufacturer=manual.manufacturer,
+                        model=manual.model,
+                        model_number=model_number,
+                        year=manual.year
+                    )
+                    
+                    # Combine all images
+                    all_images = images.get('main', []) + images.get('additional', [])
+                    
+                    # Generate title
+                    title = summary_gen.generate_title(
+                        {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+                        text
+                    )
+                    
+                    # Generate description using AI or fallback
+                    description = None
+                    try:
+                        from app.processors.pdf_ai_extractor import PDFAIExtractor
+                        ai_extractor = PDFAIExtractor()
+                        if ai_extractor.is_available():
+                            metadata = {
+                                'manufacturer': manual.manufacturer or pdf_metadata.get('manufacturer'),
+                                'model': manual.model or pdf_metadata.get('model'),
+                                'year': manual.year or pdf_metadata.get('year'),
+                                'title': title
+                            }
+                            ai_result = ai_extractor.generate_description(manual.pdf_path, metadata)
+                            if ai_result.get('success'):
+                                description = ai_result.get('description')
+                    except Exception as ai_error:
+                        self.log('listing', 'warning', f'AI description generation failed for manual {manual.id}: {ai_error}')
+                    
+                    # Fall back to template description if AI failed
+                    if not description:
+                        description = summary_gen.generate_description(
+                            {**pdf_metadata, 'manufacturer': manual.manufacturer, 'model': manual.model},
+                            text,
+                            processor.get_page_count(manual.pdf_path)
+                        )
+                    
+                    # Update manual with generated content
+                    if not manual.title:
+                        manual.title = title
+                    if not manual.description:
+                        manual.description = description
+                    
+                    # Create listing with all required fields
+                    listing = PlatformListing(
+                        manual_id=manual.id,
+                        platform_id=gumroad_platform.id,  # Gumroad (or Etsy fallback)
+                        title=existing_research.seo_title or title,
+                        description=description,
+                        price=existing_research.suggested_price or 4.99,
+                        seo_title=existing_research.seo_title or title,
+                        seo_keywords=manual.tags or '',
+                        tags=manual.tags or '[]',
+                        status='draft',
+                        created_at=datetime.utcnow()
+                    )
+                    self.db.add(listing)
+                    
+                    # Store image paths in manual's resources_zip_path for later use
+                    if all_images:
+                        manual.resources_zip_path = all_images[0] if all_images else None
+                    
+                    # Mark manual as processed and remove from queue
+                    manual.status = 'processed'
+                    manual.queue_position = None
+                    manual.processing_state = 'completed'
+                    manual.processing_completed_at = datetime.utcnow()
+                    manual.updated_at = datetime.utcnow()
+                    
+                    listings_created += 1
+                    self.log('listing', 'completed',
+                             f"Created listing for manual {manual.id} with {len(all_images)} images")
+                
+                except Exception as e:
+                    self.log('listing', 'failed', f'Failed to create listing for manual {manual.id}: {str(e)}')
+                    # Mark manual as error but don't stop processing others
+                    manual.status = 'error'
+                    manual.error_message = str(e)
+                    manual.queue_position = None
+                    manual.processing_state = 'failed'
+                    manual.processing_completed_at = datetime.utcnow()
+                    manual.updated_at = datetime.utcnow()
 
         self.db.commit()
         return listings_created
