@@ -211,7 +211,7 @@ class MultiSiteScraper(BaseScraper):
                 
                 if scraped_site:
                     scraped_site.last_scraped_at = datetime.utcnow()
-                    scraped_site.scrape_count += 1
+                    scraped_site.scrape_count = (scraped_site.scrape_count or 0) + 1
                 else:
                     try:
                         scraped_site = ScrapedSite(
@@ -229,7 +229,7 @@ class MultiSiteScraper(BaseScraper):
                         ).first()
                         if scraped_site:
                             scraped_site.last_scraped_at = datetime.utcnow()
-                            scraped_site.scrape_count += 1
+                            scraped_site.scrape_count = (scraped_site.scrape_count or 0) + 1
                             self._scraped_sites_cache[domain] = scraped_site
             
             db.commit()
