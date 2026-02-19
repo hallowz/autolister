@@ -15,6 +15,7 @@ from .base import BaseScraper, PDFResult
 from app.database import SessionLocal, Manual, ScrapedSite
 from datetime import datetime
 from urllib.parse import urlparse as url_parse
+from .duckduckgo import DuckDuckGoScraper
 
 
 class MultiSiteScraper(BaseScraper):
@@ -427,7 +428,7 @@ class MultiSiteScraper(BaseScraper):
         Search across multiple sites for PDF files
         
         Args:
-            query: Optional query string (can be used for search term matching)
+            query: Optional query string (can be used for search term matching or DuckDuckGo search)
             log_callback: Optional callback function for logging progress
             
         Returns:
@@ -444,9 +445,43 @@ class MultiSiteScraper(BaseScraper):
             except json.JSONDecodeError:
                 self.sites = []
         
-        # If no sites provided, use query as a single site
+        # If no sites provided, use DuckDuckGo to find sites based on search terms/query
         if not self.sites and query:
-            self.sites = [query]
+            if log_callback:
+                log_callback(f"No sites provided, using DuckDuckGo to find sites for query: {query}")
+            
+            # Use DuckDuckGo to find sites containing PDFs
+            ddg_config = {
+                'user_agent': self.config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+                'request_timeout': self.config.get('timeout', 30),
+                'max_results': 20  # Get up to 20 results to find sites
+            }
+            
+            ddg_scraper = DuckDuckGoScraper(ddg_config)
+            
+            # Build DuckDuckGo query from search terms or use the provided query
+            ddg_query = query
+            if self.search_terms:
+                ddg_query = ' '.join(self.search_terms[:3])  # Use first 3 search terms
+            
+            if log_callback:
+                log_callback(f"Searching DuckDuckGo for: {ddg_query}")
+            
+            # Search DuckDuckGo to find sites
+            ddg_results = ddg_scraper.search(ddg_query, max_results=20)
+            
+            # Extract unique domains from DuckDuckGo results
+            domains_found = set()
+            for result in ddg_results:
+                parsed_url = urlparse(result.url)
+                domain = parsed_url.netloc
+                domains_found.add(domain)
+            
+            # Convert domains to site URLs
+            self.sites = [f"https://{domain}" for domain in domains_found]
+            
+            if log_callback:
+                log_callback(f"Found {len(self.sites)} sites from DuckDuckGo: {', '.join(list(self.sites)[:5])}...")
         
         if not self.sites:
             if log_callback:

@@ -294,6 +294,26 @@ class AutoScrapingAgent:
                     f"Created scrape job for niche: {niche.niche}",
                     {'job_id': job.id, 'niche': niche.niche})
 
+            # Start the job immediately if autostart is enabled and no job is currently running
+            if job.autostart_enabled:
+                running_job = self.db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+                if not running_job:
+                    self.log('job_start', 'started', f"Starting job {job.id} immediately")
+                    # Start job asynchronously
+                    import threading
+                    def auto_start():
+                        from app.api.scrape_routes import start_next_queued_job
+                        db_local = SessionLocal()
+                        try:
+                            start_next_queued_job(db_local, previous_job_autostart=False)
+                        except Exception as e:
+                            self.log('job_start', 'failed', f"Error starting job {job.id}: {str(e)}")
+                        finally:
+                            db_local.close()
+                    
+                    thread = threading.Thread(target=auto_start, daemon=True)
+                    thread.start()
+
             return {
                 'created': True,
                 'reason': f"Created job {job.id} for {niche.niche}"
