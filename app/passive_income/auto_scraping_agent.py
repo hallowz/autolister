@@ -658,6 +658,7 @@ class AutoScrapingAgent:
                 exclude_terms='preview,operator,user manual,quick start,brochure,catalog',
                 sites=json.dumps(sites) if sites else None,  # None triggers DuckDuckGo site discovery
                 min_pages=10,  # Require at least 10 pages for service manuals
+                min_file_size_mb=5.0,  # Require at least 5MB to filter out small PDFs with few pages
                 max_results=100,
                 equipment_type=niche.niche.split()[0] if niche.niche else None,
                 autostart_enabled=True,
