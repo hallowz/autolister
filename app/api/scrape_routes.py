@@ -513,7 +513,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                             job_sites = filtered_sites
                     
                     log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
-                    run_multi_site_scraping_job(
+                    new_manuals_count = run_multi_site_scraping_job(
                         sites=job_sites,
                         search_terms=search_terms,
                         exclude_terms=exclude_terms,
@@ -532,7 +532,7 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                         exclude_sites=exclude_sites
                     )
                 else:
-                    run_search_job(
+                    new_manuals_count = run_search_job(
                         query=job_query,
                         source_type=job_source_type,
                         max_results=job_max_results,
@@ -542,7 +542,10 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     )
                 
                 # Log job completion
-                log_callback("Job completed successfully")
+                if new_manuals_count > 0:
+                    log_callback(f"Job completed successfully. Found {new_manuals_count} new manuals.")
+                else:
+                    log_callback("Job completed but no new manuals were found.")
                 
                 # Mark job as completed
                 db = SessionLocal()
@@ -552,6 +555,9 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     job.progress = 100
                     job.completed_at = datetime.utcnow()
                     job.updated_at = datetime.utcnow()
+                    # Add note about results count
+                    if new_manuals_count == 0:
+                        job.error_message = "No new manuals found"
                     db.commit()
                     
                     # Remove from thread tracking
@@ -813,7 +819,7 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                             raise Exception("No sites found from DuckDuckGo search")
                     
                     log_callback(f"Starting multi-site scraping for {len(job_sites)} sites")
-                    run_multi_site_scraping_job(
+                    new_manuals_count = run_multi_site_scraping_job(
                         sites=job_sites,
                         search_terms=search_terms,
                         exclude_terms=exclude_terms,
@@ -832,7 +838,7 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                         exclude_sites=exclude_sites
                     )
                 else:
-                    run_search_job(
+                    new_manuals_count = run_search_job(
                         query=job_query,
                         source_type=job_source_type,
                         max_results=job_max_results,
@@ -842,7 +848,10 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                     )
                     
                 # Log job completion
-                log_callback("Job completed successfully")
+                if new_manuals_count > 0:
+                    log_callback(f"Job completed successfully. Found {new_manuals_count} new manuals.")
+                else:
+                    log_callback("Job completed but no new manuals were found.")
                 
                 db_local = SessionLocal()
                 job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
@@ -851,6 +860,9 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                     job.progress = 100
                     job.completed_at = datetime.utcnow()
                     job.updated_at = datetime.utcnow()
+                    # Add note about results count
+                    if new_manuals_count == 0:
+                        job.error_message = "No new manuals found"
                     db_local.commit()
                     
                     # Remove from thread tracking

@@ -23,7 +23,7 @@ def run_search_job(
     equipment_type: str = None,
     manufacturer: str = None,
     job_id: int = None
-):
+) -> int:
     """
     Run a search job to discover PDF manuals
     
@@ -34,6 +34,9 @@ def run_search_job(
         equipment_type: Equipment type filter
         manufacturer: Manufacturer filter
         job_id: ID of the scrape job creating these manuals
+    
+    Returns:
+        Number of new manuals saved to database
     """
     from app.scrapers.search_engine import SearchEngineScraper
     from app.scrapers.forums import ForumScraper
@@ -93,9 +96,12 @@ def run_search_job(
             except Exception as e:
                 print(f"[run_search_job] Failed to trigger agent evaluation: {e}")
         
+        return new_count
+        
     except Exception as e:
         print(f"[run_search_job] Error: {e}")
         db.rollback()
+        return 0
     finally:
         db.close()
 
@@ -118,7 +124,7 @@ def run_multi_site_scraping_job(
     log_callback: Callable = None,
     job_id: int = None,
     exclude_sites: List[str] = None
-):
+) -> int:
     """
     Run a multi-site scraping job to discover PDF manuals
     
@@ -139,6 +145,9 @@ def run_multi_site_scraping_job(
         log_callback: Optional callback function for logging
         job_id: ID of the scrape job creating these manuals
         exclude_sites: List of sites/domains to exclude from scraping
+    
+    Returns:
+        Number of new manuals saved to database
     """
     db = SessionLocal()
 
@@ -271,6 +280,8 @@ def run_multi_site_scraping_job(
         db.add(processing_log)
         db.commit()
         
+        return total_discovered
+        
     except Exception as e:
         log(f"Multi-site scraping job error: {e}")
         
@@ -282,6 +293,8 @@ def run_multi_site_scraping_job(
         )
         db.add(processing_log)
         db.commit()
+        
+        return 0
 
     finally:
         db.close()
