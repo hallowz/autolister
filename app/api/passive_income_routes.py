@@ -451,7 +451,20 @@ def enable_auto_scraping(db: Session = Depends(get_db)):
         state.is_enabled = True
     db.commit()
     
-    return {'message': 'Auto-scraping enabled', 'enabled': True}
+    # Run a cycle immediately when enabled
+    try:
+        results = agent.run_cycle()
+        return {
+            'message': 'Auto-scraping enabled',
+            'enabled': True,
+            'cycle_results': results
+        }
+    except Exception as e:
+        return {
+            'message': 'Auto-scraping enabled but cycle failed',
+            'enabled': True,
+            'error': str(e)
+        }
 
 
 @router.post("/auto-scraping/disable")
