@@ -42,6 +42,17 @@ async def startup_event():
     except Exception as e:
         print(f"Warning: Could not initialize passive income system: {e}")
     
+    # Clean up stale running jobs from previous app instance
+    try:
+        from app.api.scrape_routes import cleanup_stale_running_jobs
+        from app.database import SessionLocal
+        db = SessionLocal()
+        cleanup_stale_running_jobs(db)
+        db.close()
+        print("Cleaned up stale running jobs from previous session")
+    except Exception as e:
+        print(f"Warning: Could not clean up stale jobs: {e}")
+    
     print(f"{settings.app_name} v{settings.app_version} started!")
 
 

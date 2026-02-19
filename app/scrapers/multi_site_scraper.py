@@ -61,6 +61,12 @@ class MultiSiteScraper(BaseScraper):
         
         # Track saved URLs to avoid duplicates within the same scrape session
         self.saved_urls = set()
+        
+        # Batch saving for better performance
+        self._pending_saves = []
+        self._batch_size = self.config.get('batch_size', 10)  # Save in batches of 10
+        self._db_session = None  # Reuse database session for batch operations
+        self._scraped_sites_cache = {}  # Cache scraped sites to avoid repeated queries
     
     def _parse_list(self, value: Optional[str]) -> List[str]:
         """Parse comma-separated string into list"""
@@ -118,13 +124,22 @@ class MultiSiteScraper(BaseScraper):
         return any(term in text for term in self.exclude_terms)
     
     def _get_file_size_mb(self, url: str) -> Optional[float]:
-        """Get file size in MB from URL headers"""
+        """Get file size in MB from URL headers (cached)"""
+        # Check if we already have this URL's size cached
+        if hasattr(self, '_file_size_cache') and url in self._file_size_cache:
+            return self._file_size_cache[url]
+        
         try:
-            response = self.session.head(url, timeout=10, allow_redirects=True)
+            response = self.session.head(url, timeout=5, allow_redirects=True)
             if response.status_code == 200:
                 content_length = response.headers.get('Content-Length')
                 if content_length:
-                    return int(content_length) / (1024 * 1024)
+                    size_mb = int(content_length) / (1024 * 1024)
+                    # Cache the result
+                    if not hasattr(self, '_file_size_cache'):
+                        self._file_size_cache = {}
+                    self._file_size_cache[url] = size_mb
+                    return size_mb
         except Exception:
             pass
         return None
@@ -138,9 +153,107 @@ class MultiSiteScraper(BaseScraper):
         pdf_links = soup.find_all('a', href=re.compile(r'\.pdf$', re.I))
         return len(pdf_links) >= 3  # Consider it a PDF directory if 3+ PDFs
     
+    def _get_db_session(self) -> SessionLocal:
+        """Get or create a reusable database session"""
+        if self._db_session is None:
+            self._db_session = SessionLocal()
+        return self._db_session
+    
+    def _flush_pending_saves(self, log_callback: Optional[Callable] = None):
+        """Flush all pending saves to database in a single transaction"""
+        if not self._pending_saves:
+            return
+        
+        db = self._get_db_session()
+        try:
+            for result in self._pending_saves:
+                # Check if URL already exists in database
+                existing = db.query(Manual).filter(
+                    Manual.source_url == result.url
+                ).first()
+                
+                if existing:
+                    continue
+                
+                # Create manual record
+                manual = Manual(
+                    job_id=self.job_id,
+                    source_url=result.url,
+                    source_type=result.source_type,
+                    title=result.title,
+                    equipment_type=result.equipment_type,
+                    manufacturer=result.manufacturer,
+                    model=result.model,
+                    year=result.year,
+                    status='pending',
+                    processing_state='queued'
+                )
+                db.add(manual)
+                
+                # Track that this URL has been saved
+                self.saved_urls.add(result.url)
+            
+            db.commit()
+            
+            # Update scraped sites in batch
+            for result in self._pending_saves:
+                parsed = url_parse(result.url)
+                domain = parsed.netloc
+                
+                # Check cache first
+                if domain not in self._scraped_sites_cache:
+                    scraped_site = db.query(ScrapedSite).filter(
+                        ScrapedSite.url == domain
+                    ).first()
+                    self._scraped_sites_cache[domain] = scraped_site
+                
+                scraped_site = self._scraped_sites_cache[domain]
+                
+                if scraped_site:
+                    scraped_site.last_scraped_at = datetime.utcnow()
+                    scraped_site.scrape_count += 1
+                else:
+                    try:
+                        scraped_site = ScrapedSite(
+                            url=domain,
+                            domain=domain,
+                            status='active'
+                        )
+                        db.add(scraped_site)
+                        self._scraped_sites_cache[domain] = scraped_site
+                    except Exception:
+                        db.rollback()
+                        # Try to get existing one
+                        scraped_site = db.query(ScrapedSite).filter(
+                            ScrapedSite.url == domain
+                        ).first()
+                        if scraped_site:
+                            scraped_site.last_scraped_at = datetime.utcnow()
+                            scraped_site.scrape_count += 1
+                            self._scraped_sites_cache[domain] = scraped_site
+            
+            db.commit()
+            
+            # Trigger the auto-scraping agent once per batch instead of per PDF
+            try:
+                from app.tasks.jobs import trigger_agent_evaluation
+                trigger_agent_evaluation.apply_async(countdown=2)
+            except Exception as e:
+                print(f"[MultiSiteScraper] Failed to trigger agent evaluation: {e}")
+            
+            if log_callback:
+                log_callback(f"✓ Batch saved {len(self._pending_saves)} PDFs to database")
+            
+            self._pending_saves = []
+            
+        except Exception as e:
+            db.rollback()
+            if log_callback:
+                log_callback(f"Error in batch save: {e}")
+    
     def _save_pdf_to_database(self, result: PDFResult, log_callback: Optional[Callable] = None) -> bool:
         """
-        Save a PDF result to the database immediately upon discovery
+        Save a PDF result to the database (batched for performance)
         
         Args:
             result: PDFResult object containing PDF information
@@ -151,93 +264,25 @@ class MultiSiteScraper(BaseScraper):
         """
         # Check if already saved in this session
         if result.url in self.saved_urls:
-            if log_callback:
-                log_callback(f"Already saved this session: {result.url}")
             return False
         
-        db = SessionLocal()
-        try:
-            # Check if URL already exists in database
-            existing = db.query(Manual).filter(
-                Manual.source_url == result.url
-            ).first()
-            
-            if existing:
-                if log_callback:
-                    log_callback(f"Already in database: {result.url}")
-                return False
-            
-            # Create manual record
-            manual = Manual(
-                job_id=self.job_id,
-                source_url=result.url,
-                source_type=result.source_type,
-                title=result.title,
-                equipment_type=result.equipment_type,
-                manufacturer=result.manufacturer,
-                model=result.model,
-                year=result.year,
-                status='pending',
-                processing_state='queued'
-            )
-            db.add(manual)
-            db.commit()
-            
-            # Track that this URL has been saved
-            self.saved_urls.add(result.url)
-            
-            # Trigger the auto-scraping agent to evaluate pending manuals
-            # This ensures the agent doesn't go idle while jobs are running
-            try:
-                from app.tasks.jobs import trigger_agent_evaluation
-                # Trigger asynchronously with a small delay to allow the transaction to complete
-                trigger_agent_evaluation.apply_async(countdown=2)
-            except Exception as e:
-                # Log but don't fail if triggering the task fails
-                print(f"[MultiSiteScraper] Failed to trigger agent evaluation: {e}")
-            
-            # Update or create scraped site record
-            parsed = url_parse(result.url)
-            domain = parsed.netloc
-            scraped_site = db.query(ScrapedSite).filter(
-                ScrapedSite.url == domain
-            ).first()
-            
-            if scraped_site:
-                scraped_site.last_scraped_at = datetime.utcnow()
-                scraped_site.scrape_count += 1
-            else:
-                try:
-                    scraped_site = ScrapedSite(
-                        url=domain,
-                        domain=domain,
-                        status='active'
-                    )
-                    db.add(scraped_site)
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                    # Try to get existing one
-                    scraped_site = db.query(ScrapedSite).filter(
-                        ScrapedSite.url == domain
-                    ).first()
-                    if scraped_site:
-                        scraped_site.last_scraped_at = datetime.utcnow()
-                        scraped_site.scrape_count += 1
-                        db.commit()
-            
-            if log_callback:
-                log_callback(f"✓ Saved to database: {result.title or result.url}")
-            
-            return True
-            
-        except Exception as e:
-            db.rollback()
-            if log_callback:
-                log_callback(f"Error saving to database: {e}")
-            return False
-        finally:
-            db.close()
+        # Add to pending saves
+        self._pending_saves.append(result)
+        
+        # Flush if batch size reached
+        if len(self._pending_saves) >= self._batch_size:
+            self._flush_pending_saves(log_callback)
+        elif log_callback:
+            log_callback(f"Found: {result.title or result.url}")
+        
+        return True
+    
+    def _cleanup_db_session(self):
+        """Clean up database session and flush any pending saves"""
+        self._flush_pending_saves()
+        if self._db_session:
+            self._db_session.close()
+            self._db_session = None
     
     def _extract_links(self, base_url: str, html: str, current_depth: int) -> List[str]:
         """
@@ -523,41 +568,45 @@ class MultiSiteScraper(BaseScraper):
             log_callback(f"Exclude sites: {', '.join(self.exclude_sites) if self.exclude_sites else 'None'}")
             log_callback(f"Max depth: {self.max_depth}, Follow links: {self.follow_links}")
         
-        # Scrape sites concurrently
-        max_workers = min(5, len(self.sites))  # Limit concurrent workers
-        
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_site = {
-                executor.submit(
-                    self._scrape_site,
-                    site,
-                    visited_urls,
-                    scraped_urls,
-                    log_callback
-                ): site for site in self.sites
-            }
+        try:
+            # Scrape sites concurrently - increased workers for better performance
+            max_workers = min(10, len(self.sites))  # Increased from 5 to 10
             
-            for future in as_completed(future_to_site):
-                site = future_to_site[future]
-                try:
-                    results = future.result()
-                    all_results.extend(results)
-                    if log_callback:
-                        log_callback(f"Completed scraping {site}: found {len(results)} PDFs")
-                except Exception as e:
-                    error_msg = f"Error scraping {site}: {e}"
-                    if log_callback:
-                        log_callback(error_msg)
-                    print(f"[MultiSiteScraper] {error_msg}")
-                    import traceback
-                    traceback.print_exc()
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_site = {
+                    executor.submit(
+                        self._scrape_site,
+                        site,
+                        visited_urls,
+                        scraped_urls,
+                        log_callback
+                    ): site for site in self.sites
+                }
+                
+                for future in as_completed(future_to_site):
+                    site = future_to_site[future]
+                    try:
+                        results = future.result()
+                        all_results.extend(results)
+                        if log_callback:
+                            log_callback(f"Completed scraping {site}: found {len(results)} PDFs")
+                    except Exception as e:
+                        error_msg = f"Error scraping {site}: {e}"
+                        if log_callback:
+                            log_callback(error_msg)
+                        print(f"[MultiSiteScraper] {error_msg}")
+                        import traceback
+                        traceback.print_exc()
+        finally:
+            # Ensure all pending saves are flushed
+            self._cleanup_db_session()
         
         if log_callback:
             log_callback(f"Multi-site scraping completed: found {len(all_results)} PDFs total")
         
         return all_results
     
-    def _scrape_site(self, site_url: str, visited_urls: Set[str], scraped_urls: Set[str], 
+    def _scrape_site(self, site_url: str, visited_urls: Set[str], scraped_urls: Set[str],
                      log_callback: Optional[Callable] = None) -> List[PDFResult]:
         """
         Scrape a single site
@@ -584,5 +633,9 @@ class MultiSiteScraper(BaseScraper):
             print(f"[MultiSiteScraper] {error_msg}")
             import traceback
             traceback.print_exc()
+        finally:
+            # Flush pending saves after each site to ensure data is saved
+            if self._pending_saves:
+                self._flush_pending_saves(log_callback)
         
         return results

@@ -52,6 +52,8 @@ def cleanup_stale_running_jobs(db: Session):
     """
     Clean up jobs that are marked as 'running' but have no active thread.
     This can happen if the application restarts or crashes.
+    
+    Also cleans up jobs that have been running too long (stuck jobs).
     """
     with running_threads_lock:
         running_job_ids = set(running_threads.keys())
@@ -61,12 +63,37 @@ def cleanup_stale_running_jobs(db: Session):
         ScrapeJob.status == 'running'
     ).all()
     
+    # Also check for jobs running too long (more than 2 hours)
+    from datetime import timedelta
+    stale_threshold = datetime.utcnow() - timedelta(hours=2)
+    
     for job in stale_jobs:
+        is_stale = False
+        reason = ""
+        
+        # Check if job has no active thread
         if job.id not in running_job_ids:
-            print(f"[cleanup] Found stale running job {job.id}, marking as failed")
+            is_stale = True
+            reason = "no active thread"
+        # Check if job has been running too long
+        elif job.started_at and job.started_at < stale_threshold:
+            is_stale = True
+            reason = f"running for {(datetime.utcnow() - job.started_at).total_seconds() / 3600:.1f} hours"
+        # Check if thread is dead
+        elif not is_job_actually_running(job.id):
+            is_stale = True
+            reason = "thread terminated"
+        
+        if is_stale:
+            print(f"[cleanup] Found stale running job {job.id} ({reason}), marking as failed")
             job.status = 'failed'
-            job.error_message = 'Job was interrupted (application restart or crash)'
+            job.error_message = f'Job was interrupted ({reason})'
             job.updated_at = datetime.utcnow()
+            
+            # Remove from thread tracking if present
+            with running_threads_lock:
+                if job.id in running_threads:
+                    del running_threads[job.id]
     
     if stale_jobs and any(job.id not in running_job_ids for job in stale_jobs):
         db.commit()
@@ -547,26 +574,58 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                 log_callback(f"Error details: {traceback.format_exc()}")
                 
                 db = SessionLocal()
-                job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
-                if job:
-                    job.status = 'failed'
-                    job.error_message = str(e)
-                    job.updated_at = datetime.utcnow()
-                    db.commit()
-                    
+                try:
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    if job:
+                        job.status = 'failed'
+                        job.error_message = str(e)
+                        job.updated_at = datetime.utcnow()
+                        db.commit()
+                        
+                        # Remove from thread tracking
+                        with running_threads_lock:
+                            if job_id in running_threads:
+                                del running_threads[job_id]
+                        
+                        # Still try to continue autostart chain on failure
+                        if job_autostart_enabled:
+                            print(f"[autostart] Job {job_id} failed but autostart enabled, continuing chain...")
+                            start_next_queued_job(db, previous_job_autostart=True)
+                except Exception as db_error:
+                    print(f"[job_thread] Error updating job status in database: {db_error}")
+                    db.rollback()
+                finally:
+                    db.close()
+        
+        # Create and track the thread with better exception handling
+        def run_job_wrapper():
+            try:
+                run_job_with_callback()
+            except Exception as e:
+                # Ensure job is marked as failed even if wrapper catches exception
+                print(f"[job_wrapper] Unhandled exception in job thread: {e}")
+                import traceback
+                traceback.print_exc()
+                
+                db = SessionLocal()
+                try:
+                    job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    if job and job.status == 'running':
+                        job.status = 'failed'
+                        job.error_message = f"Thread crashed: {str(e)}"
+                        job.updated_at = datetime.utcnow()
+                        db.commit()
+                except Exception as db_error:
+                    print(f"[job_wrapper] Error updating job status: {db_error}")
+                    db.rollback()
+                finally:
+                    db.close()
                     # Remove from thread tracking
                     with running_threads_lock:
                         if job_id in running_threads:
                             del running_threads[job_id]
-                    
-                    # Still try to continue autostart chain on failure
-                    if job_autostart_enabled:
-                        print(f"[autostart] Job {job_id} failed but autostart enabled, continuing chain...")
-                        start_next_queued_job(db, previous_job_autostart=True)
-                db.close()
         
-        # Create and track the thread
-        thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        thread = threading.Thread(target=run_job_wrapper, daemon=True)
         with running_threads_lock:
             running_threads[job_id] = thread
         thread.start()
@@ -812,25 +871,62 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                 log_callback(error_msg)
                 log_callback(f"Error details: {traceback.format_exc()}")
                 db_local = SessionLocal()
-                job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
-                if job:
-                    job.status = 'failed'
-                    job.error_message = str(e)
-                    job.updated_at = datetime.utcnow()
-                    db_local.commit()
-                    
-                    # Remove from thread tracking
-                    with running_threads_lock:
-                        if job_id in running_threads:
-                            del running_threads[job_id]
-                    
-                    # Still try to continue autostart chain
-                    if job.autostart_enabled:
-                        start_next_queued_job(db_local, previous_job_autostart=True)
-                db_local.close()
+                try:
+                    job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    if job:
+                        job.status = 'failed'
+                        job.error_message = str(e)
+                        job.updated_at = datetime.utcnow()
+                        db_local.commit()
+                        
+                        # Remove from thread tracking
+                        with running_threads_lock:
+                            if job_id in running_threads:
+                                del running_threads[job_id]
+                        
+                        # Still try to continue autostart chain
+                        if job.autostart_enabled:
+                            start_next_queued_job(db_local, previous_job_autostart=True)
+                except Exception as db_error:
+                    print(f"[autostart_job] Error updating job status in database: {db_error}")
+                    db_local.rollback()
+                finally:
+                    db_local.close()
         
-        # Create and track the thread
-        thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        # Create and track the thread with better exception handling
+        def run_job_wrapper():
+            try:
+                run_job_with_callback()
+            except Exception as e:
+                # Ensure job is marked as failed even if wrapper catches exception
+                print(f"[autostart_wrapper] Unhandled exception in job thread: {e}")
+                import traceback
+                traceback.print_exc()
+                
+                db_local = SessionLocal()
+                try:
+                    job = db_local.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
+                    if job and job.status == 'running':
+                        job.status = 'failed'
+                        job.error_message = f"Thread crashed: {str(e)}"
+                        job.updated_at = datetime.utcnow()
+                        db_local.commit()
+                        
+                        # Remove from thread tracking
+                        with running_threads_lock:
+                            if job_id in running_threads:
+                                del running_threads[job_id]
+                        
+                        # Still try to continue autostart chain
+                        if job_autostart:
+                            start_next_queued_job(db_local, previous_job_autostart=True)
+                except Exception as db_error:
+                    print(f"[autostart_wrapper] Error updating job status: {db_error}")
+                    db_local.rollback()
+                finally:
+                    db_local.close()
+        
+        thread = threading.Thread(target=run_job_wrapper, daemon=True)
         with running_threads_lock:
             running_threads[job_id] = thread
         thread.start()
