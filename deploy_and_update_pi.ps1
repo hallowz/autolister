@@ -76,26 +76,6 @@ if ($SetupKeys) {
     exit 0
 }
 
-# Test connection
-Write-Host "Testing connection to Raspberry Pi at $RaspberryPiIP..." -ForegroundColor Yellow
-$testResult = ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no $piUsername@$RaspberryPiIP "echo 'Connection successful'" 2>&1
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "SSH connection failed. Please check:" -ForegroundColor Red
-    Write-Host "  1. Raspberry Pi is powered on and connected to network" -ForegroundColor Yellow
-    Write-Host "  2. IP address is correct: $RaspberryPiIP" -ForegroundColor Yellow
-    Write-Host "  3. SSH is enabled on Raspberry Pi" -ForegroundColor Yellow
-    Write-Host "  4. Username '$piUsername' is correct" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "To set up passwordless SSH authentication, run:" -ForegroundColor Cyan
-    Write-Host "  .\deploy_and_update_pi.ps1 -RaspberryPiIP $RaspberryPiIP -SetupKeys" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "Or connect manually to test: ssh $piUsername@$RaspberryPiIP" -ForegroundColor Cyan
-    exit 1
-}
-Write-Host "Connection successful!" -ForegroundColor Green
-Write-Host ""
-
 # Quick restart mode - just restart containers
 if ($QuickRestart) {
     Write-Host "=========================================" -ForegroundColor Cyan
