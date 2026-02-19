@@ -373,9 +373,18 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     # If no sites provided, use DuckDuckGo to find sites
                     if not job_sites:
                         from app.scrapers.duckduckgo import DuckDuckGoScraper
-                        ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
                         log_callback("Searching DuckDuckGo for sites...")
-                        ddg_results = ddg_scraper.search(job_query, max_results=100)
+                        log_callback(f"Query: {job_query}")
+                        
+                        try:
+                            ddg_scraper = DuckDuckGoScraper({'user_agent': settings.user_agent, 'timeout': settings.request_timeout})
+                            ddg_results = ddg_scraper.search(job_query, max_results=100)
+                            log_callback(f"DuckDuckGo returned {len(ddg_results)} results")
+                        except Exception as e:
+                            log_callback(f"DuckDuckGo search failed: {e}")
+                            import traceback
+                            log_callback(f"Error details: {traceback.format_exc()}")
+                            raise Exception(f"DuckDuckGo search failed: {e}")
                         
                         # Extract unique domains from DuckDuckGo results
                         unique_domains = set()
@@ -458,8 +467,12 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             except Exception as e:
                 # Mark job as failed
                 import traceback
-                print(f"Error in job thread: {e}")
+                error_msg = f"Error in job thread: {e}"
+                print(error_msg)
                 traceback.print_exc()
+                log_callback(error_msg)
+                log_callback(f"Error details: {traceback.format_exc()}")
+                
                 db = SessionLocal()
                 job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
                 if job:

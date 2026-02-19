@@ -276,9 +276,12 @@ class MultiSiteScraper(BaseScraper):
         try:
             if log_callback:
                 log_callback(f"Scraping: {normalized_url} (depth {depth})")
+            else:
+                print(f"[MultiSiteScraper] Scraping: {normalized_url} (depth {depth})")
             
             response = self.session.get(url, timeout=self.timeout)
             response.raise_for_status()
+            print(f"[MultiSiteScraper] Successfully fetched: {normalized_url} (status: {response.status_code})")
             
             # Check if this is a direct PDF file
             if self._is_valid_extension(url):
@@ -330,6 +333,7 @@ class MultiSiteScraper(BaseScraper):
             
             # Find all PDF links on the page
             pdf_links = soup.find_all('a', href=re.compile(r'\.pdf$', re.I))
+            print(f"[MultiSiteScraper] Found {len(pdf_links)} PDF links on {normalized_url}")
             
             for link in pdf_links:
                 pdf_url = urljoin(url, link['href'])
@@ -415,11 +419,17 @@ class MultiSiteScraper(BaseScraper):
                             continue
             
         except requests.RequestException as e:
+            error_msg = f"Error scraping {url}: {e}"
             if log_callback:
-                log_callback(f"Error scraping {url}: {e}")
+                log_callback(error_msg)
+            print(f"[MultiSiteScraper] {error_msg}")
         except Exception as e:
+            error_msg = f"Unexpected error scraping {url}: {e}"
             if log_callback:
-                log_callback(f"Unexpected error scraping {url}: {e}")
+                log_callback(error_msg)
+            print(f"[MultiSiteScraper] {error_msg}")
+            import traceback
+            traceback.print_exc()
         
         return results
     
@@ -446,42 +456,49 @@ class MultiSiteScraper(BaseScraper):
                 self.sites = []
         
         # If no sites provided, use DuckDuckGo to find sites based on search terms/query
-        if not self.sites and query:
-            if log_callback:
-                log_callback(f"No sites provided, using DuckDuckGo to find sites for query: {query}")
-            
-            # Use DuckDuckGo to find sites containing PDFs
-            ddg_config = {
-                'user_agent': self.config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
-                'request_timeout': self.config.get('timeout', 30),
-                'max_results': 20  # Get up to 20 results to find sites
-            }
-            
-            ddg_scraper = DuckDuckGoScraper(ddg_config)
-            
+        if not self.sites:
             # Build DuckDuckGo query from search terms or use the provided query
             ddg_query = query
             if self.search_terms:
                 ddg_query = ' '.join(self.search_terms[:3])  # Use first 3 search terms
             
-            if log_callback:
-                log_callback(f"Searching DuckDuckGo for: {ddg_query}")
-            
-            # Search DuckDuckGo to find sites
-            ddg_results = ddg_scraper.search(ddg_query, max_results=20)
-            
-            # Extract unique domains from DuckDuckGo results
-            domains_found = set()
-            for result in ddg_results:
-                parsed_url = urlparse(result.url)
-                domain = parsed_url.netloc
-                domains_found.add(domain)
-            
-            # Convert domains to site URLs
-            self.sites = [f"https://{domain}" for domain in domains_found]
-            
-            if log_callback:
-                log_callback(f"Found {len(self.sites)} sites from DuckDuckGo: {', '.join(list(self.sites)[:5])}...")
+            if ddg_query:
+                if log_callback:
+                    log_callback(f"No sites provided, using DuckDuckGo to find sites for query: {ddg_query}")
+                
+                # Use DuckDuckGo to find sites containing PDFs
+                ddg_config = {
+                    'user_agent': self.config.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+                    'request_timeout': self.config.get('timeout', 30),
+                    'max_results': 20  # Get up to 20 results to find sites
+                }
+                
+                ddg_scraper = DuckDuckGoScraper(ddg_config)
+                
+                if log_callback:
+                    log_callback(f"Searching DuckDuckGo for: {ddg_query}")
+                
+                # Search DuckDuckGo to find sites
+                ddg_results = ddg_scraper.search(ddg_query, max_results=20)
+                
+                if log_callback:
+                    log_callback(f"DuckDuckGo returned {len(ddg_results)} results")
+                
+                # Extract unique domains from DuckDuckGo results
+                domains_found = set()
+                for result in ddg_results:
+                    parsed_url = urlparse(result.url)
+                    domain = parsed_url.netloc
+                    domains_found.add(domain)
+                
+                # Convert domains to site URLs
+                self.sites = [f"https://{domain}" for domain in domains_found]
+                
+                if log_callback:
+                    log_callback(f"Found {len(self.sites)} sites from DuckDuckGo: {', '.join(list(self.sites)[:5])}...")
+            else:
+                if log_callback:
+                    log_callback("No sites provided and no search terms/query available for DuckDuckGo search")
         
         if not self.sites:
             if log_callback:
@@ -517,8 +534,12 @@ class MultiSiteScraper(BaseScraper):
                     if log_callback:
                         log_callback(f"Completed scraping {site}: found {len(results)} PDFs")
                 except Exception as e:
+                    error_msg = f"Error scraping {site}: {e}"
                     if log_callback:
-                        log_callback(f"Error scraping {site}: {e}")
+                        log_callback(error_msg)
+                    print(f"[MultiSiteScraper] {error_msg}")
+                    import traceback
+                    traceback.print_exc()
         
         if log_callback:
             log_callback(f"Multi-site scraping completed: found {len(all_results)} PDFs total")
@@ -546,7 +567,11 @@ class MultiSiteScraper(BaseScraper):
             results = self._scrape_page(site_url, 0, visited_urls, scraped_urls, log_callback)
             
         except Exception as e:
+            error_msg = f"Error scraping site {site_url}: {e}"
             if log_callback:
-                log_callback(f"Error scraping site {site_url}: {e}")
+                log_callback(error_msg)
+            print(f"[MultiSiteScraper] {error_msg}")
+            import traceback
+            traceback.print_exc()
         
         return results

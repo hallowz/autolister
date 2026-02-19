@@ -55,11 +55,17 @@ class DuckDuckGoScraper(BaseScraper):
         
         for search_query in queries_to_search:
             try:
+                # Remove filetype:pdf operator if present (DuckDuckGo HTML doesn't support it)
+                search_query = re.sub(r'\bfiletype:pdf\b', '', search_query, flags=re.IGNORECASE)
+                search_query = search_query.strip()
+                
                 # Add "pdf" to query if not already present
                 if 'pdf' not in search_query.lower():
                     search_query_with_pdf = f"{search_query} pdf"
                 else:
                     search_query_with_pdf = search_query
+                
+                print(f"[DuckDuckGo] Searching for: {search_query_with_pdf}")
                 
                 # Prepare search parameters
                 params = {
@@ -75,6 +81,7 @@ class DuckDuckGoScraper(BaseScraper):
                     timeout=self.config.get('request_timeout', 30)
                 )
                 response.raise_for_status()
+                print(f"[DuckDuckGo] Response status: {response.status_code}")
                 
                 # Parse HTML response
                 soup = BeautifulSoup(response.text, 'html.parser')
@@ -112,15 +119,19 @@ class DuckDuckGoScraper(BaseScraper):
                             # Direct PDF link - add it directly
                             pdf_url = page_url
                             pdf_title = title
+                            print(f"[DuckDuckGo] Found direct PDF: {pdf_url}")
                         else:
                             # HTML page - fetch it and extract PDF links
+                            print(f"[DuckDuckGo] Fetching page to extract PDFs: {page_url}")
                             pdf_links = self._extract_pdf_links_from_page(page_url)
                             if not pdf_links:
+                                print(f"[DuckDuckGo] No PDF links found on page: {page_url}")
                                 continue
                             
                             # Use the first PDF link found
                             pdf_url = pdf_links[0]
                             pdf_title = title
+                            print(f"[DuckDuckGo] Found PDF link: {pdf_url}")
                         
                         # VALIDATE: Only include if URL is a downloadable PDF
                         if not self._is_valid_pdf_url(pdf_url, source):
@@ -161,9 +172,11 @@ class DuckDuckGoScraper(BaseScraper):
                 print(f"DuckDuckGo search returned {len(results)} results for query: {search_query_with_pdf}")
             
             except requests.RequestException as e:
-                print(f"DuckDuckGo search request failed for query '{search_query_with_pdf}': {e}")
+                print(f"[DuckDuckGo] Search request failed for query '{search_query_with_pdf}': {e}")
             except Exception as e:
-                print(f"DuckDuckGo search error for query '{search_query_with_pdf}': {e}")
+                print(f"[DuckDuckGo] Search error for query '{search_query_with_pdf}': {e}")
+                import traceback
+                traceback.print_exc()
         
         # Add random delay to avoid rate limiting
         time.sleep(random.uniform(1, 3))
@@ -208,8 +221,10 @@ class DuckDuckGoScraper(BaseScraper):
         pdf_links = []
         
         try:
+            print(f"[DuckDuckGo] Fetching page: {url}")
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
+            print(f"[DuckDuckGo] Page fetched successfully, status: {response.status_code}")
             
             soup = BeautifulSoup(response.text, 'html.parser')
             
@@ -232,7 +247,7 @@ class DuckDuckGoScraper(BaseScraper):
             pdf_links.extend(forum_attachments)
             
         except Exception as e:
-            print(f"Error extracting PDF links from {url}: {e}")
+            print(f"[DuckDuckGo] Error extracting PDF links from {url}: {e}")
         
         return pdf_links
     
