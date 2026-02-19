@@ -851,20 +851,37 @@ Return ONLY a JSON object with this format:
             self.log('niche_discovery', 'failed', 'GROQ_API_KEY not configured')
             return []
 
-        # Check cache
+        # Check cache - but skip caching if we're idle and have no available niches
         last_discovery = self.get_setting('last_niche_discovery')
         discovery_interval = int(self.get_setting('niche_discovery_interval_hours', '1'))
         last_time = datetime.fromisoformat(last_discovery) if last_discovery else None
-
+        
+        # Check if we should force discovery (idle state with no work)
+        force_discovery = False
         if last_discovery:
             try:
                 last_time = datetime.fromisoformat(last_discovery)
-                if datetime.utcnow() - last_time < timedelta(hours=discovery_interval):
+                # If it's been more than the interval, allow discovery
+                if datetime.utcnow() - last_time >= timedelta(hours=discovery_interval):
+                    force_discovery = True
+                else:
+                    # Check cache
                     cached = self.get_setting('cached_niches')
                     if cached:
-                        return json.loads(cached)
+                        cached_niches = json.loads(cached)
+                        # If cache is empty, force discovery
+                        if not cached_niches or len(cached_niches) == 0:
+                            force_discovery = True
+                        else:
+                            return cached_niches
             except:
-                pass
+                force_discovery = True
+        else:
+            # No previous discovery, force it
+            force_discovery = True
+        
+        if not force_discovery:
+            return []
 
         self.log('niche_discovery', 'started', 'Discovering new profitable niches')
 
