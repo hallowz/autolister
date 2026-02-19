@@ -764,7 +764,41 @@ class AutoScrapingAgent:
                     self.db.add(research)
 
         self.db.commit()
+        
+        # Move approved manuals to processing queue
+        self._move_approved_to_queue()
+        
         return suitable_count
+    
+    def _move_approved_to_queue(self) -> int:
+        """Move approved manuals to the processing queue"""
+        from app.api.scrape_routes import get_queue_position
+        
+        # Get all approved manuals that are not yet queued
+        approved_manuals = self.db.query(Manual).filter(
+            Manual.status == 'approved',
+            Manual.queue_position == None
+        ).all()
+        
+        if not approved_manuals:
+            return 0
+        
+        moved_count = 0
+        start_position = get_queue_position(self.db)
+        
+        for i, manual in enumerate(approved_manuals):
+            manual.status = 'queued'
+            manual.queue_position = start_position + i
+            manual.processing_state = 'queued'
+            manual.updated_at = datetime.utcnow()
+            moved_count += 1
+        
+        self.db.commit()
+        
+        if moved_count > 0:
+            self.log('queue_move', 'completed', f'Moved {moved_count} approved manuals to processing queue')
+        
+        return moved_count
     
     def _parse_price(self, price_str: str) -> float:
         """Parse price string like '4.99-9.99' to float (take lower bound)"""

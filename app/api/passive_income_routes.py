@@ -726,6 +726,297 @@ def evaluate_manual(manual_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"{str(e)}\n{traceback.format_exc()}")
 
 
+# ============ Manual Management Endpoints ============
+
+@router.get("/manuals")
+def get_manuals(
+    status: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Get all manuals with market research data"""
+    from app.passive_income.database import MarketResearch
+    
+    query = db.query(Manual)
+    
+    if status:
+        query = query.filter(Manual.status == status)
+    
+    manuals = query.order_by(Manual.created_at.desc()).limit(limit).all()
+    
+    # Get statistics
+    stats = {
+        'pending': db.query(Manual).filter(Manual.status == 'pending').count(),
+        'approved': db.query(Manual).filter(Manual.status == 'approved').count(),
+        'rejected': db.query(Manual).filter(Manual.status == 'rejected').count(),
+        'processing': db.query(Manual).filter(Manual.status == 'processing').count(),
+        'processed': db.query(Manual).filter(Manual.status == 'processed').count(),
+        'queued': db.query(Manual).filter(Manual.queue_position.isnot(None)).count()
+    }
+    
+    # Get market research for each manual
+    result = []
+    for manual in manuals:
+        research = db.query(MarketResearch).filter(
+            MarketResearch.manual_id == manual.id
+        ).first()
+        
+        manual_data = {
+            'id': manual.id,
+            'title': manual.title,
+            'manufacturer': manual.manufacturer,
+            'model': manual.model,
+            'year': manual.year,
+            'source_type': manual.source_type,
+            'source_url': manual.source_url,
+            'status': manual.status,
+            'pdf_path': manual.pdf_path,
+            'queue_position': manual.queue_position,
+            'created_at': manual.created_at.isoformat() if manual.created_at else None,
+            'market_research': {
+                'is_suitable': research.is_suitable if research else None,
+                'confidence_score': research.confidence_score if research else None,
+                'suggested_price': research.suggested_price if research else None,
+                'demand_score': research.demand_score if research else None,
+                'competition_score': research.competition_score if research else None,
+                'profitability_score': research.profitability_score if research else None,
+                'ai_evaluation': research.ai_evaluation if research else None
+            } if research else None
+        }
+        
+        # Add top-level fields for easier access
+        if research:
+            manual_data['is_suitable'] = research.is_suitable
+            manual_data['confidence_score'] = research.confidence_score
+            manual_data['suggested_price'] = research.suggested_price
+        
+        result.append(manual_data)
+    
+    return {
+        'manuals': result,
+        'stats': stats
+    }
+
+
+@router.get("/manuals/{manual_id}")
+def get_manual_detail(manual_id: int, db: Session = Depends(get_db)):
+    """Get detailed information about a specific manual"""
+    from app.passive_income.database import MarketResearch
+    
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    research = db.query(MarketResearch).filter(
+        MarketResearch.manual_id == manual_id
+    ).first()
+    
+    result = {
+        'id': manual.id,
+        'title': manual.title,
+        'manufacturer': manual.manufacturer,
+        'model': manual.model,
+        'year': manual.year,
+        'source_type': manual.source_type,
+        'source_url': manual.source_url,
+        'status': manual.status,
+        'pdf_path': manual.pdf_path,
+        'description': manual.description,
+        'tags': manual.tags,
+        'queue_position': manual.queue_position,
+        'processing_state': manual.processing_state,
+        'processing_started_at': manual.processing_started_at.isoformat() if manual.processing_started_at else None,
+        'processing_completed_at': manual.processing_completed_at.isoformat() if manual.processing_completed_at else None,
+        'created_at': manual.created_at.isoformat() if manual.created_at else None,
+        'updated_at': manual.updated_at.isoformat() if manual.updated_at else None,
+        'error_message': manual.error_message
+    }
+    
+    if research:
+        result['market_research'] = {
+            'id': research.id,
+            'is_suitable': research.is_suitable,
+            'confidence_score': research.confidence_score,
+            'suggested_price': research.suggested_price,
+            'demand_score': research.demand_score,
+            'competition_score': research.competition_score,
+            'profitability_score': research.profitability_score,
+            'seo_title': research.seo_title,
+            'target_audience': research.target_audience,
+            'concerns': research.concerns,
+            'ai_evaluation': research.ai_evaluation,
+            'created_at': research.created_at.isoformat() if research.created_at else None
+        }
+    
+    return result
+
+
+@router.post("/manuals/{manual_id}/approve")
+def approve_manual(manual_id: int, db: Session = Depends(get_db)):
+    """Manually approve a manual for listing"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    manual.status = 'approved'
+    manual.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {'message': f'Manual {manual_id} approved successfully'}
+
+
+@router.post("/manuals/{manual_id}/reject")
+def reject_manual(manual_id: int, db: Session = Depends(get_db)):
+    """Manually reject a manual"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    manual.status = 'rejected'
+    manual.updated_at = datetime.utcnow()
+    db.commit()
+    
+    return {'message': f'Manual {manual_id} rejected successfully'}
+
+
+@router.post("/manuals/{manual_id}/evaluate")
+def evaluate_manual(manual_id: int, db: Session = Depends(get_db)):
+    """Evaluate a single manual with AI"""
+    from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+    
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    agent = AutoScrapingAgent(db)
+    
+    try:
+        evaluation_result = agent._evaluate_manual_with_ai(manual)
+        
+        if evaluation_result:
+            from app.passive_income.database import MarketResearch
+            import json
+            
+            research = db.query(MarketResearch).filter(
+                MarketResearch.manual_id == manual_id
+            ).first()
+            
+            if not research:
+                research = MarketResearch(manual_id=manual_id)
+                db.add(research)
+            
+            research.ai_evaluation = json.dumps(evaluation_result)
+            research.is_suitable = evaluation_result.get('suitable', False)
+            research.confidence_score = evaluation_result.get('confidence', 0.0)
+            research.suggested_price = evaluation_result.get('suggested_price', 4.99)
+            
+            # Update manual status based on evaluation
+            if evaluation_result.get('suitable'):
+                manual.status = 'approved'
+            else:
+                manual.status = 'rejected'
+            
+            db.commit()
+            
+            return {
+                'message': f'Manual {manual_id} evaluated successfully',
+                'suitable': evaluation_result.get('suitable'),
+                'confidence': evaluation_result.get('confidence'),
+                'reason': evaluation_result.get('reason')
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Evaluation failed")
+            
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{str(e)}\n{traceback.format_exc()}")
+
+
+@router.post("/manuals/evaluate-pending")
+def evaluate_pending_manuals(db: Session = Depends(get_db)):
+    """Evaluate all pending manuals with AI"""
+    from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+    
+    agent = AutoScrapingAgent(db)
+    
+    try:
+        evaluated_count = agent._evaluate_pending_manuals(limit=50)
+        
+        return {
+            'message': f'Evaluated {evaluated_count} pending manuals',
+            'evaluated_count': evaluated_count
+        }
+        
+    except Exception as e:
+        import traceback
+        raise HTTPException(status_code=500, detail=f"{str(e)}\n{traceback.format_exc()}")
+
+
+@router.post("/manuals/{manual_id}/move-to-queue")
+def move_manual_to_queue(manual_id: int, db: Session = Depends(get_db)):
+    """Move an approved manual to the processing queue"""
+    manual = db.query(Manual).filter(Manual.id == manual_id).first()
+    
+    if not manual:
+        raise HTTPException(status_code=404, detail="Manual not found")
+    
+    if manual.status != 'approved':
+        raise HTTPException(status_code=400, detail="Only approved manuals can be moved to queue")
+    
+    # Get the next available queue position
+    from app.api.scrape_routes import get_queue_position
+    queue_pos = get_queue_position(db)
+    
+    # Update manual status and queue position
+    manual.status = 'queued'
+    manual.queue_position = queue_pos
+    manual.processing_state = 'queued'
+    manual.updated_at = datetime.utcnow()
+    
+    db.commit()
+    
+    return {
+        'message': f'Manual {manual_id} moved to queue at position {queue_pos}',
+        'queue_position': queue_pos
+    }
+
+
+@router.post("/manuals/move-approved-to-queue")
+def move_all_approved_to_queue(db: Session = Depends(get_db)):
+    """Move all approved manuals to the processing queue"""
+    from app.api.scrape_routes import get_queue_position, reposition_queue
+    
+    # Get all approved manuals
+    approved_manuals = db.query(Manual).filter(
+        Manual.status == 'approved'
+    ).all()
+    
+    if not approved_manuals:
+        return {'message': 'No approved manuals to move', 'moved_count': 0}
+    
+    moved_count = 0
+    start_position = get_queue_position(db)
+    
+    for i, manual in enumerate(approved_manuals):
+        manual.status = 'queued'
+        manual.queue_position = start_position + i
+        manual.processing_state = 'queued'
+        manual.updated_at = datetime.utcnow()
+        moved_count += 1
+    
+    db.commit()
+    
+    return {
+        'message': f'Moved {moved_count} approved manuals to queue',
+        'moved_count': moved_count,
+        'start_position': start_position
+    }
+
+
 # ============ Auto-Scraping Logs ============
 
 @router.get("/auto-scraping/logs")

@@ -326,6 +326,11 @@
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#listings">Listings</button>
             </li>
             <li class="nav-item">
+                <button class="nav-link" data-bs-toggle="tab" data-bs-target="#manuals">
+                    Manuals <span class="badge bg-warning" id="manuals-tab-badge">0</span>
+                </button>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link" data-bs-toggle="tab" data-bs-target="#actions">
                     Actions <span class="badge bg-danger" id="actions-tab-badge">0</span>
                 </button>
@@ -398,6 +403,102 @@
                                 </tr>
                             </thead>
                             <tbody id="listings-table">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manuals Tab -->
+            <div class="tab-pane fade" id="manuals">
+                <div class="d-flex justify-content-between mb-3">
+                    <h4>Manuals - Suitability Check</h4>
+                    <div>
+                        <select class="form-select d-inline-block w-auto" id="manual-filter" onchange="loadManuals()">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending Review</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="processing">Processing</option>
+                            <option value="processed">Processed</option>
+                        </select>
+                        <button class="btn btn-success ms-2" onclick="moveApprovedToQueue()">
+                            <i class="bi bi-arrow-down-circle"></i> Move Approved to Queue
+                        </button>
+                        <button class="btn btn-primary ms-2" onclick="evaluateAllPending()">
+                            <i class="bi bi-robot"></i> Evaluate All Pending
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Stats Row -->
+                <div class="row mb-3">
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-warning" id="stat-pending">0</h5>
+                                <small class="text-muted">Pending</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-success" id="stat-approved">0</h5>
+                                <small class="text-muted">Approved</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-danger" id="stat-rejected">0</h5>
+                                <small class="text-muted">Rejected</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-info" id="stat-processing">0</h5>
+                                <small class="text-muted">Processing</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title text-primary" id="stat-processed">0</h5>
+                                <small class="text-muted">Processed</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <h5 class="card-title" id="stat-queued">0</h5>
+                                <small class="text-muted">In Queue</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Source</th>
+                                    <th>Status</th>
+                                    <th>Suitability</th>
+                                    <th>Confidence</th>
+                                    <th>Suggested Price</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="manuals-table">
                             </tbody>
                         </table>
                     </div>
@@ -499,6 +600,24 @@
         </div>
     </div>
 
+    <!-- Manual Details Modal -->
+    <div class="modal fade" id="manualModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content bg-dark">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="manualModalTitle">Manual Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="manualModalBody">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Cycle Results Modal -->
     <div class="modal fade" id="cycleResultsModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
@@ -536,6 +655,7 @@
             loadActions();
             loadAutoScrapingStatus();
             loadNiches();
+            loadManuals();
             
             // Setup Run Again button
             const runAgainBtn = document.getElementById('run-again-btn');
@@ -1068,6 +1188,281 @@
             if (p.credentials_status === 'verified' && p.is_active) return 'connected';
             if (p.credentials_status === 'pending') return 'pending';
             return 'disconnected';
+        }
+        
+        async function loadManuals() {
+            const status = document.getElementById('manual-filter').value;
+            const url = '/api/passive-income/manuals' + (status ? `?status=${status}` : '');
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                // Update stats
+                document.getElementById('stat-pending').textContent = data.stats.pending || 0;
+                document.getElementById('stat-approved').textContent = data.stats.approved || 0;
+                document.getElementById('stat-rejected').textContent = data.stats.rejected || 0;
+                document.getElementById('stat-processing').textContent = data.stats.processing || 0;
+                document.getElementById('stat-processed').textContent = data.stats.processed || 0;
+                document.getElementById('stat-queued').textContent = data.stats.queued || 0;
+                
+                // Update badge
+                const pendingCount = data.stats.pending || 0;
+                document.getElementById('manuals-tab-badge').textContent = pendingCount;
+                
+                const tbody = document.getElementById('manuals-table');
+                
+                if (data.manuals.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">No manuals found</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.manuals.map(m => {
+                    const statusBadge = getStatusBadge(m.status);
+                    const suitabilityBadge = getSuitabilityBadge(m.is_suitable, m.confidence_score);
+                    const confidenceDisplay = m.confidence_score ? `${(m.confidence_score * 100).toFixed(0)}%` : '-';
+                    const priceDisplay = m.suggested_price ? `$${m.suggested_price.toFixed(2)}` : '-';
+                    
+                    return `
+                    <tr>
+                        <td><small>${m.id}</small></td>
+                        <td>
+                            <div class="fw-bold">${m.title || 'Untitled'}</div>
+                            <small class="text-muted">${m.manufacturer || ''} ${m.model || ''}</small>
+                        </td>
+                        <td><small>${m.source_type || 'unknown'}</small></td>
+                        <td><span class="badge ${statusBadge.class}">${statusBadge.text}</span></td>
+                        <td>${suitabilityBadge}</td>
+                        <td><small>${confidenceDisplay}</small></td>
+                        <td><small>${priceDisplay}</small></td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                ${m.status === 'pending' ? `
+                                    <button class="btn btn-outline-success" onclick="approveManual(${m.id})" title="Approve">
+                                        <i class="bi bi-check"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="rejectManual(${m.id})" title="Reject">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                    <button class="btn btn-outline-info" onclick="evaluateManual(${m.id})" title="Evaluate with AI">
+                                        <i class="bi bi-robot"></i>
+                                    </button>
+                                ` : ''}
+                                ${m.status === 'approved' ? `
+                                    <button class="btn btn-outline-primary" onclick="moveToQueue(${m.id})" title="Move to Queue">
+                                        <i class="bi bi-arrow-down-circle"></i>
+                                    </button>
+                                ` : ''}
+                                <button class="btn btn-outline-secondary" onclick="showManualDetails(${m.id})" title="Details">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `}).join('');
+            } catch (error) {
+                console.error('Error loading manuals:', error);
+            }
+        }
+        
+        function getStatusBadge(status) {
+            const badges = {
+                'pending': { class: 'bg-warning text-dark', text: 'Pending' },
+                'approved': { class: 'bg-success', text: 'Approved' },
+                'rejected': { class: 'bg-danger', text: 'Rejected' },
+                'processing': { class: 'bg-info', text: 'Processing' },
+                'processed': { class: 'bg-primary', text: 'Processed' },
+                'queued': { class: 'bg-secondary', text: 'Queued' }
+            };
+            return badges[status] || { class: 'bg-secondary', text: status };
+        }
+        
+        function getSuitabilityBadge(isSuitable, confidence) {
+            if (isSuitable === null || isSuitable === undefined) {
+                return '<span class="badge bg-secondary">Not Evaluated</span>';
+            }
+            if (isSuitable) {
+                const confClass = confidence > 0.8 ? 'bg-success' : confidence > 0.5 ? 'bg-warning text-dark' : 'bg-secondary';
+                return `<span class="badge ${confClass}">Suitable</span>`;
+            }
+            return '<span class="badge bg-danger">Not Suitable</span>';
+        }
+        
+        async function approveManual(manualId) {
+            try {
+                const response = await fetch(`/api/passive-income/manuals/${manualId}/approve`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error approving manual: ' + error.message, 'danger');
+            }
+        }
+        
+        async function rejectManual(manualId) {
+            try {
+                const response = await fetch(`/api/passive-income/manuals/${manualId}/reject`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error rejecting manual: ' + error.message, 'danger');
+            }
+        }
+        
+        async function evaluateManual(manualId) {
+            try {
+                showToast('Evaluating manual with AI...', 'info');
+                const response = await fetch(`/api/passive-income/manuals/${manualId}/evaluate`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error evaluating manual: ' + error.message, 'danger');
+            }
+        }
+        
+        async function evaluateAllPending() {
+            try {
+                showToast('Evaluating all pending manuals...', 'info');
+                const response = await fetch('/api/passive-income/manuals/evaluate-pending', { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error evaluating manuals: ' + error.message, 'danger');
+            }
+        }
+        
+        async function moveToQueue(manualId) {
+            try {
+                const response = await fetch(`/api/passive-income/manuals/${manualId}/move-to-queue`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error moving to queue: ' + error.message, 'danger');
+            }
+        }
+        
+        async function moveApprovedToQueue() {
+            try {
+                const response = await fetch('/api/passive-income/manuals/move-approved-to-queue', { method: 'POST' });
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Unknown error');
+                }
+                
+                showToast(data.message, 'success');
+                loadManuals();
+            } catch (error) {
+                showToast('Error moving approved manuals: ' + error.message, 'danger');
+            }
+        }
+        
+        async function showManualDetails(manualId) {
+            try {
+                const response = await fetch(`/api/passive-income/manuals/${manualId}`);
+                const data = await response.json();
+                
+                const modalTitle = document.getElementById('manualModalTitle');
+                const modalBody = document.getElementById('manualModalBody');
+                
+                modalTitle.textContent = `Manual #${data.id}`;
+                
+                let html = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Title</h6>
+                            <p>${data.title || 'Untitled'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Status</h6>
+                            <span class="badge ${getStatusBadge(data.status).class}">${getStatusBadge(data.status).text}</span>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Manufacturer</h6>
+                            <p>${data.manufacturer || '-'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Model</h6>
+                            <p>${data.model || '-'}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Source Type</h6>
+                            <p>${data.source_type || '-'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Source URL</h6>
+                            <p><a href="${data.source_url}" target="_blank" class="text-info">${data.source_url.substring(0, 50)}...</a></p>
+                        </div>
+                    </div>
+                `;
+                
+                if (data.market_research) {
+                    const mr = data.market_research;
+                    html += `
+                        <hr>
+                        <div class="alert alert-info">
+                            <h6>Market Research</h6>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <strong>Suitability:</strong> ${getSuitabilityBadge(mr.is_suitable, mr.confidence_score)}<br>
+                                    <strong>Confidence:</strong> ${mr.confidence_score ? (mr.confidence_score * 100).toFixed(0) + '%' : '-'}<br>
+                                    <strong>Suggested Price:</strong> $${mr.suggested_price || '4.99'}
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>Demand Score:</strong> ${mr.demand_score || 0}<br>
+                                    <strong>Competition Score:</strong> ${mr.competition_score || 0}<br>
+                                    <strong>Profitability Score:</strong> ${mr.profitability_score || 0}
+                                </div>
+                            </div>
+                            ${mr.ai_evaluation ? `
+                                <hr>
+                                <h6>AI Evaluation</h6>
+                                <pre class="bg-dark text-light p-2 rounded small">${JSON.stringify(JSON.parse(mr.ai_evaluation), null, 2)}</pre>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+                
+                modalBody.innerHTML = html;
+                new bootstrap.Modal(document.getElementById('manualModal')).show();
+            } catch (error) {
+                showToast('Error loading manual details: ' + error.message, 'danger');
+            }
         }
         
         async function loadActions() {
