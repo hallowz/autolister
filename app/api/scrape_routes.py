@@ -3,7 +3,7 @@ API routes for scrape job queue management
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from app.database import get_db, ScrapeJob, ScrapeJobLog, SessionLocal
 from app.api.schemas import (
@@ -13,10 +13,15 @@ from app.api.schemas import (
 )
 from app.config import get_settings
 import json
+import threading
 
 settings = get_settings()
 
 router = APIRouter(prefix="/api/scrape-jobs", tags=["Scrape Jobs"])
+
+# Global thread tracking
+running_threads = {}  # Maps job_id -> thread object
+running_threads_lock = threading.Lock()
 
 
 def get_queue_position(db: Session) -> int:
@@ -41,6 +46,43 @@ def reposition_queue(db: Session, from_position: int = 0):
         job.queue_position = i
     
     db.commit()
+
+
+def cleanup_stale_running_jobs(db: Session):
+    """
+    Clean up jobs that are marked as 'running' but have no active thread.
+    This can happen if the application restarts or crashes.
+    """
+    with running_threads_lock:
+        running_job_ids = set(running_threads.keys())
+    
+    # Find jobs marked as running but without an active thread
+    stale_jobs = db.query(ScrapeJob).filter(
+        ScrapeJob.status == 'running'
+    ).all()
+    
+    for job in stale_jobs:
+        if job.id not in running_job_ids:
+            print(f"[cleanup] Found stale running job {job.id}, marking as failed")
+            job.status = 'failed'
+            job.error_message = 'Job was interrupted (application restart or crash)'
+            job.updated_at = datetime.utcnow()
+    
+    if stale_jobs and any(job.id not in running_job_ids for job in stale_jobs):
+        db.commit()
+
+
+def is_job_actually_running(job_id: int) -> bool:
+    """Check if a job has an actively running thread"""
+    with running_threads_lock:
+        if job_id not in running_threads:
+            return False
+        thread = running_threads[job_id]
+        if not thread.is_alive():
+            # Clean up dead thread
+            del running_threads[job_id]
+            return False
+        return True
 
 
 @router.get("", response_model=ScrapeJobListResponse)
@@ -119,11 +161,13 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
     
     # If autostart is enabled and no job is currently running, start immediately
     if job.autostart_enabled and job_status == 'queued':
+        # Clean up stale jobs first
+        cleanup_stale_running_jobs(db)
+        
         running_job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
-        if not running_job:
+        if not running_job or not is_job_actually_running(running_job.id):
             print(f"[create_scrape_job] Autostart enabled and no running job, starting job {db_job.id} immediately")
             # Start the job asynchronously
-            import threading
             def auto_start():
                 db_local = SessionLocal()
                 start_next_queued_job(db_local, previous_job_autostart=False)
@@ -138,9 +182,21 @@ def create_scrape_job(job: ScrapeJobCreate, db: Session = Depends(get_db)):
 @router.get("/current-scrape")
 def get_current_scrape(db: Session = Depends(get_db)):
     """Get the currently running scrape job"""
+    # Clean up any stale running jobs first
+    cleanup_stale_running_jobs(db)
+    
     job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
     
     if not job:
+        return {"running": False, "job": None}
+    
+    # Verify the job is actually running (has an active thread)
+    if not is_job_actually_running(job.id):
+        # Job is marked as running but thread is dead - clean it up
+        job.status = 'failed'
+        job.error_message = 'Job thread terminated unexpectedly'
+        job.updated_at = datetime.utcnow()
+        db.commit()
         return {"running": False, "job": None}
     
     return {
@@ -250,6 +306,9 @@ def delete_scrape_job(job_id: int, db: Session = Depends(get_db)):
 @router.post("/{job_id}/run")
 def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
     """Run a queued scrape job immediately"""
+    # First, clean up any stale running jobs
+    cleanup_stale_running_jobs(db)
+    
     job = db.query(ScrapeJob).filter(ScrapeJob.id == job_id).first()
     
     if not job:
@@ -264,9 +323,9 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
             detail=f"Cannot run job with status '{job.status}'"
         )
     
-    # Check if there's already a running job
+    # Check if there's already a running job (both in DB and actually running)
     running_job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
-    if running_job:
+    if running_job and is_job_actually_running(running_job.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Another scrape job is already running. Only one job can run at a time."
@@ -459,6 +518,11 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     job.updated_at = datetime.utcnow()
                     db.commit()
                     
+                    # Remove from thread tracking
+                    with running_threads_lock:
+                        if job_id in running_threads:
+                            del running_threads[job_id]
+                    
                     # Check if autostart is enabled and start next job
                     if job_autostart_enabled:
                         print(f"[autostart] Job {job_id} completed with autostart, starting next job...")
@@ -481,13 +545,21 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
                     job.updated_at = datetime.utcnow()
                     db.commit()
                     
+                    # Remove from thread tracking
+                    with running_threads_lock:
+                        if job_id in running_threads:
+                            del running_threads[job_id]
+                    
                     # Still try to continue autostart chain on failure
                     if job_autostart_enabled:
                         print(f"[autostart] Job {job_id} failed but autostart enabled, continuing chain...")
                         start_next_queued_job(db, previous_job_autostart=True)
-                    db.close()
+                db.close()
         
+        # Create and track the thread
         thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        with running_threads_lock:
+            running_threads[job_id] = thread
         thread.start()
         
     except Exception as e:
@@ -506,7 +578,10 @@ def run_scrape_job(job_id: int, db: Session = Depends(get_db)):
 def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
     """Start the next queued job if autostart chain is enabled"""
     try:
-        # First, reposition the queue to ensure position 1 exists
+        # First, clean up any stale running jobs
+        cleanup_stale_running_jobs(db)
+        
+        # Reposition the queue to ensure position 1 exists
         reposition_queue(db, 0)
         
         # Get the next queued job (position 1 or first by position)
@@ -692,11 +767,16 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                     job.updated_at = datetime.utcnow()
                     db_local.commit()
                     
+                    # Remove from thread tracking
+                    with running_threads_lock:
+                        if job_id in running_threads:
+                            del running_threads[job_id]
+                    
                     # Continue autostart chain if this job has autostart enabled
                     if job.autostart_enabled:
                         print(f"[autostart] Job {job_id} completed with autostart, starting next job...")
                         start_next_queued_job(db_local, previous_job_autostart=True)
-                    db_local.close()
+                db_local.close()
             except Exception as e:
                 import traceback
                 print(f"Error in autostart job: {e}")
@@ -709,12 +789,20 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
                     job.updated_at = datetime.utcnow()
                     db_local.commit()
                     
+                    # Remove from thread tracking
+                    with running_threads_lock:
+                        if job_id in running_threads:
+                            del running_threads[job_id]
+                    
                     # Still try to continue autostart chain
                     if job.autostart_enabled:
                         start_next_queued_job(db_local, previous_job_autostart=True)
                 db_local.close()
         
+        # Create and track the thread
         thread = threading.Thread(target=run_job_with_callback, daemon=True)
+        with running_threads_lock:
+            running_threads[job_id] = thread
         thread.start()
         return True
         
@@ -773,13 +861,32 @@ def stop_scrape_job(job_id: int, db: Session = Depends(get_db)):
             detail=f"Job is not running (current status: '{job.status}')"
         )
     
+    # Stop the actual scraping thread
+    with running_threads_lock:
+        if job_id in running_threads:
+            thread = running_threads[job_id]
+            # Note: We can't forcefully stop a thread in Python, but we can:
+            # 1. Remove it from tracking so it won't be considered "running"
+            # 2. The job will naturally complete or fail, and we'll clean up
+            del running_threads[job_id]
+            print(f"[stop_job] Removed job {job_id} from active tracking")
+    
     # Update job status
     job.status = 'queued'
     job.queue_position = get_queue_position(db)
+    job.error_message = 'Job was stopped by user'
     job.updated_at = datetime.utcnow()
     db.commit()
     
-    # TODO: Stop the actual scraping job
+    # Add a log entry
+    log_entry = ScrapeJobLog(
+        job_id=job_id,
+        time=datetime.utcnow(),
+        level="warning",
+        message="Job was stopped by user"
+    )
+    db.add(log_entry)
+    db.commit()
     
     return {"message": "Scrape job stopped successfully"}
 
