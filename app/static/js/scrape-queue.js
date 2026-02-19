@@ -137,8 +137,11 @@ function displayScrapeLogs(logs) {
         return;
     }
     
+    // Reverse logs so oldest appears first, newest at bottom
+    const reversedLogs = [...logs].reverse();
+    
     let html = '';
-    logs.forEach(log => {
+    reversedLogs.forEach(log => {
         const time = new Date(log.time).toLocaleTimeString();
         const messageClass = log.level ? `log-message ${log.level}` : 'log-message';
         html += `<div class="log-entry">
