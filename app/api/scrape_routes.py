@@ -655,6 +655,12 @@ def start_next_queued_job(db: Session, previous_job_autostart: bool = True):
         # First, clean up any stale running jobs
         cleanup_stale_running_jobs(db)
         
+        # Check if there's already a running job (after cleanup)
+        running_job = db.query(ScrapeJob).filter(ScrapeJob.status == 'running').first()
+        if running_job and is_job_actually_running(running_job.id):
+            print(f"[start_next_queued_job] Job {running_job.id} is already running, skipping")
+            return False
+        
         # Reposition the queue to ensure position 1 exists
         reposition_queue(db, 0)
         
