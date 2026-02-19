@@ -221,8 +221,19 @@ def init_db():
 
 def regenerate_db():
     """Regenerate the database by dropping all tables and recreating them"""
-    # Drop all tables
+    from app.passive_income.database import (
+        Platform, PlatformListing, ActionQueue, Revenue, Setting, AgentLog,
+        NicheDiscovery, MarketResearch, AutoScrapingState
+    )
+    
+    # Drop all tables including passive income tables
     Base.metadata.drop_all(bind=engine)
-    # Recreate all tables
+    
+    # Recreate all tables including passive income tables
     Base.metadata.create_all(bind=engine)
+    
+    # Initialize default platforms
+    from app.passive_income.database import init_default_platforms
+    init_default_platforms()
+    
     print("Database regenerated successfully!")

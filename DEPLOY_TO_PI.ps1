@@ -147,6 +147,10 @@ chmod +x .env
 cd docker
 docker-compose build
 
+# Regenerate database
+echo "--- Regenerating database ---"
+docker-compose run --rm autolister python -c 'from app.database import regenerate_db; regenerate_db()'
+
 # Start the application
 docker-compose up -d
 
