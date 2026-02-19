@@ -633,6 +633,7 @@ class AutoScrapingAgent:
                 search_terms=','.join([niche.niche] + keywords[:5]) if keywords else niche.niche,
                 exclude_terms='preview,operator,user manual,quick start,brochure,catalog',
                 sites=json.dumps(sites) if sites else None,  # None triggers DuckDuckGo site discovery
+                min_pages=10,  # Require at least 10 pages for service manuals
                 max_results=100,
                 equipment_type=niche.niche.split()[0] if niche.niche else None,
                 autostart_enabled=True,
