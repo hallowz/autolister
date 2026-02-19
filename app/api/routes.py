@@ -223,6 +223,15 @@ async def upload_pdf(
         db.commit()
         db.refresh(manual)
         
+        # Trigger the auto-scraping agent to evaluate pending manuals
+        # This ensures the agent doesn't go idle while jobs are running
+        try:
+            from app.tasks.jobs import trigger_agent_evaluation
+            trigger_agent_evaluation.apply_async(countdown=2)
+        except Exception as e:
+            # Log but don't fail if triggering the task fails
+            print(f"[upload_pdf] Failed to trigger agent evaluation: {e}")
+        
         return {
             "message": "PDF uploaded successfully",
             "manual_id": manual.id,

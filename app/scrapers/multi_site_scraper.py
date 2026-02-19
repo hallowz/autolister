@@ -16,6 +16,7 @@ from app.database import SessionLocal, Manual, ScrapedSite
 from datetime import datetime
 from urllib.parse import urlparse as url_parse
 from .duckduckgo import DuckDuckGoScraper
+from celery import current_app
 
 
 class MultiSiteScraper(BaseScraper):
@@ -184,6 +185,16 @@ class MultiSiteScraper(BaseScraper):
             
             # Track that this URL has been saved
             self.saved_urls.add(result.url)
+            
+            # Trigger the auto-scraping agent to evaluate pending manuals
+            # This ensures the agent doesn't go idle while jobs are running
+            try:
+                from app.tasks.jobs import trigger_agent_evaluation
+                # Trigger asynchronously with a small delay to allow the transaction to complete
+                trigger_agent_evaluation.apply_async(countdown=2)
+            except Exception as e:
+                # Log but don't fail if triggering the task fails
+                print(f"[MultiSiteScraper] Failed to trigger agent evaluation: {e}")
             
             # Update or create scraped site record
             parsed = url_parse(result.url)

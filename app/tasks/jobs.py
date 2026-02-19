@@ -85,6 +85,14 @@ def run_search_job(
         db.commit()
         print(f"[run_search_job] Saved {new_count} new manuals")
         
+        # Trigger the auto-scraping agent to evaluate pending manuals
+        # This ensures the agent doesn't go idle while jobs are running
+        if new_count > 0:
+            try:
+                trigger_agent_evaluation.apply_async(countdown=2)
+            except Exception as e:
+                print(f"[run_search_job] Failed to trigger agent evaluation: {e}")
+        
     except Exception as e:
         print(f"[run_search_job] Error: {e}")
         db.rollback()
@@ -640,6 +648,66 @@ def run_auto_scraping_cycle():
         
         return {'status': 'error', 'error': str(e)}
             
+    finally:
+        db.close()
+
+
+@shared_task(name="app.tasks.jobs.trigger_agent_evaluation")
+def trigger_agent_evaluation():
+    """
+    Trigger the auto-scraping agent to evaluate pending manuals.
+    
+    This task is called when new manuals are added during scraping,
+    ensuring the agent doesn't go idle while jobs are running.
+    """
+    db = SessionLocal()
+    
+    try:
+        from app.passive_income.auto_scraping_agent import AutoScrapingAgent
+        from app.passive_income.database import AutoScrapingState
+        
+        # Check if auto-scraping is enabled
+        state = db.query(AutoScrapingState).first()
+        if not state or not state.is_enabled:
+            print("[trigger_agent_evaluation] Auto-scraping is disabled, skipping evaluation")
+            return {'status': 'disabled', 'message': 'Auto-scraping is disabled'}
+        
+        # Check if there are pending manuals to evaluate
+        pending_count = db.query(Manual).filter(
+            Manual.status == 'pending'
+        ).count()
+        
+        if pending_count == 0:
+            print("[trigger_agent_evaluation] No pending manuals to evaluate")
+            return {'status': 'idle', 'message': 'No pending manuals'}
+        
+        # Run the agent's evaluation cycle
+        agent = AutoScrapingAgent(db)
+        
+        # Only evaluate pending manuals, don't run the full cycle
+        # which would create new jobs or discover niches
+        manuals_processed = agent._evaluate_pending_manuals(pending_count)
+        
+        # Update state
+        state.total_manuals_evaluated = (state.total_manuals_evaluated or 0) + manuals_processed
+        state.current_phase = 'evaluating'
+        state.last_cycle_at = datetime.utcnow()
+        db.commit()
+        
+        print(f"[trigger_agent_evaluation] Evaluated {manuals_processed} manuals")
+        
+        return {
+            'status': 'completed',
+            'manuals_processed': manuals_processed,
+            'pending_count': pending_count
+        }
+        
+    except Exception as e:
+        print(f"[trigger_agent_evaluation] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {'status': 'error', 'error': str(e)}
+        
     finally:
         db.close()
 
